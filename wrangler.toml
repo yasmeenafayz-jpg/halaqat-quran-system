@@ -1,0 +1,16 @@
+name = "alawabin-api"
+main = "worker/src/index.js"
+compatibility_date = "2026-08-17"
+
+[assets]
+directory = "./dist"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "halaqat-db"
+database_id = "PUT_DATABASE_ID_HERE"
+migrations_dir = "migrations"
+
+[vars]
+APP_NAME = "الأوَّابين"
+APP_ENV = "production"
