@@ -1,0 +1,116 @@
+{
+  "app": {
+    "name": "الأوَّابين",
+    "shortName": "الأوَّابين",
+    "language": "ar",
+    "direction": "rtl",
+    "timezone": "Africa/Cairo",
+    "environment": "production"
+  },
+
+  "academy": {
+    "trialDays": 3,
+    "studentAccounts": true,
+    "individualSessions": true,
+    "groupSessions": true,
+    "attendance": true,
+    "tests": true,
+    "cumulativeScore": true,
+    "backupAndImport": true
+  },
+
+  "quran": {
+    "enableQuranSection": true,
+    "enableNewMemorization": true,
+    "enableReview": true,
+    "enableNewAndReview": true,
+    "enableMastery": true,
+    "enableCumulativeRecitation": true,
+    "calculateByAyah": true,
+
+    "portions": [
+      "ربع وجه",
+      "نصف وجه",
+      "وجه",
+      "ربعين",
+      "حزب",
+      "جزء"
+    ],
+
+    "groupPath": [
+      "القاعدة / نور البيان",
+      "حفظ جزء عم",
+      "حفظ جزء تبارك",
+      "جزء قد سمع",
+      "سورة البقرة"
+    ]
+  },
+
+  "groupRules": {
+    "companionRecitationWeekly": true,
+    "surahCompletionRecitation": true,
+    "surahReviewWeeks": 2,
+    "maximumSurahReviewWeeks": 4,
+    "absenceWarningAfterMonthlyAbsences": 3,
+    "finesEnabled": true,
+    "finesOnlyForGroupSessions": true
+  },
+
+  "individualSessions": {
+    "trialEnabled": true,
+    "trialMaximumMinutes": 29
+  },
+
+  "meetings": {
+    "zoomEnabled": true,
+    "microsoftTeamsEnabled": true,
+    "customMeetingLinks": true,
+    "remindersEnabled": true
+  },
+
+  "payments": {
+    "enabled": true,
+    "internationalPayments": true,
+    "bankTransfer": true,
+    "phoneTransfer": true,
+    "transactionDateTime": true,
+    "adminOnlyExemptionField": true
+  },
+
+  "subscriptions": {
+    "enabled": true,
+    "packagesEnabled": true,
+    "monthlyPlans": true,
+    "independentSubscriptionTable": true
+  },
+
+  "notifications": {
+    "enabled": true,
+    "telegramEnabled": true,
+    "studentReminders": true,
+    "teacherReminders": true,
+    "absenceWarnings": true,
+    "acceptanceMessages": true
+  },
+
+  "audio": {
+    "enabled": true,
+    "groupRecording": true,
+    "sequentialWardDelivery": true
+  },
+
+  "tests": {
+    "enabled": true,
+    "googleSourceEnabled": true,
+    "basedOnStudentStoppingPoint": true
+  },
+
+  "architecture": {
+    "apiEnabled": true,
+    "database": "cloudflare-d1",
+    "frontendPwa": true,
+    "mobileFirst": true,
+    "modularFeatures": true,
+    "futureExtensions": true
+  }
+}
