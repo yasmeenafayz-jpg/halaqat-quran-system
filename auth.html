@@ -3,9 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>الأوَّابين - تسجيل الدخول</title>
+
+  <title>الأوَّابين - إنشاء الحساب</title>
 
   <style>
+
     * {
       box-sizing: border-box;
       font-family: Arial, sans-serif;
@@ -18,15 +20,15 @@
       display: flex;
       justify-content: center;
       align-items: center;
-      padding: 20px;
+      padding: 16px;
     }
 
     .container {
       width: 100%;
-      max-width: 480px;
+      max-width: 560px;
       background: white;
       border-radius: 24px;
-      padding: 28px;
+      padding: 24px;
       box-shadow: 0 10px 35px rgba(0,0,0,.08);
     }
 
@@ -34,37 +36,52 @@
       text-align: center;
       font-size: 30px;
       font-weight: bold;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
 
     .subtitle {
       text-align: center;
       color: #777;
-      margin-bottom: 28px;
+      margin-bottom: 25px;
+    }
+
+    .section {
+      margin-top: 22px;
+      padding-top: 20px;
+      border-top: 1px solid #eee;
+    }
+
+    .section-title {
+      font-size: 18px;
+      font-weight: bold;
+      margin-bottom: 15px;
     }
 
     .roles {
       display: grid;
-      gap: 12px;
+      gap: 10px;
     }
 
     .role {
-      width: 100%;
       border: 1px solid #ddd;
-      background: #fff;
-      padding: 18px;
-      border-radius: 16px;
-      text-align: right;
+      background: white;
+      padding: 16px;
+      border-radius: 15px;
       cursor: pointer;
+      transition: .2s;
+    }
+
+    .role:hover {
+      border-color: #777;
     }
 
     .role.selected {
-      border-color: #555;
-      background: #f1f1f1;
+      border-color: #333;
+      background: #f1f3f0;
     }
 
     .role-title {
-      font-size: 18px;
+      font-size: 17px;
       font-weight: bold;
     }
 
@@ -72,13 +89,6 @@
       color: #777;
       font-size: 13px;
       margin-top: 5px;
-    }
-
-    .guardian-box {
-      display: none;
-      margin-top: 20px;
-      border-top: 1px solid #eee;
-      padding-top: 20px;
     }
 
     .field {
@@ -89,22 +99,105 @@
       display: block;
       margin-bottom: 6px;
       font-weight: bold;
+      font-size: 14px;
     }
 
     input,
-    select {
+    select,
+    textarea {
       width: 100%;
       padding: 13px;
       border: 1px solid #ddd;
       border-radius: 12px;
       background: white;
+      font-size: 14px;
+    }
+
+    textarea {
+      min-height: 90px;
+      resize: vertical;
+    }
+
+    .hidden {
+      display: none;
     }
 
     .child {
-      border: 1px solid #eee;
+      border: 1px solid #e4e4e4;
+      border-radius: 16px;
+      padding: 15px;
+      margin-bottom: 12px;
+      background: #fafafa;
+    }
+
+    .child-title {
+      font-weight: bold;
+      margin-bottom: 12px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .choice-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .choice {
+      border: 1px solid #ddd;
       border-radius: 14px;
-      padding: 14px;
-      margin-bottom: 10px;
+      padding: 15px;
+      cursor: pointer;
+      text-align: center;
+      background: white;
+    }
+
+    .choice.selected {
+      border-color: #333;
+      background: #f1f3f0;
+    }
+
+    .choice-title {
+      font-weight: bold;
+    }
+
+    .choice-text {
+      font-size: 12px;
+      color: #777;
+      margin-top: 5px;
+    }
+
+    .info {
+      background: #f5f7f4;
+      border-radius: 12px;
+      padding: 12px;
+      font-size: 13px;
+      color: #555;
+      margin-bottom: 14px;
+    }
+
+    .warning {
+      background: #fff6e5;
+      border: 1px solid #f0d28b;
+      border-radius: 12px;
+      padding: 12px;
+      font-size: 13px;
+      margin-top: 10px;
+      display: none;
+    }
+
+    .success {
+      background: #eef8ef;
+      border: 1px solid #b9dfbd;
+      border-radius: 12px;
+      padding: 12px;
+      font-size: 13px;
+      margin-top: 10px;
+      display: none;
     }
 
     button {
@@ -112,9 +205,10 @@
       border: 0;
       padding: 15px;
       border-radius: 14px;
-      margin-top: 10px;
+      margin-top: 12px;
       cursor: pointer;
       font-weight: bold;
+      font-size: 15px;
     }
 
     .continue {
@@ -122,11 +216,37 @@
       color: white;
     }
 
+    .add-child {
+      background: #eee;
+      color: #222;
+    }
+
+    .remove-child {
+      background: #f3dddd;
+      color: #8b2222;
+      padding: 10px;
+      margin-top: 5px;
+    }
+
     .hint {
       font-size: 12px;
       color: #777;
-      margin-top: 8px;
+      margin-top: 7px;
     }
+
+    @media (max-width: 480px) {
+
+      .container {
+        padding: 18px;
+      }
+
+      .grid,
+      .choice-grid {
+        grid-template-columns: 1fr;
+      }
+
+    }
+
   </style>
 </head>
 
@@ -134,88 +254,729 @@
 
 <div class="container">
 
-  <div class="logo">الأوَّابين</div>
+  <div class="logo">
+    الأوَّابين
+  </div>
 
   <div class="subtitle">
-    اختر نوع الحساب للدخول
+    منصة القرآن الكريم والعلوم الشرعية
   </div>
 
-  <div class="roles">
+  <!-- اختيار نوع الحساب -->
 
-    <div class="role" onclick="selectRole('student', this)">
-      <div class="role-title">👩‍🎓 طالب / طالبة</div>
-      <div class="role-description">
-        متابعة الحفظ والحلقات والحضور والاختبارات
-      </div>
+  <div class="section" style="border-top:0; margin-top:0;">
+
+    <div class="section-title">
+      من سيستخدم المنصة؟
     </div>
 
-    <div class="role" onclick="selectRole('teacher', this)">
-      <div class="role-title">👩‍🏫 معلم / معلمة</div>
-      <div class="role-description">
-        إدارة الطلاب والحلقات والجلسات والمتابعة
-      </div>
-    </div>
+    <div class="roles">
 
-    <div class="role" onclick="selectRole('guardian', this)">
-      <div class="role-title">👨‍👩‍👧 ولي أمر</div>
-      <div class="role-description">
-        متابعة الأبناء وإدارة ملفاتهم التعليمية
-      </div>
-    </div>
+      <div
+        class="role"
+        onclick="selectRole('student', this)"
+      >
+        <div class="role-title">
+          👩‍🎓 طالب / طالبة
+        </div>
 
-    <div class="role" onclick="selectRole('admin', this)">
-      <div class="role-title">⚙️ الإدارة</div>
-      <div class="role-description">
-        إدارة الأكاديمية والصلاحيات والمشرفات
+        <div class="role-description">
+          متابعة الحفظ والورد والحلقات والحضور والاختبارات
+        </div>
       </div>
-    </div>
 
-    <div class="role" onclick="selectRole('supervisor', this)">
-      <div class="role-title">👩‍💼 مشرفة</div>
-      <div class="role-description">
-        متابعة الحلقات والمعلمات والطلاب حسب الصلاحيات
+
+      <div
+        class="role"
+        onclick="selectRole('teacher', this)"
+      >
+        <div class="role-title">
+          👩‍🏫 معلم / معلمة
+        </div>
+
+        <div class="role-description">
+          إدارة الطلاب والحلقات والجلسات والمتابعة
+        </div>
       </div>
+
+
+      <div
+        class="role"
+        onclick="selectRole('guardian', this)"
+      >
+        <div class="role-title">
+          👨‍👩‍👧 ولي أمر
+        </div>
+
+        <div class="role-description">
+          متابعة الأبناء وإدارة ملفاتهم التعليمية
+        </div>
+      </div>
+
+
+      <div
+        class="role"
+        onclick="selectRole('admin', this)"
+      >
+        <div class="role-title">
+          ⚙️ الإدارة
+        </div>
+
+        <div class="role-description">
+          إدارة الأكاديمية والصلاحيات والمشرفات
+        </div>
+      </div>
+
+
+      <div
+        class="role"
+        onclick="selectRole('supervisor', this)"
+      >
+        <div class="role-title">
+          👩‍💼 مشرفة
+        </div>
+
+        <div class="role-description">
+          متابعة المعلمات والحلقات والطلاب
+        </div>
+      </div>
+
     </div>
 
   </div>
 
-  <div id="guardianBox" class="guardian-box">
 
-    <h3>بيانات ولي الأمر والأبناء</h3>
+  <!-- البيانات الأساسية -->
 
-    <div class="field">
-      <label>اسم ولي الأمر</label>
-      <input id="guardianName" type="text" placeholder="الاسم الكامل">
+  <div
+    id="basicSection"
+    class="section hidden"
+  >
+
+    <div class="section-title">
+      البيانات الأساسية
     </div>
 
     <div class="field">
-      <label>عدد الأبناء</label>
+
+      <label>
+        الاسم الكامل
+      </label>
+
+      <input
+        id="fullName"
+        type="text"
+        placeholder="اكتب الاسم الكامل"
+      >
+
+    </div>
+
+
+    <div class="grid">
+
+      <div class="field">
+
+        <label>
+          رقم الهاتف
+        </label>
+
+        <input
+          id="phone"
+          type="tel"
+          placeholder="01xxxxxxxxx"
+        >
+
+      </div>
+
+
+      <div class="field">
+
+        <label>
+          البريد الإلكتروني
+        </label>
+
+        <input
+          id="email"
+          type="email"
+          placeholder="example@email.com"
+        >
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <!-- بيانات الطالب -->
+
+  <div
+    id="studentSection"
+    class="section hidden"
+  >
+
+    <div class="section-title">
+      بيانات الطالب
+    </div>
+
+
+    <div class="field">
+
+      <label>
+        الجنس
+      </label>
+
+      <select id="studentGender">
+
+        <option value="">
+          اختيار
+        </option>
+
+        <option value="male">
+          ذكر
+        </option>
+
+        <option value="female">
+          أنثى
+        </option>
+
+      </select>
+
+    </div>
+
+
+    <div class="field">
+
+      <label>
+        المسار التعليمي
+      </label>
+
+      <select id="educationTrack">
+
+        <option value="general">
+          المسار العام
+        </option>
+
+        <option value="azhari">
+          المسار الأزهري
+        </option>
+
+      </select>
+
+      <div class="hint">
+        يمكن للطالب الأزهري متابعة مساره الدراسي مع برنامج القرآن.
+      </div>
+
+    </div>
+
+
+    <div class="field">
+
+      <label>
+        مقدار الحفظ الحالي
+      </label>
+
+      <input
+        id="studentMemorization"
+        type="text"
+        placeholder="مثال: جزء عم وتبارك"
+      >
+
+    </div>
+
+
+    <div class="field">
+
+      <label>
+        مقدار الورد الجديد
+      </label>
+
+      <select id="studentWird">
+
+        <option value="quarter_page">
+          ربع وجه
+        </option>
+
+        <option value="half_page">
+          نصف وجه
+        </option>
+
+        <option value="page">
+          وجه
+        </option>
+
+        <option value="two_pages">
+          وجهان
+        </option>
+
+        <option value="custom">
+          مقدار آخر
+        </option>
+
+      </select>
+
+    </div>
+
+
+    <div class="section-title">
+      نوع الحلقة
+    </div>
+
+
+    <div class="choice-grid">
+
+      <div
+        id="individualChoice"
+        class="choice"
+        onclick="selectSessionType('individual')"
+      >
+
+        <div class="choice-title">
+          حلقة فردية
+        </div>
+
+        <div class="choice-text">
+          طالب واحد مع المعلم
+        </div>
+
+      </div>
+
+
+      <div
+        id="groupChoice"
+        class="choice"
+        onclick="selectSessionType('group')"
+      >
+
+        <div class="choice-title">
+          حلقة جماعية
+        </div>
+
+        <div class="choice-text">
+          مجموعة طلاب مع المعلم
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <div
+      id="individualBox"
+      class="hidden"
+    >
+
+      <div class="field">
+
+        <label>
+          باقة الحلقة الفردية
+        </label>
+
+        <select id="individualPackage">
+
+          <option value="">
+            اختر الباقة
+          </option>
+
+          <option value="individual_basic">
+            الباقة الفردية الأساسية
+          </option>
+
+          <option value="individual_plus">
+            الباقة الفردية المتقدمة
+          </option>
+
+          <option value="individual_premium">
+            الباقة الفردية المميزة
+          </option>
+
+        </select>
+
+      </div>
+
+    </div>
+
+
+    <div
+      id="groupBox"
+      class="hidden"
+    >
+
+      <div class="field">
+
+        <label>
+          باقة الحلقة الجماعية
+        </label>
+
+        <select id="groupPackage">
+
+          <option value="">
+            اختر الباقة
+          </option>
+
+          <option value="group_basic">
+            الباقة الجماعية الأساسية
+          </option>
+
+          <option value="group_plus">
+            الباقة الجماعية المتقدمة
+          </option>
+
+          <option value="group_premium">
+            الباقة الجماعية المميزة
+          </option>
+
+        </select>
+
+      </div>
+
+
+      <div class="field">
+
+        <label>
+          عدد المقاعد المطلوبة
+        </label>
+
+        <input
+          id="groupCapacity"
+          type="number"
+          min="1"
+          max="20"
+          value="1"
+          onchange="checkGroupCapacity()"
+        >
+
+      </div>
+
+
+      <div class="info">
+
+        الحلقة الجماعية لها عدد مقاعد محدد.
+        عند اكتمال العدد يتم إيقاف قبول طلاب جدد
+        تلقائيًا.
+
+      </div>
+
+
+      <div
+        id="capacityWarning"
+        class="warning"
+      >
+        لا يمكن اختيار عدد أكبر من المقاعد المتاحة.
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <!-- بيانات المعلم -->
+
+  <div
+    id="teacherSection"
+    class="section hidden"
+  >
+
+    <div class="section-title">
+      بيانات المعلم / المعلمة
+    </div>
+
+
+    <div class="field">
+
+      <label>
+        التخصص
+      </label>
+
+      <select id="teacherSpecialization">
+
+        <option value="">
+          اختر التخصص
+        </option>
+
+        <option value="quran">
+          قرآن كريم
+        </option>
+
+        <option value="noorani">
+          القاعدة النورانية
+        </option>
+
+        <option value="tafsir">
+          تفسير
+        </option>
+
+        <option value="fiqh">
+          فقه
+        </option>
+
+        <option value="hadith">
+          حديث
+        </option>
+
+        <option value="sirah">
+          سيرة
+        </option>
+
+      </select>
+
+    </div>
+
+
+    <div class="field">
+
+      <label>
+        المؤهل العلمي
+      </label>
+
+      <input
+        id="teacherQualification"
+        type="text"
+        placeholder="المؤهل أو الشهادة"
+      >
+
+    </div>
+
+
+    <div class="field">
+
+      <label>
+        سنوات الخبرة
+      </label>
+
+      <input
+        id="teacherExperience"
+        type="number"
+        min="0"
+        placeholder="عدد سنوات الخبرة"
+      >
+
+    </div>
+
+
+    <div class="field">
+
+      <label>
+        نبذة عن المعلم
+      </label>
+
+      <textarea
+        id="teacherBio"
+        placeholder="اكتب نبذة مختصرة عن الخبرة وطريقة التعليم"
+      ></textarea>
+
+    </div>
+
+
+    <div class="info">
+
+      يمكن للإدارة لاحقًا تفعيل صلاحية
+      <strong>الإدارة + معلمة</strong>
+      للحسابات المخولة فقط.
+
+    </div>
+
+  </div>
+
+
+  <!-- بيانات ولي الأمر -->
+
+  <div
+    id="guardianSection"
+    class="section hidden"
+  >
+
+    <div class="section-title">
+      بيانات ولي الأمر
+    </div>
+
+
+    <div class="field">
+
+      <label>
+        هل ولي الأمر طالب أيضًا؟
+      </label>
+
+      <div class="choice-grid">
+
+        <div
+          id="guardianStudentYes"
+          class="choice"
+          onclick="setGuardianStudent(true)"
+        >
+
+          <div class="choice-title">
+            نعم
+          </div>
+
+          <div class="choice-text">
+            لدي حساب طالب أيضًا
+          </div>
+
+        </div>
+
+
+        <div
+          id="guardianStudentNo"
+          class="choice selected"
+          onclick="setGuardianStudent(false)"
+        >
+
+          <div class="choice-title">
+            لا
+          </div>
+
+          <div class="choice-text">
+            ولي أمر فقط
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <div
+      id="guardianStudentBox"
+      class="hidden"
+    >
+
+      <div class="field">
+
+        <label>
+          مقدار حفظ ولي الأمر
+        </label>
+
+        <input
+          id="guardianMemorization"
+          type="text"
+          placeholder="مثال: 5 أجزاء"
+        >
+
+      </div>
+
+    </div>
+
+
+    <div class="field">
+
+      <label>
+        عدد الأبناء
+      </label>
+
       <input
         id="childrenCount"
         type="number"
-        min="1"
+        min="0"
+        max="20"
         value="1"
         onchange="buildChildren()"
       >
+
     </div>
+
 
     <div id="children"></div>
 
+
+    <button
+      type="button"
+      class="add-child"
+      onclick="addChild()"
+    >
+      + إضافة ابن / ابنة
+    </button>
+
+
     <div class="hint">
-      يمكن لولي الأمر أن يكون أيضًا طالبًا في الأكاديمية.
+
+      يمكنك متابعة حضور الأبناء وحفظهم
+      واختباراتهم وحلقاتهم من حساب ولي الأمر.
+
     </div>
 
   </div>
 
-  <button class="continue" onclick="continueLogin()">
+
+  <!-- الإدارة -->
+
+  <div
+    id="adminSection"
+    class="section hidden"
+  >
+
+    <div class="section-title">
+      حساب الإدارة
+    </div>
+
+    <div class="info">
+
+      حساب الإدارة يتم اعتماده من إدارة الأكاديمية.
+      ويمكن منح الإدارة صلاحية العمل كمعلمة
+      بشكل حصري من خلال نظام الصلاحيات.
+
+    </div>
+
+  </div>
+
+
+  <!-- المشرفة -->
+
+  <div
+    id="supervisorSection"
+    class="section hidden"
+  >
+
+    <div class="section-title">
+      حساب المشرفة
+    </div>
+
+    <div class="info">
+
+      حساب المشرفة يخضع لصلاحيات الإدارة،
+      ويمكن تحديد الحلقات والمعلمات والطلاب
+      الذين يسمح لها بمتابعتهم.
+
+    </div>
+
+  </div>
+
+
+  <!-- رسالة النجاح -->
+
+  <div
+    id="successBox"
+    class="success"
+  >
+    تم تجهيز بيانات الحساب بنجاح.
+  </div>
+
+
+  <!-- زر المتابعة -->
+
+  <button
+    class="continue"
+    onclick="continueLogin()"
+  >
     متابعة
   </button>
 
 </div>
 
+
 <script>
 
 let selectedRole = null;
+
+let selectedSessionType = null;
+
+let guardianIsStudent = false;
+
+let childrenData = [];
+
+
+/* اختيار نوع الحساب */
 
 function selectRole(role, element) {
 
@@ -229,120 +990,701 @@ function selectRole(role, element) {
 
   element.classList.add('selected');
 
-  const guardianBox =
-    document.getElementById('guardianBox');
 
-  guardianBox.style.display =
-    role === 'guardian' ? 'block' : 'none';
+  hideAllSections();
+
+
+  document
+    .getElementById('basicSection')
+    .classList.remove('hidden');
+
+
+  if (role === 'student') {
+
+    document
+      .getElementById('studentSection')
+      .classList.remove('hidden');
+
+  }
+
+
+  if (role === 'teacher') {
+
+    document
+      .getElementById('teacherSection')
+      .classList.remove('hidden');
+
+  }
+
 
   if (role === 'guardian') {
+
+    document
+      .getElementById('guardianSection')
+      .classList.remove('hidden');
+
     buildChildren();
+
   }
+
+
+  if (role === 'admin') {
+
+    document
+      .getElementById('adminSection')
+      .classList.remove('hidden');
+
+  }
+
+
+  if (role === 'supervisor') {
+
+    document
+      .getElementById('supervisorSection')
+      .classList.remove('hidden');
+
+  }
+
 }
+
+
+/* إخفاء الأقسام */
+
+function hideAllSections() {
+
+  [
+    'studentSection',
+    'teacherSection',
+    'guardianSection',
+    'adminSection',
+    'supervisorSection'
+  ]
+  .forEach(id => {
+
+    document
+      .getElementById(id)
+      .classList.add('hidden');
+
+  });
+
+}
+
+
+/* نوع الحلقة */
+
+function selectSessionType(type) {
+
+  selectedSessionType = type;
+
+
+  document
+    .getElementById('individualChoice')
+    .classList.remove('selected');
+
+  document
+    .getElementById('groupChoice')
+    .classList.remove('selected');
+
+
+  document
+    .getElementById(
+      type === 'individual'
+        ? 'individualChoice'
+        : 'groupChoice'
+    )
+    .classList.add('selected');
+
+
+  document
+    .getElementById('individualBox')
+    .classList.add('hidden');
+
+  document
+    .getElementById('groupBox')
+    .classList.add('hidden');
+
+
+  document
+    .getElementById(
+      type === 'individual'
+        ? 'individualBox'
+        : 'groupBox'
+    )
+    .classList.remove('hidden');
+
+}
+
+
+/* ولي الأمر طالب أيضًا */
+
+function setGuardianStudent(value) {
+
+  guardianIsStudent = value;
+
+
+  document
+    .getElementById('guardianStudentYes')
+    .classList.remove('selected');
+
+  document
+    .getElementById('guardianStudentNo')
+    .classList.remove('selected');
+
+
+  document
+    .getElementById(
+      value
+        ? 'guardianStudentYes'
+        : 'guardianStudentNo'
+    )
+    .classList.add('selected');
+
+
+  document
+    .getElementById('guardianStudentBox')
+    .classList.toggle(
+      'hidden',
+      !value
+    );
+
+}
+
+
+/* بناء الأبناء */
 
 function buildChildren() {
 
   const count =
     Number(
-      document.getElementById('childrenCount').value || 1
+      document
+        .getElementById('childrenCount')
+        .value || 0
     );
+
 
   const container =
     document.getElementById('children');
 
+
   container.innerHTML = '';
 
-  for (let i = 1; i <= count; i++) {
 
-    const child =
-      document.createElement('div');
+  childrenData = [];
 
-    child.className = 'child';
 
-    child.innerHTML = `
-      <strong>الابن / الابنة ${i}</strong>
+  for (let i = 0; i < count; i++) {
 
-      <div class="field">
-        <label>الاسم</label>
-        <input name="childName[]" type="text">
-      </div>
+    createChildElement(i);
 
-      <div class="field">
-        <label>الجنس</label>
-        <select name="childGender[]">
-          <option value="">اختيار</option>
-          <option value="male">ذكر</option>
-          <option value="female">أنثى</option>
-        </select>
-      </div>
-
-      <div class="field">
-        <label>العمر</label>
-        <input name="childAge[]" type="number" min="3" max="100">
-      </div>
-
-      <div class="field">
-        <label>مقدار الحفظ الحالي</label>
-        <input
-          name="childMemorization[]"
-          type="text"
-          placeholder="مثال: جزء عم"
-        >
-      </div>
-    `;
-
-    container.appendChild(child);
   }
+
 }
+
+
+/* إضافة ابن */
+
+function addChild() {
+
+  const count =
+    document
+      .querySelectorAll('.child')
+      .length;
+
+
+  if (count >= 20) {
+
+    alert(
+      'الحد الأقصى للأبناء في الحساب هو 20'
+    );
+
+    return;
+
+  }
+
+
+  document
+    .getElementById('childrenCount')
+    .value = count + 1;
+
+
+  createChildElement(count);
+
+}
+
+
+/* إنشاء بطاقة الابن */
+
+function createChildElement(index) {
+
+  const container =
+    document.getElementById('children');
+
+
+  const child =
+    document.createElement('div');
+
+
+  child.className = 'child';
+
+
+  child.innerHTML = `
+
+    <div class="child-title">
+      الابن / الابنة ${index + 1}
+    </div>
+
+
+    <div class="field">
+
+      <label>
+        الاسم
+      </label>
+
+      <input
+        data-child="name"
+        type="text"
+        placeholder="اسم الابن أو الابنة"
+      >
+
+    </div>
+
+
+    <div class="grid">
+
+      <div class="field">
+
+        <label>
+          الجنس
+        </label>
+
+        <select data-child="gender">
+
+          <option value="">
+            اختيار
+          </option>
+
+          <option value="male">
+            ذكر
+          </option>
+
+          <option value="female">
+            أنثى
+          </option>
+
+        </select>
+
+      </div>
+
+
+      <div class="field">
+
+        <label>
+          العمر
+        </label>
+
+        <input
+          data-child="age"
+          type="number"
+          min="3"
+          max="100"
+          placeholder="العمر"
+        >
+
+      </div>
+
+    </div>
+
+
+    <div class="field">
+
+      <label>
+        مقدار الحفظ الحالي
+      </label>
+
+      <input
+        data-child="memorization"
+        type="text"
+        placeholder="مثال: جزء عم"
+      >
+
+    </div>
+
+
+    <div class="field">
+
+      <label>
+        المسار
+      </label>
+
+      <select data-child="track">
+
+        <option value="general">
+          المسار العام
+        </option>
+
+        <option value="azhari">
+          المسار الأزهري
+        </option>
+
+      </select>
+
+    </div>
+
+
+    <button
+      type="button"
+      class="remove-child"
+      onclick="removeChild(this)"
+    >
+      حذف الابن
+    </button>
+
+  `;
+
+
+  container.appendChild(child);
+
+}
+
+
+/* حذف ابن */
+
+function removeChild(button) {
+
+  const child =
+    button.closest('.child');
+
+
+  child.remove();
+
+
+  const children =
+    document.querySelectorAll('.child');
+
+
+  document
+    .getElementById('childrenCount')
+    .value = children.length;
+
+
+  children.forEach((item, index) => {
+
+    const title =
+      item.querySelector('.child-title');
+
+    title.textContent =
+      `الابن / الابنة ${index + 1}`;
+
+  });
+
+}
+
+
+/* التحقق من المقاعد */
+
+function checkGroupCapacity() {
+
+  const input =
+    document.getElementById('groupCapacity');
+
+
+  const warning =
+    document.getElementById('capacityWarning');
+
+
+  const value =
+    Number(input.value || 0);
+
+
+  /*
+   * القيمة الافتراضية هنا حد واجهة فقط.
+   * العدد الحقيقي للحلقة سيتم فحصه
+   * من قاعدة البيانات عند ربط التسجيل.
+   */
+
+  const maximum =
+    Number(input.max || 20);
+
+
+  if (value > maximum) {
+
+    warning.style.display = 'block';
+
+    input.value = maximum;
+
+  } else {
+
+    warning.style.display = 'none';
+
+  }
+
+}
+
+
+/* جمع بيانات الأبناء */
+
+function collectChildren() {
+
+  return [
+    ...document.querySelectorAll('.child')
+  ]
+  .map(child => ({
+
+    name:
+      child
+        .querySelector(
+          '[data-child="name"]'
+        )
+        .value
+        .trim(),
+
+    gender:
+      child
+        .querySelector(
+          '[data-child="gender"]'
+        )
+        .value,
+
+    age:
+      child
+        .querySelector(
+          '[data-child="age"]'
+        )
+        .value,
+
+    memorization:
+      child
+        .querySelector(
+          '[data-child="memorization"]'
+        )
+        .value
+        .trim(),
+
+    track:
+      child
+        .querySelector(
+          '[data-child="track"]'
+        )
+        .value
+
+  }));
+
+}
+
+
+/* متابعة */
 
 function continueLogin() {
 
   if (!selectedRole) {
-    alert('يرجى اختيار نوع الحساب أولاً');
+
+    alert(
+      'يرجى اختيار نوع الحساب أولًا'
+    );
+
     return;
+
   }
 
+
   const data = {
-    role: selectedRole
+
+    role: selectedRole,
+
+    fullName:
+      document
+        .getElementById('fullName')
+        .value
+        .trim(),
+
+    phone:
+      document
+        .getElementById('phone')
+        .value
+        .trim(),
+
+    email:
+      document
+        .getElementById('email')
+        .value
+        .trim(),
+
+    createdAt:
+      new Date().toISOString()
+
   };
+
+
+  /* بيانات الطالب */
+
+  if (selectedRole === 'student') {
+
+    data.student = {
+
+      gender:
+        document
+          .getElementById('studentGender')
+          .value,
+
+      educationTrack:
+        document
+          .getElementById('educationTrack')
+          .value,
+
+      memorization:
+        document
+          .getElementById('studentMemorization')
+          .value
+          .trim(),
+
+      wird:
+        document
+          .getElementById('studentWird')
+          .value,
+
+      sessionType:
+        selectedSessionType,
+
+      individualPackage:
+        document
+          .getElementById('individualPackage')
+          .value,
+
+      groupPackage:
+        document
+          .getElementById('groupPackage')
+          .value,
+
+      groupCapacity:
+        document
+          .getElementById('groupCapacity')
+          .value
+
+    };
+
+  }
+
+
+  /* بيانات المعلم */
+
+  if (selectedRole === 'teacher') {
+
+    data.teacher = {
+
+      specialization:
+        document
+          .getElementById(
+            'teacherSpecialization'
+          )
+          .value,
+
+      qualification:
+        document
+          .getElementById(
+            'teacherQualification'
+          )
+          .value
+          .trim(),
+
+      experience:
+        document
+          .getElementById(
+            'teacherExperience'
+          )
+          .value,
+
+      bio:
+        document
+          .getElementById(
+            'teacherBio'
+          )
+          .value
+          .trim()
+
+    };
+
+  }
+
+
+  /* بيانات ولي الأمر */
 
   if (selectedRole === 'guardian') {
 
-    data.guardianName =
-      document.getElementById('guardianName').value;
+    data.guardian = {
 
-    data.children =
-      [...document.querySelectorAll('.child')]
-      .map(child => ({
-        name:
-          child.querySelector(
-            '[name="childName[]"]'
-          ).value,
+      isAlsoStudent:
+        guardianIsStudent,
 
-        gender:
-          child.querySelector(
-            '[name="childGender[]"]'
-          ).value,
+      memorization:
+        guardianIsStudent
+          ? document
+              .getElementById(
+                'guardianMemorization'
+              )
+              .value
+              .trim()
+          : null,
 
-        age:
-          child.querySelector(
-            '[name="childAge[]"]'
-          ).value,
+      children:
+        collectChildren()
 
-        memorization:
-          child.querySelector(
-            '[name="childMemorization[]"]'
-          ).value
-      }));
+    };
+
   }
 
+
+  /*
+   * حفظ البيانات مؤقتًا في المتصفح.
+   *
+   * هذه الخطوة لا تعتبر إنشاء حساب نهائي.
+   * الربط النهائي مع قاعدة البيانات يأتي
+   * في خطوة المصادقة الخاصة بالمشروع.
+   */
+
   localStorage.setItem(
-    'alawabeen_selected_role',
+    'alawabeen_registration',
     JSON.stringify(data)
   );
 
-  window.location.href = '/';
+
+  document
+    .getElementById('successBox')
+    .style.display = 'block';
+
+
+  /*
+   * نحتفظ بالسلوك الحالي للمشروع:
+   * الانتقال للصفحة الرئيسية بعد المتابعة.
+   */
+
+  setTimeout(() => {
+
+    window.location.href = '/';
+
+  }, 500);
+
 }
+
+
+/* البداية */
+
+document.addEventListener(
+  'DOMContentLoaded',
+  () => {
+
+    const groupCapacity =
+      document.getElementById(
+        'groupCapacity'
+      );
+
+    if (groupCapacity) {
+
+      groupCapacity.value = 1;
+
+    }
+
+  }
+);
 
 </script>
 
