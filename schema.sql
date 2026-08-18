@@ -655,9 +655,721 @@ CREATE INDEX IF NOT EXISTS idx_circle_members_student
 ON circle_members(student_id);
 
 CREATE INDEX IF NOT EXISTS idx_attendance_student
+  
 ON attendance(student_id);
 
 CREATE INDEX IF NOT EXISTS idx_attendance_session
 ON attendance(session_id);
 
 CREATE INDEX IF NOT EXISTS idx_q
+-- =========================================================
+-- إضافات نظام الأوَّابين
+-- أولياء الأمور + الأبناء + المسارات + الباقات + التواصل
+-- =========================================================
+
+
+-- =========================================================
+-- الأدوار الإضافية
+-- =========================================================
+
+INSERT OR IGNORE INTO roles(code,name) VALUES
+('guardian','ولي الأمر'),
+('supervisor','المشرفة');
+
+
+-- =========================================================
+-- ملفات أولياء الأمور
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS guardians (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+  user_id INTEGER NOT NULL UNIQUE,
+
+  is_also_student INTEGER NOT NULL DEFAULT 0,
+
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  FOREIGN KEY(user_id)
+    REFERENCES users(id)
+    ON DELETE CASCADE
+);
+
+
+-- =========================================================
+-- ربط ولي الأمر بالأبناء
+-- يسمح لولي الأمر بأكثر من ابن
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS guardian_students (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+  guardian_id INTEGER NOT NULL,
+
+  student_id INTEGER NOT NULL,
+
+  relationship TEXT NOT NULL DEFAULT 'parent',
+
+  is_primary INTEGER NOT NULL DEFAULT 1,
+
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  UNIQUE(guardian_id,student_id),
+
+  FOREIGN KEY(guardian_id)
+    REFERENCES guardians(id)
+    ON DELETE CASCADE,
+
+  FOREIGN KEY(student_id)
+    REFERENCES students(id)
+    ON DELETE CASCADE
+);
+
+
+-- =========================================================
+-- بيانات إضافية للطالب
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS student_profiles (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+  student_id INTEGER NOT NULL UNIQUE,
+
+  gender TEXT
+    CHECK(gender IN ('male','female')),
+
+  age INTEGER,
+
+  education_track TEXT NOT NULL DEFAULT 'general'
+    CHECK(education_track IN ('general','azhari')),
+
+  current_memorization TEXT,
+
+  current_wird TEXT,
+
+  notes TEXT,
+
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  FOREIGN KEY(student_id)
+    REFERENCES students(id)
+    ON DELETE CASCADE
+);
+
+
+-- =========================================================
+-- بيانات المعلمة التفصيلية
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS teacher_profiles (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+  teacher_id INTEGER NOT NULL UNIQUE,
+
+  gender TEXT
+    CHECK(gender IN ('male','female')),
+
+  specialization TEXT,
+
+  qualification TEXT,
+
+  experience_years INTEGER DEFAULT 0,
+
+  bio TEXT,
+
+  phone_for_work TEXT,
+
+  telegram_username TEXT,
+
+  available_days TEXT,
+
+  available_hours TEXT,
+
+  active INTEGER NOT NULL DEFAULT 1,
+
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  FOREIGN KEY(teacher_id)
+    REFERENCES teachers(id)
+    ON DELETE CASCADE
+);
+
+
+-- =========================================================
+-- صلاحية الإدارة + معلمة
+-- الصلاحية تكون ممنوحة بشكل حصري من الإدارة
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS admin_teacher_permissions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+  user_id INTEGER NOT NULL UNIQUE,
+
+  enabled INTEGER NOT NULL DEFAULT 0,
+
+  granted_by INTEGER,
+
+  granted_at TEXT,
+
+  revoked_at TEXT,
+
+  FOREIGN KEY(user_id)
+    REFERENCES users(id)
+    ON DELETE CASCADE,
+
+  FOREIGN KEY(granted_by)
+    REFERENCES users(id)
+    ON DELETE SET NULL
+);
+
+
+-- =========================================================
+-- ملفات المشرفات
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS supervisors (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+  user_id INTEGER NOT NULL UNIQUE,
+
+  notes TEXT,
+
+  active INTEGER NOT NULL DEFAULT 1,
+
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  FOREIGN KEY(user_id)
+    REFERENCES users(id)
+    ON DELETE CASCADE
+);
+
+
+-- =========================================================
+-- ربط المشرفة بالمعلمات
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS supervisor_teachers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+  supervisor_id INTEGER NOT NULL,
+
+  teacher_id INTEGER NOT NULL,
+
+  assigned_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  active INTEGER NOT NULL DEFAULT 1,
+
+  UNIQUE(supervisor_id,teacher_id),
+
+  FOREIGN KEY(supervisor_id)
+    REFERENCES supervisors(id)
+    ON DELETE CASCADE,
+
+  FOREIGN KEY(teacher_id)
+    REFERENCES teachers(id)
+    ON DELETE CASCADE
+);
+
+
+-- =========================================================
+-- ربط المشرفة بالحلقات
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS supervisor_circles (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+  supervisor_id INTEGER NOT NULL,
+
+  circle_id INTEGER NOT NULL,
+
+  assigned_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  active INTEGER NOT NULL DEFAULT 1,
+
+  UNIQUE(supervisor_id,circle_id),
+
+  FOREIGN KEY(supervisor_id)
+    REFERENCES supervisors(id)
+    ON DELETE CASCADE,
+
+  FOREIGN KEY(circle_id)
+    REFERENCES circles(id)
+    ON DELETE CASCADE
+);
+
+
+-- =========================================================
+-- سعة الحلقة
+-- الفردية = مقعد واحد
+-- الجماعية = عدد مقاعد تحدده الإدارة
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS circle_capacity (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+  circle_id INTEGER NOT NULL UNIQUE,
+
+  max_students INTEGER NOT NULL DEFAULT 1,
+
+  enrollment_open INTEGER NOT NULL DEFAULT 1,
+
+  auto_close_when_full INTEGER NOT NULL DEFAULT 1,
+
+  FOREIGN KEY(circle_id)
+    REFERENCES circles(id)
+    ON DELETE CASCADE
+);
+
+
+-- =========================================================
+-- طلبات الالتحاق بالحلقات
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS circle_enrollment_requests (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+  circle_id INTEGER NOT NULL,
+
+  student_id INTEGER NOT NULL,
+
+  status TEXT NOT NULL DEFAULT 'pending'
+    CHECK(status IN (
+      'pending',
+      'accepted',
+      'rejected',
+      'cancelled',
+      'waitlist'
+    )),
+
+  requested_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  reviewed_at TEXT,
+
+  reviewed_by INTEGER,
+
+  notes TEXT,
+
+  UNIQUE(circle_id,student_id),
+
+  FOREIGN KEY(circle_id)
+    REFERENCES circles(id)
+    ON DELETE CASCADE,
+
+  FOREIGN KEY(student_id)
+    REFERENCES students(id)
+    ON DELETE CASCADE,
+
+  FOREIGN KEY(reviewed_by)
+    REFERENCES users(id)
+    ON DELETE SET NULL
+);
+
+
+-- =========================================================
+-- باقات الحلقات
+-- فردية أو جماعية
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS circle_packages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+  name TEXT NOT NULL,
+
+  circle_type TEXT NOT NULL
+    CHECK(circle_type IN ('individual','group')),
+
+  price REAL NOT NULL DEFAULT 0,
+
+  currency TEXT NOT NULL DEFAULT 'EGP',
+
+  sessions_per_month INTEGER,
+
+  duration_days INTEGER NOT NULL DEFAULT 30,
+
+  max_students INTEGER,
+
+  description TEXT,
+
+  active INTEGER NOT NULL DEFAULT 1,
+
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+
+-- =========================================================
+-- ربط الطالب بالباقة
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS student_circle_packages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+  student_id INTEGER NOT NULL,
+
+  circle_id INTEGER NOT NULL,
+
+  package_id INTEGER NOT NULL,
+
+  starts_at TEXT NOT NULL,
+
+  ends_at TEXT NOT NULL,
+
+  status TEXT NOT NULL DEFAULT 'active',
+
+  UNIQUE(student_id,circle_id,package_id),
+
+  FOREIGN KEY(student_id)
+    REFERENCES students(id)
+    ON DELETE CASCADE,
+
+  FOREIGN KEY(circle_id)
+    REFERENCES circles(id)
+    ON DELETE CASCADE,
+
+  FOREIGN KEY(package_id)
+    REFERENCES circle_packages(id)
+    ON DELETE CASCADE
+);
+
+
+-- =========================================================
+-- الرسائل بين المستخدمين
+-- طالب ↔ معلم
+-- ولي أمر ↔ معلم
+-- معلم ↔ معلم
+-- معلم ↔ إدارة
+-- مشرفة ↔ معلم
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+  sender_user_id INTEGER NOT NULL,
+
+  receiver_user_id INTEGER NOT NULL,
+
+  subject TEXT,
+
+  body TEXT NOT NULL,
+
+  message_type TEXT NOT NULL DEFAULT 'direct',
+
+  related_student_id INTEGER,
+
+  related_circle_id INTEGER,
+
+  read_at TEXT,
+
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  FOREIGN KEY(sender_user_id)
+    REFERENCES users(id)
+    ON DELETE CASCADE,
+
+  FOREIGN KEY(receiver_user_id)
+    REFERENCES users(id)
+    ON DELETE CASCADE,
+
+  FOREIGN KEY(related_student_id)
+    REFERENCES students(id)
+    ON DELETE SET NULL,
+
+  FOREIGN KEY(related_circle_id)
+    REFERENCES circles(id)
+    ON DELETE SET NULL
+);
+
+
+-- =========================================================
+-- إعلانات الأكاديمية
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS announcements (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+  title TEXT NOT NULL,
+
+  body TEXT NOT NULL,
+
+  announcement_type TEXT NOT NULL DEFAULT 'general',
+
+  target_type TEXT NOT NULL DEFAULT 'all',
+
+  circle_id INTEGER,
+
+  created_by INTEGER,
+
+  publish_at TEXT,
+
+  expires_at TEXT,
+
+  active INTEGER NOT NULL DEFAULT 1,
+
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  FOREIGN KEY(circle_id)
+    REFERENCES circles(id)
+    ON DELETE SET NULL,
+
+  FOREIGN KEY(created_by)
+    REFERENCES users(id)
+    ON DELETE SET NULL
+);
+
+
+-- =========================================================
+-- إعلانات الحلقات
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS circle_announcements (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+  circle_id INTEGER NOT NULL,
+
+  title TEXT NOT NULL,
+
+  body TEXT NOT NULL,
+
+  publish_at TEXT,
+
+  expires_at TEXT,
+
+  active INTEGER NOT NULL DEFAULT 1,
+
+  created_by INTEGER,
+
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  FOREIGN KEY(circle_id)
+    REFERENCES circles(id)
+    ON DELETE CASCADE,
+
+  FOREIGN KEY(created_by)
+    REFERENCES users(id)
+    ON DELETE SET NULL
+);
+
+
+-- =========================================================
+-- قنوات Telegram الخاصة بالإعلانات
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS telegram_channels (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+  channel_id TEXT NOT NULL UNIQUE,
+
+  channel_username TEXT,
+
+  channel_name TEXT,
+
+  purpose TEXT NOT NULL DEFAULT 'announcements',
+
+  active INTEGER NOT NULL DEFAULT 1,
+
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+
+-- =========================================================
+-- ربط الحلقات بقناة Telegram
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS circle_telegram_channels (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+  circle_id INTEGER NOT NULL,
+
+  telegram_channel_id INTEGER NOT NULL,
+
+  active INTEGER NOT NULL DEFAULT 1,
+
+  UNIQUE(circle_id,telegram_channel_id),
+
+  FOREIGN KEY(circle_id)
+    REFERENCES circles(id)
+    ON DELETE CASCADE,
+
+  FOREIGN KEY(telegram_channel_id)
+    REFERENCES telegram_channels(id)
+    ON DELETE CASCADE
+);
+
+
+-- =========================================================
+-- المسار الأزهري
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS azhari_tracks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+  name TEXT NOT NULL UNIQUE,
+
+  stage TEXT,
+
+  description TEXT,
+
+  active INTEGER NOT NULL DEFAULT 1
+);
+
+
+-- =========================================================
+-- ربط الطالب بالمسار الأزهري
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS student_azhari_tracks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+  student_id INTEGER NOT NULL UNIQUE,
+
+  track_id INTEGER NOT NULL,
+
+  grade TEXT,
+
+  academic_year TEXT,
+
+  notes TEXT,
+
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  FOREIGN KEY(student_id)
+    REFERENCES students(id)
+    ON DELETE CASCADE,
+
+  FOREIGN KEY(track_id)
+    REFERENCES azhari_tracks(id)
+    ON DELETE CASCADE
+);
+
+
+-- =========================================================
+-- صلاحيات المستخدمين
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS user_permissions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+  user_id INTEGER NOT NULL,
+
+  permission_code TEXT NOT NULL,
+
+  granted_by INTEGER,
+
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  UNIQUE(user_id,permission_code),
+
+  FOREIGN KEY(user_id)
+    REFERENCES users(id)
+    ON DELETE CASCADE,
+
+  FOREIGN KEY(granted_by)
+    REFERENCES users(id)
+    ON DELETE SET NULL
+);
+
+
+-- =========================================================
+-- فهارس الإضافات الجديدة
+-- =========================================================
+
+CREATE INDEX IF NOT EXISTS idx_guardian_students_guardian
+ON guardian_students(guardian_id);
+
+CREATE INDEX IF NOT EXISTS idx_guardian_students_student
+ON guardian_students(student_id);
+
+CREATE INDEX IF NOT EXISTS idx_messages_sender
+ON messages(sender_user_id);
+
+CREATE INDEX IF NOT EXISTS idx_messages_receiver
+ON messages(receiver_user_id);
+
+CREATE INDEX IF NOT EXISTS idx_messages_student
+ON messages(related_student_id);
+
+CREATE INDEX IF NOT EXISTS idx_circle_requests_circle
+ON circle_enrollment_requests(circle_id);
+
+CREATE INDEX IF NOT EXISTS idx_circle_requests_student
+ON circle_enrollment_requests(student_id);
+
+CREATE INDEX IF NOT EXISTS idx_announcements_circle
+ON circle_announcements(circle_id);
+
+CREATE INDEX IF NOT EXISTS idx_supervisor_teachers_supervisor
+ON supervisor_teachers(supervisor_id);
+
+CREATE INDEX IF NOT EXISTS idx_supervisor_circles_supervisor
+ON supervisor_circles(supervisor_id);
+
+CREATE INDEX IF NOT EXISTS idx_student_profiles_track
+ON student_profiles(education_track);
+
+
+-- =========================================================
+-- باقات افتراضية
+-- =========================================================
+
+INSERT OR IGNORE INTO circle_packages
+(name,circle_type,price,currency,sessions_per_month,duration_days,description)
+VALUES
+(
+  'الباقة الفردية الأساسية',
+  'individual',
+  0,
+  'EGP',
+  4,
+  30,
+  'باقة حلقة فردية أساسية'
+),
+(
+  'الباقة الفردية المتقدمة',
+  'individual',
+  0,
+  'EGP',
+  8,
+  30,
+  'باقة حلقة فردية متقدمة'
+),
+(
+  'الباقة الفردية المميزة',
+  'individual',
+  0,
+  'EGP',
+  12,
+  30,
+  'باقة حلقة فردية مميزة'
+),
+(
+  'الباقة الجماعية الأساسية',
+  'group',
+  0,
+  'EGP',
+  4,
+  30,
+  'باقة حلقة جماعية أساسية'
+),
+(
+  'الباقة الجماعية المتقدمة',
+  'group',
+  0,
+  'EGP',
+  8,
+  30,
+  'باقة حلقة جماعية متقدمة'
+),
+(
+  'الباقة الجماعية المميزة',
+  'group',
+  0,
+  'EGP',
+  12,
+  30,
+  'باقة حلقة جماعية مميزة'
+);
