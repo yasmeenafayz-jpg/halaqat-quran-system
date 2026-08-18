@@ -1,49 +1,350 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#0f766e">
-<title>الأوَّابين - الدخول</title>
-<style>
-*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Tahoma,sans-serif;background:#f5f7f7;color:#17322e}
-main{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
-.card{width:min(520px,100%);background:#fff;border-radius:24px;padding:28px;box-shadow:0 12px 40px rgba(0,0,0,.08)}
-h1{text-align:center;margin:0 0 8px}.sub{text-align:center;color:#65736f;margin:0 0 24px}
-.roles{display:grid;grid-template-columns:1fr 1fr;gap:12px}button{border:1px solid #d9e3e1;background:#fff;border-radius:16px;padding:18px 12px;font-size:16px;font-weight:700;cursor:pointer}
-.selected{border:2px solid #0f766e;background:#effaf8}.icon{display:block;font-size:30px;margin-bottom:7px}
-.actions{margin-top:18px}.primary{width:100%;background:#0f766e;color:#fff;border:0}
-#status{text-align:center;margin-top:14px;color:#65736f;min-height:24px}
-@media(max-width:420px){.roles{grid-template-columns:1fr}}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>الأوَّابين - تسجيل الدخول</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      font-family: Arial, sans-serif;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #f5f7f4;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 480px;
+      background: white;
+      border-radius: 24px;
+      padding: 28px;
+      box-shadow: 0 10px 35px rgba(0,0,0,.08);
+    }
+
+    .logo {
+      text-align: center;
+      font-size: 30px;
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: #777;
+      margin-bottom: 28px;
+    }
+
+    .roles {
+      display: grid;
+      gap: 12px;
+    }
+
+    .role {
+      width: 100%;
+      border: 1px solid #ddd;
+      background: #fff;
+      padding: 18px;
+      border-radius: 16px;
+      text-align: right;
+      cursor: pointer;
+    }
+
+    .role.selected {
+      border-color: #555;
+      background: #f1f1f1;
+    }
+
+    .role-title {
+      font-size: 18px;
+      font-weight: bold;
+    }
+
+    .role-description {
+      color: #777;
+      font-size: 13px;
+      margin-top: 5px;
+    }
+
+    .guardian-box {
+      display: none;
+      margin-top: 20px;
+      border-top: 1px solid #eee;
+      padding-top: 20px;
+    }
+
+    .field {
+      margin-bottom: 14px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: bold;
+    }
+
+    input,
+    select {
+      width: 100%;
+      padding: 13px;
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      background: white;
+    }
+
+    .child {
+      border: 1px solid #eee;
+      border-radius: 14px;
+      padding: 14px;
+      margin-bottom: 10px;
+    }
+
+    button {
+      width: 100%;
+      border: 0;
+      padding: 15px;
+      border-radius: 14px;
+      margin-top: 10px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    .continue {
+      background: #222;
+      color: white;
+    }
+
+    .hint {
+      font-size: 12px;
+      color: #777;
+      margin-top: 8px;
+    }
+  </style>
 </head>
+
 <body>
-<main><section class="card">
-<h1>الأوَّابين</h1>
-<p class="sub">اختر نوع الحساب الذي تريد الدخول إليه</p>
-<div class="roles" id="roles">
-<button data-role="student"><span class="icon">👩‍🎓</span>طالب</button>
-<button data-role="teacher"><span class="icon">👩‍🏫</span>معلم</button>
-<button data-role="guardian"><span class="icon">👨‍👩‍👧</span>ولي أمر</button>
-<button data-role="supervisor"><span class="icon">👩‍💼</span>مشرفة</button>
-<button data-role="admin"><span class="icon">🏢</span>إدارة</button>
+
+<div class="container">
+
+  <div class="logo">الأوَّابين</div>
+
+  <div class="subtitle">
+    اختر نوع الحساب للدخول
+  </div>
+
+  <div class="roles">
+
+    <div class="role" onclick="selectRole('student', this)">
+      <div class="role-title">👩‍🎓 طالب / طالبة</div>
+      <div class="role-description">
+        متابعة الحفظ والحلقات والحضور والاختبارات
+      </div>
+    </div>
+
+    <div class="role" onclick="selectRole('teacher', this)">
+      <div class="role-title">👩‍🏫 معلم / معلمة</div>
+      <div class="role-description">
+        إدارة الطلاب والحلقات والجلسات والمتابعة
+      </div>
+    </div>
+
+    <div class="role" onclick="selectRole('guardian', this)">
+      <div class="role-title">👨‍👩‍👧 ولي أمر</div>
+      <div class="role-description">
+        متابعة الأبناء وإدارة ملفاتهم التعليمية
+      </div>
+    </div>
+
+    <div class="role" onclick="selectRole('admin', this)">
+      <div class="role-title">⚙️ الإدارة</div>
+      <div class="role-description">
+        إدارة الأكاديمية والصلاحيات والمشرفات
+      </div>
+    </div>
+
+    <div class="role" onclick="selectRole('supervisor', this)">
+      <div class="role-title">👩‍💼 مشرفة</div>
+      <div class="role-description">
+        متابعة الحلقات والمعلمات والطلاب حسب الصلاحيات
+      </div>
+    </div>
+
+  </div>
+
+  <div id="guardianBox" class="guardian-box">
+
+    <h3>بيانات ولي الأمر والأبناء</h3>
+
+    <div class="field">
+      <label>اسم ولي الأمر</label>
+      <input id="guardianName" type="text" placeholder="الاسم الكامل">
+    </div>
+
+    <div class="field">
+      <label>عدد الأبناء</label>
+      <input
+        id="childrenCount"
+        type="number"
+        min="1"
+        value="1"
+        onchange="buildChildren()"
+      >
+    </div>
+
+    <div id="children"></div>
+
+    <div class="hint">
+      يمكن لولي الأمر أن يكون أيضًا طالبًا في الأكاديمية.
+    </div>
+
+  </div>
+
+  <button class="continue" onclick="continueLogin()">
+    متابعة
+  </button>
+
 </div>
-<div class="actions"><button class="primary" id="continueBtn">متابعة</button></div>
-<div id="status"></div>
-</section></main>
+
 <script>
-let selectedRole=null;
-document.querySelectorAll("#roles button").forEach(button=>{
-button.addEventListener("click",()=>{
-document.querySelectorAll("#roles button").forEach(b=>b.classList.remove("selected"));
-button.classList.add("selected"); selectedRole=button.dataset.role;
-document.getElementById("status").textContent="تم اختيار: "+button.textContent.trim();
-});
-});
-document.getElementById("continueBtn").addEventListener("click",()=>{
-if(!selectedRole){document.getElementById("status").textContent="اختاري نوع الحساب أولًا.";return;}
-window.location.href="index.html?role="+encodeURIComponent(selectedRole);
-});
+
+let selectedRole = null;
+
+function selectRole(role, element) {
+
+  selectedRole = role;
+
+  document
+    .querySelectorAll('.role')
+    .forEach(item => {
+      item.classList.remove('selected');
+    });
+
+  element.classList.add('selected');
+
+  const guardianBox =
+    document.getElementById('guardianBox');
+
+  guardianBox.style.display =
+    role === 'guardian' ? 'block' : 'none';
+
+  if (role === 'guardian') {
+    buildChildren();
+  }
+}
+
+function buildChildren() {
+
+  const count =
+    Number(
+      document.getElementById('childrenCount').value || 1
+    );
+
+  const container =
+    document.getElementById('children');
+
+  container.innerHTML = '';
+
+  for (let i = 1; i <= count; i++) {
+
+    const child =
+      document.createElement('div');
+
+    child.className = 'child';
+
+    child.innerHTML = `
+      <strong>الابن / الابنة ${i}</strong>
+
+      <div class="field">
+        <label>الاسم</label>
+        <input name="childName[]" type="text">
+      </div>
+
+      <div class="field">
+        <label>الجنس</label>
+        <select name="childGender[]">
+          <option value="">اختيار</option>
+          <option value="male">ذكر</option>
+          <option value="female">أنثى</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>العمر</label>
+        <input name="childAge[]" type="number" min="3" max="100">
+      </div>
+
+      <div class="field">
+        <label>مقدار الحفظ الحالي</label>
+        <input
+          name="childMemorization[]"
+          type="text"
+          placeholder="مثال: جزء عم"
+        >
+      </div>
+    `;
+
+    container.appendChild(child);
+  }
+}
+
+function continueLogin() {
+
+  if (!selectedRole) {
+    alert('يرجى اختيار نوع الحساب أولاً');
+    return;
+  }
+
+  const data = {
+    role: selectedRole
+  };
+
+  if (selectedRole === 'guardian') {
+
+    data.guardianName =
+      document.getElementById('guardianName').value;
+
+    data.children =
+      [...document.querySelectorAll('.child')]
+      .map(child => ({
+        name:
+          child.querySelector(
+            '[name="childName[]"]'
+          ).value,
+
+        gender:
+          child.querySelector(
+            '[name="childGender[]"]'
+          ).value,
+
+        age:
+          child.querySelector(
+            '[name="childAge[]"]'
+          ).value,
+
+        memorization:
+          child.querySelector(
+            '[name="childMemorization[]"]'
+          ).value
+      }));
+  }
+
+  localStorage.setItem(
+    'alawabeen_selected_role',
+    JSON.stringify(data)
+  );
+
+  window.location.href = '/';
+}
+
 </script>
+
 </body>
 </html>
