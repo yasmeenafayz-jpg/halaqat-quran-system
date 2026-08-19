@@ -1,39 +1,3 @@
-/**
- * الأوَّابين — Individual Scheduling API
- *
- * المسار:
- * /api/individual-scheduling
- *
- * الوظائف:
- * GET:
- *   - عرض المواعيد الفارغة للمعلمة
- *   - عرض طلبات المواعيد
- *   - عرض الحجوزات
- *   - عرض موعد/طلب/حجز محدد
- *
- * POST:
- *   - إضافة وقت متاح للمعلمة
- *   - إرسال طلب موعد من الطالب/ولي الأمر
- *
- * PATCH:
- *   - تعديل وقت متاح
- *   - قبول طلب
- *   - رفض طلب
- *   - إلغاء طلب
- *   - تحديث حالة الحجز
- *
- * سير العمل:
- * 1. المعلمة تضيف الأوقات التي تستطيع استقبال الطلاب فيها.
- * 2. الطالب أو ولي الأمر يرى الأوقات المتاحة فقط.
- * 3. يختار الموعد المناسب.
- * 4. يرسل طلبًا للمعلمة.
- * 5. المعلمة تقبل أو ترفض.
- * 6. عند القبول يتم إنشاء حجز مؤكد.
- *
- * متوافق مع:
- * migrations/006_professional_scheduling_and_billing.sql
- */
-
 const HEADERS = {
   "Content-Type": "application/json; charset=utf-8",
 };
@@ -60,24 +24,17 @@ const BOOKING_STATUSES = [
 ];
 
 function json(data, status = 200) {
-  return new Response(
-    JSON.stringify(data),
-    {
-      status,
-      headers: HEADERS,
-    }
-  );
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: HEADERS,
+  });
 }
 
-function errorResponse(
-  message,
-  status = 400,
-  extra = {}
-) {
+function fail(error, status = 400, extra = {}) {
   return json(
     {
       success: false,
-      error: message,
+      error,
       ...extra,
     },
     status
@@ -89,56 +46,37 @@ function clean(value) {
 }
 
 function nullable(value) {
-  const valueClean = clean(value);
-  return valueClean || null;
+  const value = clean(value);
+  return value || null;
 }
 
-function validId(value) {
+function id(value) {
   const number = Number(value);
-
-  return (
-    Number.isInteger(number) &&
-    number > 0
-  );
+  return Number.isInteger(number) && number > 0
+    ? number
+    : null;
 }
 
 function validDate(value) {
-  const valueClean = clean(value);
+  const value = clean(value);
 
-  if (
-    !/^\d{4}-\d{2}-\d{2}$/.test(
-      valueClean
-    )
-  ) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return false;
   }
 
-  const date = new Date(
-    `${valueClean}T00:00:00`
-  );
+  const date = new Date(`${value}T00:00:00`);
 
-  return (
-    !Number.isNaN(date.getTime()) &&
-    date.toISOString().slice(0, 10) ===
-      valueClean
-  );
+  return !Number.isNaN(date.getTime());
 }
 
 function validTime(value) {
-  const valueClean = clean(value);
+  const value = clean(value);
 
-  if (
-    !/^\d{2}:\d{2}$/.test(
-      valueClean
-    )
-  ) {
+  if (!/^\d{2}:\d{2}$/.test(value)) {
     return false;
   }
 
-  const [hours, minutes] =
-    valueClean
-      .split(":")
-      .map(Number);
+  const [hours, minutes] = value.split(":").map(Number);
 
   return (
     hours >= 0 &&
@@ -150,126 +88,1453 @@ function validTime(value) {
 
 function validWeekday(value) {
   const number = Number(value);
-
-  return (
-    Number.isInteger(number) &&
-    number >= 0 &&
-    number <= 6
-  );
+  return Number.isInteger(number) && number >= 0 && number <= 6;
 }
 
-function now() {
+function validRange(start, end) {
+  return validTime(start) && validTime(end) && start < end;
+}
+
+function timestamp() {
   return new Date().toISOString();
 }
 
-function today() {
-  return new Date()
-    .toISOString()
-    .slice(0, 10);
-}
-
-function validateTimeRange(
-  startTime,
-  endTime
-) {
-  if (!validTime(startTime)) {
-    return "INVALID_START_TIME";
-  }
-
-  if (!validTime(endTime)) {
-    return "INVALID_END_TIME";
-  }
-
-  if (startTime >= endTime) {
-    return "END_TIME_MUST_BE_AFTER_START_TIME";
-  }
-
-  return null;
-}
-
-function validateDateRange(
-  validFrom,
-  validUntil
-) {
-  if (
-    validFrom !== null &&
-    !validDate(validFrom)
-  ) {
-    return "INVALID_VALID_FROM";
-  }
-
-  if (
-    validUntil !== null &&
-    !validDate(validUntil)
-  ) {
-    return "INVALID_VALID_UNTIL";
-  }
-
-  if (
-    validFrom &&
-    validUntil &&
-    validFrom > validUntil
-  ) {
-    return "VALID_UNTIL_BEFORE_VALID_FROM";
-  }
-
-  return null;
-}
-
-function validateRequestStatus(
-  status
-) {
-  if (
-    !REQUEST_STATUSES.includes(status)
-  ) {
-    return "INVALID_REQUEST_STATUS";
-  }
-
-  return null;
-}
-
-function validateSlotStatus(status) {
-  if (
-    !SLOT_STATUSES.includes(status)
-  ) {
-    return "INVALID_SLOT_STATUS";
-  }
-
-  return null;
-}
-
-function validateBookingStatus(
-  status
-) {
-  if (
-    !BOOKING_STATUSES.includes(status)
-  ) {
-    return "INVALID_BOOKING_STATUS";
-  }
-
-  return null;
-}
-
-/* =========================================================
-   DATABASE HELPERS
-========================================================= */
-
-async function getTeacher(
-  db,
-  teacherId
-) {
+async function teacher(db, teacherId) {
   return db
     .prepare(`
-      SELECT
-        id,
-        full_name,
-        status
+      SELECT id, full_name, status
       FROM teachers
       WHERE id = ?1
       LIMIT 1
     `)
-    .bind(Number(teacherId))
+    .bind(teacherId)
     .first();
 }
 
-async
+async function student(db, studentId) {
+  return db
+    .prepare(`
+      SELECT id, full_name, status
+      FROM students
+      WHERE id = ?1
+      LIMIT 1
+    `)
+    .bind(studentId)
+    .first();
+}
+
+async function slot(db, slotId) {
+  return db
+    .prepare(`
+      SELECT
+        s.id,
+        s.teacher_id,
+        s.weekday,
+        s.start_time,
+        s.end_time,
+        s.timezone,
+        s.status,
+        s.valid_from,
+        s.valid_until,
+        s.notes,
+        s.created_at,
+        s.updated_at,
+        t.full_name AS teacher_name
+      FROM teacher_availability_slots s
+      JOIN teachers t ON t.id = s.teacher_id
+      WHERE s.id = ?1
+      LIMIT 1
+    `)
+    .bind(slotId)
+    .first();
+}
+
+async function request(db, requestId) {
+  return db
+    .prepare(`
+      SELECT
+        r.id,
+        r.student_id,
+        r.teacher_id,
+        r.availability_slot_id,
+        r.circle_id,
+        r.subscription_id,
+        r.requested_date,
+        r.requested_start_time,
+        r.requested_end_time,
+        r.requested_by,
+        r.status,
+        r.teacher_response_note,
+        r.student_note,
+        r.decided_at,
+        r.decided_by,
+        r.created_at,
+        r.updated_at,
+        st.full_name AS student_name,
+        t.full_name AS teacher_name,
+        c.name AS circle_name
+      FROM individual_schedule_requests r
+      JOIN students st ON st.id = r.student_id
+      JOIN teachers t ON t.id = r.teacher_id
+      LEFT JOIN circles c ON c.id = r.circle_id
+      WHERE r.id = ?1
+      LIMIT 1
+    `)
+    .bind(requestId)
+    .first();
+}
+
+async function booking(db, bookingId) {
+  return db
+    .prepare(`
+      SELECT
+        b.id,
+        b.request_id,
+        b.student_id,
+        b.teacher_id,
+        b.circle_id,
+        b.subscription_id,
+        b.booking_date,
+        b.start_time,
+        b.end_time,
+        b.session_id,
+        b.status,
+        b.created_at,
+        b.updated_at,
+        st.full_name AS student_name,
+        t.full_name AS teacher_name,
+        c.name AS circle_name
+      FROM individual_schedule_bookings b
+      JOIN students st ON st.id = b.student_id
+      JOIN teachers t ON t.id = b.teacher_id
+      LEFT JOIN circles c ON c.id = b.circle_id
+      WHERE b.id = ?1
+      LIMIT 1
+    `)
+    .bind(bookingId)
+    .first();
+}
+
+async function conflict(db, teacherId, date, start, end, excludeId = null) {
+  let sql = `
+    SELECT id, student_id, teacher_id,
+           booking_date, start_time, end_time, status
+    FROM individual_schedule_bookings
+    WHERE teacher_id = ?1
+      AND booking_date = ?2
+      AND status IN ('confirmed', 'completed')
+      AND start_time < ?4
+      AND end_time > ?3
+  `;
+
+  const params = [
+    teacherId,
+    date,
+    start,
+    end,
+  ];
+
+  if (excludeId !== null) {
+    params.push(excludeId);
+    sql += ` AND id != ?${params.length}`;
+  }
+
+  sql += " LIMIT 1";
+
+  return db.prepare(sql).bind(...params).first();
+}
+
+async function pendingConflict(
+  db,
+  teacherId,
+  date,
+  start,
+  end,
+  excludeId = null
+) {
+  let sql = `
+    SELECT id, student_id, teacher_id,
+           requested_date,
+           requested_start_time,
+           requested_end_time,
+           status
+    FROM individual_schedule_requests
+    WHERE teacher_id = ?1
+      AND requested_date = ?2
+      AND status = 'pending'
+      AND requested_start_time < ?4
+      AND requested_end_time > ?3
+  `;
+
+  const params = [
+    teacherId,
+    date,
+    start,
+    end,
+  ];
+
+  if (excludeId !== null) {
+    params.push(excludeId);
+    sql += ` AND id != ?${params.length}`;
+  }
+
+  sql += " LIMIT 1";
+
+  return db.prepare(sql).bind(...params).first();
+}
+
+/* =========================================================
+   GET
+========================================================= */
+
+export async function onRequestGet(context) {
+  const db = context.env?.DB;
+
+  if (!db) {
+    return fail("DATABASE_NOT_CONFIGURED", 503);
+  }
+
+  const url = new URL(context.request.url);
+  const type = clean(url.searchParams.get("type") || "slots").toLowerCase();
+
+  try {
+    if (type === "slot") {
+      const slotId = id(url.searchParams.get("id"));
+
+      if (!slotId) {
+        return fail("SLOT_ID_REQUIRED");
+      }
+
+      const data = await slot(db, slotId);
+
+      if (!data) {
+        return fail("SLOT_NOT_FOUND", 404);
+      }
+
+      return json({
+        success: true,
+        data,
+      });
+    }
+
+    if (type === "request") {
+      const requestId = id(url.searchParams.get("id"));
+
+      if (!requestId) {
+        return fail("REQUEST_ID_REQUIRED");
+      }
+
+      const data = await request(db, requestId);
+
+      if (!data) {
+        return fail("REQUEST_NOT_FOUND", 404);
+      }
+
+      return json({
+        success: true,
+        data,
+      });
+    }
+
+    if (type === "booking") {
+      const bookingId = id(url.searchParams.get("id"));
+
+      if (!bookingId) {
+        return fail("BOOKING_ID_REQUIRED");
+      }
+
+      const data = await booking(db, bookingId);
+
+      if (!data) {
+        return fail("BOOKING_NOT_FOUND", 404);
+      }
+
+      return json({
+        success: true,
+        data,
+      });
+    }
+
+    if (type === "slots") {
+      const teacherIdValue = url.searchParams.get("teacher_id");
+      const date = clean(url.searchParams.get("date"));
+
+      const teacherId = teacherIdValue
+        ? id(teacherIdValue)
+        : null;
+
+      if (teacherIdValue && !teacherId) {
+        return fail("INVALID_TEACHER_ID");
+      }
+
+      if (date && !validDate(date)) {
+        return fail("INVALID_DATE");
+      }
+
+      let sql = `
+        SELECT
+          s.id,
+          s.teacher_id,
+          s.weekday,
+          s.start_time,
+          s.end_time,
+          s.timezone,
+          s.status,
+          s.valid_from,
+          s.valid_until,
+          s.notes,
+          s.created_at,
+          s.updated_at,
+          t.full_name AS teacher_name
+        FROM teacher_availability_slots s
+        JOIN teachers t ON t.id = s.teacher_id
+        WHERE s.status = 'available'
+          AND t.status = 'active'
+      `;
+
+      const params = [];
+
+      if (teacherId) {
+        params.push(teacherId);
+        sql += ` AND s.teacher_id = ?${params.length}`;
+      }
+
+      if (date) {
+        const weekday = new Date(`${date}T00:00:00`).getDay();
+
+        params.push(weekday);
+        sql += ` AND s.weekday = ?${params.length}`;
+
+        params.push(date);
+        sql += `
+          AND (
+            s.valid_from IS NULL
+            OR s.valid_from <= ?${params.length}
+          )
+          AND (
+            s.valid_until IS NULL
+            OR s.valid_until >= ?${params.length}
+          )
+        `;
+      }
+
+      sql += `
+        ORDER BY
+          s.teacher_id,
+          s.weekday,
+          s.start_time,
+          s.id
+      `;
+
+      const result = await db
+        .prepare(sql)
+        .bind(...params)
+        .all();
+
+      let rows = result.results || [];
+
+      if (date) {
+        const available = [];
+
+        for (const item of rows) {
+          const booked = await conflict(
+            db,
+            item.teacher_id,
+            date,
+            item.start_time,
+            item.end_time
+          );
+
+          if (!booked) {
+            available.push({
+              ...item,
+              requested_date: date,
+              available: true,
+            });
+          }
+        }
+
+        rows = available;
+      }
+
+      return json({
+        success: true,
+        data: rows,
+        count: rows.length,
+      });
+    }
+
+    if (type === "requests") {
+      const teacherIdValue = url.searchParams.get("teacher_id");
+      const studentIdValue = url.searchParams.get("student_id");
+      const status = clean(url.searchParams.get("status")).toLowerCase();
+
+      let sql = `
+        SELECT
+          r.id,
+          r.student_id,
+          r.teacher_id,
+          r.availability_slot_id,
+          r.circle_id,
+          r.subscription_id,
+          r.requested_date,
+          r.requested_start_time,
+          r.requested_end_time,
+          r.requested_by,
+          r.status,
+          r.teacher_response_note,
+          r.student_note,
+          r.decided_at,
+          r.decided_by,
+          r.created_at,
+          r.updated_at,
+          st.full_name AS student_name,
+          t.full_name AS teacher_name,
+          c.name AS circle_name
+        FROM individual_schedule_requests r
+        JOIN students st ON st.id = r.student_id
+        JOIN teachers t ON t.id = r.teacher_id
+        LEFT JOIN circles c ON c.id = r.circle_id
+        WHERE 1 = 1
+      `;
+
+      const params = [];
+
+      if (teacherIdValue) {
+        const teacherId = id(teacherIdValue);
+
+        if (!teacherId) {
+          return fail("INVALID_TEACHER_ID");
+        }
+
+        params.push(teacherId);
+        sql += ` AND r.teacher_id = ?${params.length}`;
+      }
+
+      if (studentIdValue) {
+        const studentId = id(studentIdValue);
+
+        if (!studentId) {
+          return fail("INVALID_STUDENT_ID");
+        }
+
+        params.push(studentId);
+        sql += ` AND r.student_id = ?${params.length}`;
+      }
+
+      if (status) {
+        if (!REQUEST_STATUSES.includes(status)) {
+          return fail("INVALID_REQUEST_STATUS");
+        }
+
+        params.push(status);
+        sql += ` AND r.status = ?${params.length}`;
+      }
+
+      sql += `
+        ORDER BY
+          r.requested_date,
+          r.requested_start_time,
+          r.id DESC
+      `;
+
+      const result = await db
+        .prepare(sql)
+        .bind(...params)
+        .all();
+
+      return json({
+        success: true,
+        data: result.results || [],
+        count: (result.results || []).length,
+      });
+    }
+
+    if (type === "bookings") {
+      const teacherIdValue = url.searchParams.get("teacher_id");
+      const studentIdValue = url.searchParams.get("student_id");
+      const date = clean(url.searchParams.get("date"));
+      const status = clean(url.searchParams.get("status")).toLowerCase();
+
+      if (date && !validDate(date)) {
+        return fail("INVALID_DATE");
+      }
+
+      let sql = `
+        SELECT
+          b.id,
+          b.request_id,
+          b.student_id,
+          b.teacher_id,
+          b.circle_id,
+          b.subscription_id,
+          b.booking_date,
+          b.start_time,
+          b.end_time,
+          b.session_id,
+          b.status,
+          b.created_at,
+          b.updated_at,
+          st.full_name AS student_name,
+          t.full_name AS teacher_name,
+          c.name AS circle_name
+        FROM individual_schedule_bookings b
+        JOIN students st ON st.id = b.student_id
+        JOIN teachers t ON t.id = b.teacher_id
+        LEFT JOIN circles c ON c.id = b.circle_id
+        WHERE 1 = 1
+      `;
+
+      const params = [];
+
+      if (teacherIdValue) {
+        const teacherId = id(teacherIdValue);
+
+        if (!teacherId) {
+          return fail("INVALID_TEACHER_ID");
+        }
+
+        params.push(teacherId);
+        sql += ` AND b.teacher_id = ?${params.length}`;
+      }
+
+      if (studentIdValue) {
+        const studentId = id(studentIdValue);
+
+        if (!studentId) {
+          return fail("INVALID_STUDENT_ID");
+        }
+
+        params.push(studentId);
+        sql += ` AND b.student_id = ?${params.length}`;
+      }
+
+      if (date) {
+        params.push(date);
+        sql += ` AND b.booking_date = ?${params.length}`;
+      }
+
+      if (status) {
+        if (!BOOKING_STATUSES.includes(status)) {
+          return fail("INVALID_BOOKING_STATUS");
+        }
+
+        params.push(status);
+        sql += ` AND b.status = ?${params.length}`;
+      }
+
+      sql += `
+        ORDER BY
+          b.booking_date,
+          b.start_time,
+          b.id
+      `;
+
+      const result = await db
+        .prepare(sql)
+        .bind(...params)
+        .all();
+
+      return json({
+        success: true,
+        data: result.results || [],
+        count: (result.results || []).length,
+      });
+    }
+
+    return fail("INVALID_SCHEDULING_TYPE");
+  } catch (error) {
+    console.error("INDIVIDUAL_SCHEDULING_GET_ERROR", error);
+
+    return fail(
+      "INDIVIDUAL_SCHEDULING_FETCH_FAILED",
+      500
+    );
+  }
+}
+
+/* =========================================================
+   POST
+========================================================= */
+
+export async function onRequestPost(context) {
+  const db = context.env?.DB;
+
+  if (!db) {
+    return fail("DATABASE_NOT_CONFIGURED", 503);
+  }
+
+  let body;
+
+  try {
+    body = await context.request.json();
+  } catch {
+    return fail("INVALID_JSON");
+  }
+
+  const action = clean(
+    body?.action || body?.type
+  ).toLowerCase();
+
+  try {
+    if (
+      action === "add_slot" ||
+      action === "create_slot" ||
+      action === "slot"
+    ) {
+      const teacherId = id(
+        body.teacher_id ?? body.teacherId
+      );
+
+      const weekday = Number(body.weekday);
+
+      const start = clean(
+        body.start_time ?? body.startTime
+      );
+
+      const end = clean(
+        body.end_time ?? body.endTime
+      );
+
+      const status = clean(
+        body.status || "available"
+      ).toLowerCase();
+
+      const validFrom = nullable(
+        body.valid_from ?? body.validFrom
+      );
+
+      const validUntil = nullable(
+        body.valid_until ?? body.validUntil
+      );
+
+      if (!teacherId) {
+        return fail("TEACHER_ID_REQUIRED");
+      }
+
+      if (!validWeekday(weekday)) {
+        return fail("INVALID_WEEKDAY");
+      }
+
+      if (!validRange(start, end)) {
+        return fail("INVALID_TIME_RANGE");
+      }
+
+      if (!SLOT_STATUSES.includes(status)) {
+        return fail("INVALID_SLOT_STATUS");
+      }
+
+      if (
+        (validFrom && !validDate(validFrom)) ||
+        (validUntil && !validDate(validUntil))
+      ) {
+        return fail("INVALID_VALIDITY_DATE");
+      }
+
+      if (
+        validFrom &&
+        validUntil &&
+        validFrom > validUntil
+      ) {
+        return fail("VALID_UNTIL_BEFORE_VALID_FROM");
+      }
+
+      const existingTeacher = await teacher(
+        db,
+        teacherId
+      );
+
+      if (!existingTeacher) {
+        return fail("TEACHER_NOT_FOUND", 404);
+      }
+
+      const duplicate = await db
+        .prepare(`
+          SELECT id
+          FROM teacher_availability_slots
+          WHERE teacher_id = ?1
+            AND weekday = ?2
+            AND start_time = ?3
+            AND end_time = ?4
+          LIMIT 1
+        `)
+        .bind(
+          teacherId,
+          weekday,
+          start,
+          end
+        )
+        .first();
+
+      if (duplicate) {
+        return fail(
+          "AVAILABILITY_SLOT_ALREADY_EXISTS",
+          409,
+          { slot_id: duplicate.id }
+        );
+      }
+
+      const result = await db
+        .prepare(`
+          INSERT INTO teacher_availability_slots (
+            teacher_id,
+            weekday,
+            start_time,
+            end_time,
+            timezone,
+            status,
+            valid_from,
+            valid_until,
+            notes,
+            created_at,
+            updated_at
+          )
+          VALUES (
+            ?1, ?2, ?3, ?4, ?5,
+            ?6, ?7, ?8, ?9,
+            ?10, ?10
+          )
+        `)
+        .bind(
+          teacherId,
+          weekday,
+          start,
+          end,
+          clean(body.timezone) || "Africa/Cairo",
+          status,
+          validFrom,
+          validUntil,
+          nullable(body.notes),
+          timestamp()
+        )
+        .run();
+
+      const created = await slot(
+        db,
+        result.meta.last_row_id
+      );
+
+      return json(
+        {
+          success: true,
+          message: "AVAILABILITY_SLOT_CREATED",
+          data: created,
+        },
+        201
+      );
+    }
+
+    if (
+      action === "request" ||
+      action === "create_request" ||
+      action === "request_slot"
+    ) {
+      const studentId = id(
+        body.student_id ?? body.studentId
+      );
+
+      const teacherId = id(
+        body.teacher_id ?? body.teacherId
+      );
+
+      const slotId = id(
+        body.availability_slot_id ??
+        body.availabilitySlotId
+      );
+
+      const date = clean(
+        body.requested_date ??
+        body.requestedDate
+      );
+
+      const start = clean(
+        body.requested_start_time ??
+        body.requestedStartTime ??
+        body.start_time ??
+        body.startTime
+      );
+
+      const end = clean(
+        body.requested_end_time ??
+        body.requestedEndTime ??
+        body.end_time ??
+        body.endTime
+      );
+
+      if (!studentId) {
+        return fail("STUDENT_ID_REQUIRED");
+      }
+
+      if (!teacherId) {
+        return fail("TEACHER_ID_REQUIRED");
+      }
+
+      if (!validDate(date)) {
+        return fail("INVALID_REQUESTED_DATE");
+      }
+
+      if (!validRange(start, end)) {
+        return fail("INVALID_TIME_RANGE");
+      }
+
+      const existingStudent = await student(
+        db,
+        studentId
+      );
+
+      if (!existingStudent) {
+        return fail("STUDENT_NOT_FOUND", 404);
+      }
+
+      const existingTeacher = await teacher(
+        db,
+        teacherId
+      );
+
+      if (!existingTeacher) {
+        return fail("TEACHER_NOT_FOUND", 404);
+      }
+
+      /*
+       * التأكد من أن الوقت المطلوب
+       * موجود فعلًا ضمن جدول المعلمة.
+       */
+
+      const weekday = new Date(
+        `${date}T00:00:00`
+      ).getDay();
+
+      let selectedSlot = null;
+
+      if (slotId) {
+        selectedSlot = await slot(db, slotId);
+
+        if (!selectedSlot) {
+          return fail(
+            "SLOT_NOT_FOUND",
+            404
+          );
+        }
+
+        if (
+          Number(selectedSlot.teacher_id) !==
+          teacherId
+        ) {
+          return fail(
+            "SLOT_TEACHER_MISMATCH",
+            409
+          );
+        }
+
+        if (
+          selectedSlot.status !==
+          "available"
+        ) {
+          return fail(
+            "SLOT_NOT_AVAILABLE",
+            409
+          );
+        }
+
+        if (
+          Number(selectedSlot.weekday) !==
+          weekday
+        ) {
+          return fail(
+            "DATE_DOES_NOT_MATCH_SLOT_WEEKDAY",
+            409
+          );
+        }
+
+        if (
+          start < selectedSlot.start_time ||
+          end > selectedSlot.end_time
+        ) {
+          return fail(
+            "REQUEST_OUTSIDE_AVAILABLE_TIME",
+            409
+          );
+        }
+
+        if (
+          selectedSlot.valid_from &&
+          date < selectedSlot.valid_from
+        ) {
+          return fail(
+            "DATE_BEFORE_SLOT_VALID_FROM",
+            409
+          );
+        }
+
+        if (
+          selectedSlot.valid_until &&
+          date > selectedSlot.valid_until
+        ) {
+          return fail(
+            "DATE_AFTER_SLOT_VALID_UNTIL",
+            409
+          );
+        }
+      } else {
+        selectedSlot = await db
+          .prepare(`
+            SELECT id
+            FROM teacher_availability_slots
+            WHERE teacher_id = ?1
+              AND weekday = ?2
+              AND status = 'available'
+              AND start_time <= ?3
+              AND end_time >= ?4
+              AND (
+                valid_from IS NULL
+                OR valid_from <= ?5
+              )
+              AND (
+                valid_until IS NULL
+                OR valid_until >= ?5
+              )
+            ORDER BY id
+            LIMIT 1
+          `)
+          .bind(
+            teacherId,
+            weekday,
+            start,
+            end,
+            date
+          )
+          .first();
+
+        if (!selectedSlot) {
+          return fail(
+            "NO_AVAILABLE_SLOT",
+            409
+          );
+        }
+      }
+
+      const booked = await conflict(
+        db,
+        teacherId,
+        date,
+        start,
+        end
+      );
+
+      if (booked) {
+        return fail(
+          "TIME_ALREADY_BOOKED",
+          409,
+          { conflict: booked }
+        );
+      }
+
+      const pending = await pendingConflict(
+        db,
+        teacherId,
+        date,
+        start,
+        end
+      );
+
+      if (pending) {
+        return fail(
+          "TIME_ALREADY_REQUESTED",
+          409,
+          { conflict: pending }
+        );
+      }
+
+      const subscriptionId = id(
+        body.subscription_id ??
+        body.subscriptionId
+      );
+
+      const circleId = id(
+        body.circle_id ??
+        body.circleId
+      );
+
+      const requestedBy = id(
+        body.requested_by ??
+        body.requestedBy
+      );
+
+      const result = await db
+        .prepare(`
+          INSERT INTO individual_schedule_requests (
+            student_id,
+            teacher_id,
+            availability_slot_id,
+            circle_id,
+            subscription_id,
+            requested_date,
+            requested_start_time,
+            requested_end_time,
+            requested_by,
+            status,
+            teacher_response_note,
+            student_note,
+            decided_at,
+            decided_by,
+            created_at,
+            updated_at
+          )
+          VALUES (
+            ?1, ?2, ?3, ?4, ?5,
+            ?6, ?7, ?8, ?9,
+            'pending',
+            NULL, ?10,
+            NULL, NULL,
+            ?11, ?11
+          )
+        `)
+        .bind(
+          studentId,
+          teacherId,
+          selectedSlot.id,
+          circleId,
+          subscriptionId,
+          date,
+          start,
+          end,
+          requestedBy,
+          nullable(
+            body.student_note ??
+            body.studentNote ??
+            body.notes
+          ),
+          timestamp()
+        )
+        .run();
+
+      const created = await request(
+        db,
+        result.meta.last_row_id
+      );
+
+      return json(
+        {
+          success: true,
+          message: "SCHEDULE_REQUEST_SENT",
+          data: created,
+        },
+        201
+      );
+    }
+
+    return fail("INVALID_SCHEDULING_ACTION");
+  } catch (error) {
+    console.error(
+      "INDIVIDUAL_SCHEDULING_POST_ERROR",
+      error
+    );
+
+    return fail(
+      "INDIVIDUAL_SCHEDULING_CREATE_FAILED",
+      500
+    );
+  }
+}
+
+/* =========================================================
+   PATCH
+========================================================= */
+
+export async function onRequestPatch(context) {
+  const db = context.env?.DB;
+
+  if (!db) {
+    return fail("DATABASE_NOT_CONFIGURED", 503);
+  }
+
+  let body;
+
+  try {
+    body = await context.request.json();
+  } catch {
+    return fail("INVALID_JSON");
+  }
+
+  const action = clean(
+    body?.action || body?.type
+  ).toLowerCase();
+
+  try {
+    if (
+      action === "accept_request" ||
+      action === "approve_request"
+    ) {
+      const requestId = id(
+        body.id ??
+        body.request_id ??
+        body.requestId
+      );
+
+      if (!requestId) {
+        return fail("REQUEST_ID_REQUIRED");
+      }
+
+      const current = await request(
+        db,
+        requestId
+      );
+
+      if (!current) {
+        return fail(
+          "REQUEST_NOT_FOUND",
+          404
+        );
+      }
+
+      if (current.status !== "pending") {
+        return fail(
+          "REQUEST_IS_NOT_PENDING",
+          409
+        );
+      }
+
+      const booked = await conflict(
+        db,
+        current.teacher_id,
+        current.requested_date,
+        current.requested_start_time,
+        current.requested_end_time
+      );
+
+      if (booked) {
+        return fail(
+          "TIME_ALREADY_BOOKED",
+          409,
+          { conflict: booked }
+        );
+      }
+
+      const created = await db
+        .prepare(`
+          INSERT INTO individual_schedule_bookings (
+            request_id,
+            student_id,
+            teacher_id,
+            circle_id,
+            subscription_id,
+            booking_date,
+            start_time,
+            end_time,
+            session_id,
+            status,
+            created_at,
+            updated_at
+          )
+          VALUES (
+            ?1, ?2, ?3, ?4, ?5,
+            ?6, ?7, ?8,
+            NULL,
+            'confirmed',
+            ?9, ?9
+          )
+        `)
+        .bind(
+          current.id,
+          current.student_id,
+          current.teacher_id,
+          current.circle_id,
+          current.subscription_id,
+          current.requested_date,
+          current.requested_start_time,
+          current.requested_end_time,
+          timestamp()
+        )
+        .run();
+
+      const decidedBy = id(
+        body.decided_by ??
+        body.decidedBy
+      );
+
+      const note = nullable(
+        body.teacher_response_note ??
+        body.teacherResponseNote
+      );
+
+      await db
+        .prepare(`
+          UPDATE individual_schedule_requests
+          SET
+            status = 'accepted',
+            teacher_response_note = ?2,
+            decided_at = ?3,
+            decided_by = ?4,
+            updated_at = ?3
+          WHERE id = ?1
+        `)
+        .bind(
+          requestId,
+          note,
+          timestamp(),
+          decidedBy
+        )
+        .run();
+
+      return json({
+        success: true,
+        message: "SCHEDULE_REQUEST_ACCEPTED",
+        data: {
+          request: await request(
+            db,
+            requestId
+          ),
+          booking: await booking(
+            db,
+            created.meta.last_row_id
+          ),
+        },
+      });
+    }
+
+    if (action === "reject_request") {
+      const requestId = id(
+        body.id ??
+        body.request_id ??
+        body.requestId
+      );
+
+      if (!requestId) {
+        return fail("REQUEST_ID_REQUIRED");
+      }
+
+      const current = await request(
+        db,
+        requestId
+      );
+
+      if (!current) {
+        return fail(
+          "REQUEST_NOT_FOUND",
+          404
+        );
+      }
+
+      if (current.status !== "pending") {
+        return fail(
+          "REQUEST_IS_NOT_PENDING",
+          409
+        );
+      }
+
+      await db
+        .prepare(`
+          UPDATE individual_schedule_requests
+          SET
+            status = 'rejected',
+            teacher_response_note = ?2,
+            decided_at = ?3,
+            decided_by = ?4,
+            updated_at = ?3
+          WHERE id = ?1
+        `)
+        .bind(
+          requestId,
+          nullable(
+            body.teacher_response_note ??
+            body.teacherResponseNote
+          ),
+          timestamp(),
+          id(
+            body.decided_by ??
+            body.decidedBy
+          )
+        )
+        .run();
+
+      return json({
+        success: true,
+        message: "SCHEDULE_REQUEST_REJECTED",
+        data: await request(
+          db,
+          requestId
+        ),
+      });
+    }
+
+    if (action === "cancel_request") {
+      const requestId = id(
+        body.id ??
+        body.request_id ??
+        body.requestId
+      );
+
+      if (!requestId) {
+        return fail("REQUEST_ID_REQUIRED");
+      }
+
+      const current = await request(
+        db,
+        requestId
+      );
+
+      if (!current) {
+        return fail(
+          "REQUEST_NOT_FOUND",
+          404
+        );
+      }
+
+      if (
+        !["pending", "accepted"].includes(
+          current.status
+        )
+      ) {
+        return fail(
+          "REQUEST_CANNOT_BE_CANCELLED",
+          409
+        );
+      }
+
+      const time = timestamp();
+
+      await db
+        .prepare(`
+          UPDATE individual_schedule_requests
+          SET
+            status = 'cancelled',
+            decided_at = ?2,
+            updated_at = ?2
+          WHERE id = ?1
+        `)
+        .bind(
+          requestId,
+          time
+        )
+        .run();
+
+      await db
+        .prepare(`
+          UPDATE individual_schedule_bookings
+          SET
+            status = 'cancelled',
+            updated_at = ?2
+          WHERE request_id = ?1
+            AND status IN ('confirmed', 'rescheduled')
+        `)
+        .bind(
+          requestId,
+          time
+        )
+        .run();
+
+      return json({
+        success: true,
+        message: "SCHEDULE_REQUEST_CANCELLED",
+        data: await request(
+          db,
+          requestId
+        ),
+      });
+    }
+
+    if (
+      action === "update_booking" ||
+      action === "booking_status"
+    ) {
+      const bookingId = id(
+        body.id ??
+        body.booking_id ??
+        body.bookingId
+      );
+
+      if (!bookingId) {
+        return fail("BOOKING_ID_REQUIRED");
+      }
+
+      const current = await booking(
+        db,
+        bookingId
+      );
+
+      if (!current) {
+        return fail(
+          "BOOKING_NOT_FOUND",
+          404
+        );
+      }
+
+      const status = clean(
+        body.status || current.status
+      ).toLowerCase();
+
+      if (!BOOKING_STATUSES.includes(status)) {
+        return fail(
+          "INVALID_BOOKING_STATUS"
+        );
+      }
+
+      await db
+        .prepare(`
+          UPDATE individual_schedule_bookings
+          SET
+            status = ?2,
+            session_id = ?3,
+            updated_at = ?4
+          WHERE id = ?1
+        `)
+        .bind(
+          bookingId,
+          status,
+          id(
+            body.session_id ??
+            body.sessionId
+          ) || current.session_id,
+          timestamp()
+        )
+        .run();
+
+      return json({
+        success: true,
+        message: "BOOKING_UPDATED",
+        data: await booking(
+          db,
+          bookingId
+        ),
+      });
+    }
+
+    return fail("INVALID_SCHEDULING_ACTION");
+  } catch (error) {
+    console.error(
+      "INDIVIDUAL_SCHEDULING_PATCH_ERROR",
+      error
+    );
+
+    return fail(
+      "INDIVIDUAL_SCHEDULING_UPDATE_FAILED",
+      500
+    );
+  }
+}
+
+export async function onRequest(context) {
+  switch (context.request.method.toUpperCase()) {
+    case "GET":
+      return onRequestGet(context);
+
+    case "POST":
+      return onRequestPost(context);
+
+    case "PATCH":
+      return onRequestPatch(context);
+
+    default:
+      return fail(
+        "METHOD_NOT_ALLOWED",
+        405,
+        {
+          allowed: [
+            "GET",
+            "POST",
+            "PATCH",
+          ],
+        }
+      );
+  }
+}
