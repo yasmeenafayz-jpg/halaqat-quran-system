@@ -33,7 +33,10 @@ function getCookie(request, name) {
 function getClientIp(request) {
   return (
     request.headers.get("CF-Connecting-IP") ||
-    request.headers.get("X-Forwarded-For")?.split(",")[0]?.trim() ||
+    request.headers
+      .get("X-Forwarded-For")
+      ?.split(",")[0]
+      ?.trim() ||
     null
   );
 }
@@ -53,7 +56,10 @@ function createToken() {
 
 async function sha256(value) {
   const data = new TextEncoder().encode(value);
-  const hash = await crypto.subtle.digest("SHA-256", data);
+  const hash = await crypto.subtle.digest(
+    "SHA-256",
+    data
+  );
 
   return Array.from(new Uint8Array(hash))
     .map((byte) => byte.toString(16).padStart(2, "0"))
@@ -62,7 +68,11 @@ async function sha256(value) {
 
 function addDays(days) {
   const date = new Date();
-  date.setUTCDate(date.getUTCDate() + days);
+
+  date.setUTCDate(
+    date.getUTCDate() + days
+  );
+
   return date.toISOString();
 }
 
@@ -193,11 +203,13 @@ async function requireAuth(request, env) {
   if (!user) {
     return {
       ok: false,
+
       response: json(
         {
           success: false,
           error: "UNAUTHORIZED",
-          message: "يجب تسجيل الدخول أولًا.",
+          message:
+            "يجب تسجيل الدخول أولًا.",
         },
         401
       ),
@@ -210,7 +222,10 @@ async function requireAuth(request, env) {
   };
 }
 
-async function getPermissionState(db, user) {
+async function getPermissionState(
+  db,
+  user
+) {
   const permissions = new Map();
 
   const roleRows = await db
@@ -219,14 +234,18 @@ async function getPermissionState(db, user) {
       SELECT
         permission_key,
         allowed
+
       FROM role_permissions
+
       WHERE role = ?
       `
     )
     .bind(user.role)
     .all();
 
-  for (const row of roleRows.results || []) {
+  for (
+    const row of roleRows.results || []
+  ) {
     permissions.set(
       row.permission_key,
       Number(row.allowed) === 1
@@ -239,14 +258,18 @@ async function getPermissionState(db, user) {
       SELECT
         permission_key,
         allowed
+
       FROM user_permissions
+
       WHERE user_id = ?
       `
     )
     .bind(user.id)
     .all();
 
-  for (const row of userRows.results || []) {
+  for (
+    const row of userRows.results || []
+  ) {
     permissions.set(
       row.permission_key,
       Number(row.allowed) === 1
@@ -270,7 +293,10 @@ async function hasPermission(
   }
 
   const permissions =
-    await getPermissionState(db, user);
+    await getPermissionState(
+      db,
+      user
+    );
 
   return (
     permissions.get(permission) === true
@@ -291,15 +317,17 @@ async function requirePermission(
     return auth;
   }
 
-  const allowed = await hasPermission(
-    env.DB,
-    auth.user,
-    permission
-  );
+  const allowed =
+    await hasPermission(
+      env.DB,
+      auth.user,
+      permission
+    );
 
   if (!allowed) {
     return {
       ok: false,
+
       response: json(
         {
           success: false,
@@ -332,9 +360,10 @@ async function requireRole(
     return auth;
   }
 
-  const allowedRoles = Array.isArray(roles)
-    ? roles
-    : [roles];
+  const allowedRoles =
+    Array.isArray(roles)
+      ? roles
+      : [roles];
 
   if (
     !allowedRoles.includes(
@@ -343,6 +372,7 @@ async function requireRole(
   ) {
     return {
       ok: false,
+
       response: json(
         {
           success: false,
@@ -375,6 +405,7 @@ async function createSession(
   }
 
   const token = createToken();
+
   const tokenHash =
     await sha256(token);
 
@@ -391,6 +422,7 @@ async function createSession(
         ip_address,
         user_agent
       )
+
       VALUES (?, ?, ?, ?, ?)
       `
     )
@@ -435,7 +467,10 @@ async function destroySession(
       .prepare(
         `
         UPDATE auth_sessions
-        SET revoked_at = CURRENT_TIMESTAMP
+
+        SET revoked_at =
+          CURRENT_TIMESTAMP
+
         WHERE session_token_hash = ?
         `
       )
@@ -481,6 +516,7 @@ async function writeAudit(
         user_agent,
         metadata
       )
+
       VALUES (?, ?, ?, ?, ?, ?, ?)
       `
     )
