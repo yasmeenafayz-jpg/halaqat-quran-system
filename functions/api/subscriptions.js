@@ -14,6 +14,8 @@
  * - الإيقاف
  * - الانتهاء
  * - الإلغاء
+ * - منع الاشتراك النشط المكرر
+ * - التحقق من سعة الحلقات الجماعية
  */
 
 const HEADERS = {
@@ -26,6 +28,12 @@ const STATUSES = [
   "expired",
   "paused",
   "cancelled",
+];
+
+const ACTIVE_STATUSES = [
+  "trial",
+  "active",
+  "paused",
 ];
 
 function json(data, status = 200) {
@@ -108,6 +116,26 @@ function validateDates(startDate, endDate) {
   return null;
 }
 
+function normalizeType(value) {
+  const type = clean(value).toLowerCase();
+
+  if (
+    type === "فردية" ||
+    type === "فردي"
+  ) {
+    return "individual";
+  }
+
+  if (
+    type === "جماعية" ||
+    type === "جماعي"
+  ) {
+    return "group";
+  }
+
+  return type;
+}
+
 /* =========================================================
    Student
 ========================================================= */
@@ -181,10 +209,166 @@ async function getCircle(db, circleId) {
 }
 
 /* =========================================================
+   Circle enrollment count
+========================================================= */
+
+async function getCircleEnrollmentCount(
+  db,
+  circleId,
+  excludeSubscriptionStudentId = null
+) {
+  /*
+   * الاشتراك لا يعني بالضرورة أن الطالب
+   * تم تسجيله في circle_enrollments.
+   *
+   * لذلك نحسب:
+   * 1) الطلاب المسجلين فعليًا في الحلقة.
+   * 2) الاشتراكات النشطة/التجريبية/الموقوفة
+   *    المرتبطة بالحلقة والتي لم تدخل بعد
+   *    في circle_enrollments.
+   */
+
+  const enrollmentRows =
+    await db
+      .prepare(`
+        SELECT
+          student_id
+        FROM circle_enrollments
+        WHERE circle_id = ?1
+          AND status IN (
+            'pending',
+            'active',
+            'paused'
+          )
+      `)
+      .bind(circleId)
+      .all();
+
+  const enrolledStudents =
+    new Set(
+      (enrollmentRows.results || []).map(
+        (row) => Number(row.student_id)
+      )
+    );
+
+  const subscriptionRows =
+    await db
+      .prepare(`
+        SELECT
+          student_id
+        FROM subscriptions
+        WHERE circle_id = ?1
+          AND status IN (
+            'trial',
+            'active',
+            'paused'
+          )
+      `)
+      .bind(circleId)
+      .all();
+
+  for (const row of subscriptionRows.results || []) {
+    const studentId =
+      Number(row.student_id);
+
+    if (
+      excludeSubscriptionStudentId &&
+      studentId ===
+        Number(
+          excludeSubscriptionStudentId
+        )
+    ) {
+      continue;
+    }
+
+    enrolledStudents.add(studentId);
+  }
+
+  return enrolledStudents.size;
+}
+
+/* =========================================================
+   Duplicate subscription
+========================================================= */
+
+async function getExistingActiveSubscription(
+  db,
+  studentId,
+  circleId = null,
+  excludeSubscriptionId = null
+) {
+  let sql = `
+    SELECT
+      id,
+      student_id,
+      package_id,
+      circle_id,
+      start_date,
+      end_date,
+      status
+    FROM subscriptions
+    WHERE student_id = ?1
+      AND status IN (
+        'trial',
+        'active',
+        'paused'
+      )
+  `;
+
+  const params = [
+    Number(studentId),
+  ];
+
+  if (circleId !== null) {
+    sql += `
+      AND circle_id = ?${params.length + 1}
+    `;
+
+    params.push(
+      Number(circleId)
+    );
+  } else {
+    /*
+     * للاشتراك الفردي:
+     * لا نسمح بوجود اشتراك نشط آخر
+     * لنفس الطالب بدون حلقة.
+     */
+    sql += `
+      AND circle_id IS NULL
+    `;
+  }
+
+  if (
+    excludeSubscriptionId !== null
+  ) {
+    sql += `
+      AND id != ?${params.length + 1}
+    `;
+
+    params.push(
+      Number(excludeSubscriptionId)
+    );
+  }
+
+  sql += `
+    ORDER BY id DESC
+    LIMIT 1
+  `;
+
+  return db
+    .prepare(sql)
+    .bind(...params)
+    .first();
+}
+
+/* =========================================================
    Subscription
 ========================================================= */
 
-async function getSubscription(db, subscriptionId) {
+async function getSubscription(
+  db,
+  subscriptionId
+) {
   return db
     .prepare(`
       SELECT
@@ -245,23 +429,32 @@ export async function onRequestGet(context) {
     );
   }
 
-  const url = new URL(context.request.url);
+  const url =
+    new URL(context.request.url);
 
   const subscriptionId =
     url.searchParams.get("id");
 
   const studentId =
-    url.searchParams.get("student_id");
+    url.searchParams.get(
+      "student_id"
+    );
 
   const packageId =
-    url.searchParams.get("package_id");
+    url.searchParams.get(
+      "package_id"
+    );
 
   const circleId =
-    url.searchParams.get("circle_id");
+    url.searchParams.get(
+      "circle_id"
+    );
 
   const status =
     clean(
-      url.searchParams.get("status")
+      url.searchParams.get(
+        "status"
+      )
     ).toLowerCase();
 
   try {
@@ -341,7 +534,9 @@ export async function onRequestGet(context) {
         );
       }
 
-      params.push(Number(studentId));
+      params.push(
+        Number(studentId)
+      );
 
       sql += `
         AND sub.student_id = ?${params.length}
@@ -355,7 +550,9 @@ export async function onRequestGet(context) {
         );
       }
 
-      params.push(Number(packageId));
+      params.push(
+        Number(packageId)
+      );
 
       sql += `
         AND sub.package_id = ?${params.length}
@@ -369,7 +566,9 @@ export async function onRequestGet(context) {
         );
       }
 
-      params.push(Number(circleId));
+      params.push(
+        Number(circleId)
+      );
 
       sql += `
         AND sub.circle_id = ?${params.length}
@@ -407,8 +606,11 @@ export async function onRequestGet(context) {
 
     return json({
       success: true,
-      data: result.results || [],
-      count: result.results?.length || 0,
+      data:
+        result.results || [],
+      count:
+        result.results?.length ||
+        0,
     });
   } catch (error) {
     console.error(
@@ -440,14 +642,18 @@ export async function onRequestPost(context) {
   let data;
 
   try {
-    data = await context.request.json();
+    data =
+      await context.request.json();
   } catch {
     return errorResponse(
       "INVALID_JSON"
     );
   }
 
-  if (!data || typeof data !== "object") {
+  if (
+    !data ||
+    typeof data !== "object"
+  ) {
     return errorResponse(
       "INVALID_REQUEST_BODY"
     );
@@ -546,6 +752,16 @@ export async function onRequestPost(context) {
       );
     }
 
+    if (
+      student.status &&
+      student.status !== "active"
+    ) {
+      return errorResponse(
+        "STUDENT_IS_NOT_ACTIVE",
+        409
+      );
+    }
+
     const pkg =
       await getPackage(
         db,
@@ -562,6 +778,23 @@ export async function onRequestPost(context) {
     if (pkg.status !== "active") {
       return errorResponse(
         "PACKAGE_IS_NOT_ACTIVE",
+        409
+      );
+    }
+
+    const packageType =
+      normalizeType(
+        pkg.package_type
+      );
+
+    if (
+      packageType !==
+        "individual" &&
+      packageType !==
+        "group"
+    ) {
+      return errorResponse(
+        "INVALID_PACKAGE_TYPE",
         409
       );
     }
@@ -583,8 +816,10 @@ export async function onRequestPost(context) {
       }
 
       if (
-        circle.status === "inactive" ||
-        circle.status === "archived"
+        circle.status ===
+          "inactive" ||
+        circle.status ===
+          "archived"
       ) {
         return errorResponse(
           "CIRCLE_NOT_AVAILABLE",
@@ -592,9 +827,27 @@ export async function onRequestPost(context) {
         );
       }
 
+      const circleType =
+        normalizeType(
+          circle.circle_type
+        );
+
       if (
-        circle.package_id !== null &&
-        Number(circle.package_id) !==
+        circleType !==
+        packageType
+      ) {
+        return errorResponse(
+          "PACKAGE_TYPE_DOES_NOT_MATCH_CIRCLE_TYPE",
+          409
+        );
+      }
+
+      if (
+        circle.package_id !==
+          null &&
+        Number(
+          circle.package_id
+        ) !==
           Number(packageId)
       ) {
         return errorResponse(
@@ -603,31 +856,170 @@ export async function onRequestPost(context) {
         );
       }
 
+      /*
+       * الحلقة الفردية تستقبل طالبًا واحدًا.
+       */
       if (
-        circle.circle_type &&
-        pkg.package_type &&
-        circle.circle_type !==
-          pkg.package_type
+        circleType ===
+        "individual"
+      ) {
+        const count =
+          await getCircleEnrollmentCount(
+            db,
+            circleId
+          );
+
+        if (count >= 1) {
+          return errorResponse(
+            "INDIVIDUAL_CIRCLE_IS_ALREADY_OCCUPIED",
+            409,
+            {
+              current_count:
+                count,
+              capacity: 1,
+            }
+          );
+        }
+      }
+
+      /*
+       * الحلقة الجماعية:
+       * يجب احترام السعة.
+       */
+      if (
+        circleType ===
+        "group"
+      ) {
+        const capacity =
+          Number(
+            circle.capacity
+          );
+
+        if (
+          !Number.isInteger(
+            capacity
+          ) ||
+          capacity <= 0
+        ) {
+          return errorResponse(
+            "INVALID_CIRCLE_CAPACITY",
+            409
+          );
+        }
+
+        const currentCount =
+          await getCircleEnrollmentCount(
+            db,
+            circleId
+          );
+
+        if (
+          currentCount >=
+          capacity
+        ) {
+          return errorResponse(
+            "CIRCLE_IS_FULL",
+            409,
+            {
+              current_count:
+                currentCount,
+              capacity,
+            }
+          );
+        }
+
+        /*
+         * الباقة الجماعية لا يجوز أن
+         * تتطلب سعة أكبر من سعة الحلقة.
+         */
+        if (
+          pkg.capacity !==
+            null &&
+          pkg.capacity !==
+            undefined
+        ) {
+          const packageCapacity =
+            Number(
+              pkg.capacity
+            );
+
+          if (
+            packageCapacity >
+              0 &&
+            packageCapacity >
+              capacity
+          ) {
+            return errorResponse(
+              "PACKAGE_CAPACITY_EXCEEDS_CIRCLE_CAPACITY",
+              409,
+              {
+                package_capacity:
+                  packageCapacity,
+                circle_capacity:
+                  capacity,
+              }
+            );
+          }
+        }
+      }
+    } else {
+      /*
+       * الباقة الجماعية تحتاج حلقة جماعية.
+       */
+      if (
+        packageType ===
+        "group"
       ) {
         return errorResponse(
-          "PACKAGE_TYPE_DOES_NOT_MATCH_CIRCLE_TYPE",
+          "GROUP_SUBSCRIPTION_REQUIRES_GROUP_CIRCLE",
           409
         );
       }
     }
 
     /*
-     * لا نستخدم duration_days.
-     * مدة الباقة محفوظة كـ duration_minutes،
-     * لذلك لا نحولها إلى أيام بشكل خاطئ.
+     * منع الاشتراك النشط المكرر.
      *
-     * إذا أرسل المستخدم end_date نستخدمه.
-     * وإذا لم يرسله، يبقى NULL.
+     * للفردي:
+     * لا يسمح بأكثر من اشتراك نشط بدون حلقة.
+     *
+     * للجماعي:
+     * لا يسمح بأكثر من اشتراك نشط في نفس الحلقة.
      */
+    if (
+      ACTIVE_STATUSES.includes(
+        status
+      )
+    ) {
+      const existing =
+        await getExistingActiveSubscription(
+          db,
+          studentId,
+          circleId
+        );
 
-    if (status === "trial") {
+      if (existing) {
+        return errorResponse(
+          "STUDENT_ALREADY_HAS_ACTIVE_SUBSCRIPTION",
+          409,
+          {
+            subscription:
+              existing,
+          }
+        );
+      }
+    }
+
+    /*
+     * التجربة المجانية.
+     */
+    if (
+      status === "trial"
+    ) {
       const trialDays =
-        Number(pkg.trial_days || 0);
+        Number(
+          pkg.trial_days || 0
+        );
 
       if (!trialEndsAt) {
         const days =
@@ -643,7 +1035,8 @@ export async function onRequestPost(context) {
       }
 
       if (!endDate) {
-        endDate = trialEndsAt;
+        endDate =
+          trialEndsAt;
       }
     }
 
@@ -657,50 +1050,6 @@ export async function onRequestPost(context) {
       return errorResponse(
         dateError
       );
-    }
-
-    /*
-     * منع الاشتراك النشط المكرر
-     * لنفس الطالب في نفس الحلقة.
-     */
-    if (circleId !== null) {
-      const existing =
-        await db
-          .prepare(`
-            SELECT
-              id,
-              student_id,
-              package_id,
-              circle_id,
-              start_date,
-              end_date,
-              status
-            FROM subscriptions
-            WHERE student_id = ?1
-              AND circle_id = ?2
-              AND status IN (
-                'trial',
-                'active',
-                'paused'
-              )
-            ORDER BY id DESC
-            LIMIT 1
-          `)
-          .bind(
-            studentId,
-            circleId
-          )
-          .first();
-
-      if (existing) {
-        return errorResponse(
-          "STUDENT_ALREADY_HAS_ACTIVE_SUBSCRIPTION",
-          409,
-          {
-            subscription: existing,
-          }
-        );
-      }
     }
 
     const created =
@@ -794,14 +1143,18 @@ export async function onRequestPatch(context) {
   let data;
 
   try {
-    data = await context.request.json();
+    data =
+      await context.request.json();
   } catch {
     return errorResponse(
       "INVALID_JSON"
     );
   }
 
-  if (!data || typeof data !== "object") {
+  if (
+    !data ||
+    typeof data !== "object"
+  ) {
     return errorResponse(
       "INVALID_REQUEST_BODY"
     );
@@ -822,7 +1175,8 @@ export async function onRequestPatch(context) {
     const current =
       await db
         .prepare(`
-          SELECT *
+          SELECT
+            *
           FROM subscriptions
           WHERE id = ?1
           LIMIT 1
@@ -839,14 +1193,56 @@ export async function onRequestPatch(context) {
       );
     }
 
+    const studentId =
+      Number(
+        current.student_id
+      );
+
+    const packageId =
+      Number(
+        current.package_id
+      );
+
+    const circleId =
+      current.circle_id ===
+        null ||
+      current.circle_id ===
+        undefined
+        ? null
+        : Number(
+            current.circle_id
+          );
+
+    const pkg =
+      await getPackage(
+        db,
+        packageId
+      );
+
+    if (!pkg) {
+      return errorResponse(
+        "PACKAGE_NOT_FOUND",
+        404
+      );
+    }
+
+    const packageType =
+      normalizeType(
+        pkg.package_type
+      );
+
     const status =
       data.status !== undefined
-        ? clean(data.status).toLowerCase()
+        ? clean(
+            data.status
+          ).toLowerCase()
         : current.status;
 
     const startDate =
-      data.start_date !== undefined ||
-      data.startDate !== undefined
+      data.start_date !==
+          undefined ||
+      data.startDate !==
+          undefined
         ? clean(
             data.start_date ??
             data.startDate
@@ -854,8 +1250,10 @@ export async function onRequestPatch(context) {
         : current.start_date;
 
     const endDate =
-      data.end_date !== undefined ||
-      data.endDate !== undefined
+      data.end_date !==
+          undefined ||
+      data.endDate !==
+          undefined
         ? nullable(
             data.end_date ??
             data.endDate
@@ -863,8 +1261,10 @@ export async function onRequestPatch(context) {
         : current.end_date;
 
     const trialEndsAt =
-      data.trial_ends_at !== undefined ||
-      data.trialEndsAt !== undefined
+      data.trial_ends_at !==
+          undefined ||
+      data.trialEndsAt !==
+          undefined
         ? nullable(
             data.trial_ends_at ??
             data.trialEndsAt
@@ -872,8 +1272,11 @@ export async function onRequestPatch(context) {
         : current.trial_ends_at;
 
     const notes =
-      data.notes !== undefined
-        ? nullable(data.notes)
+      data.notes !==
+        undefined
+        ? nullable(
+            data.notes
+          )
         : current.notes;
 
     const statusError =
@@ -897,6 +1300,142 @@ export async function onRequestPatch(context) {
       );
     }
 
+    /*
+     * إذا تحول الاشتراك إلى
+     * active/trial/paused، نعيد فحص
+     * عدم وجود اشتراك آخر.
+     */
+    if (
+      ACTIVE_STATUSES.includes(
+        status
+      )
+    ) {
+      const existing =
+        await getExistingActiveSubscription(
+          db,
+          studentId,
+          circleId,
+          Number(subscriptionId)
+        );
+
+      if (existing) {
+        return errorResponse(
+          "STUDENT_ALREADY_HAS_ACTIVE_SUBSCRIPTION",
+          409,
+          {
+            subscription:
+              existing,
+          }
+        );
+      }
+    }
+
+    /*
+     * عند إعادة تفعيل اشتراك
+     * مرتبط بحلقة، نتحقق من السعة.
+     */
+    if (
+      ACTIVE_STATUSES.includes(
+        status
+      ) &&
+      circleId !== null
+    ) {
+      const circle =
+        await getCircle(
+          db,
+          circleId
+        );
+
+      if (!circle) {
+        return errorResponse(
+          "CIRCLE_NOT_FOUND",
+          404
+        );
+      }
+
+      if (
+        circle.status ===
+          "inactive" ||
+        circle.status ===
+          "archived"
+      ) {
+        return errorResponse(
+          "CIRCLE_NOT_AVAILABLE",
+          409
+        );
+      }
+
+      const circleType =
+        normalizeType(
+          circle.circle_type
+        );
+
+      if (
+        circleType !==
+        packageType
+      ) {
+        return errorResponse(
+          "PACKAGE_TYPE_DOES_NOT_MATCH_CIRCLE_TYPE",
+          409
+        );
+      }
+
+      if (
+        circle.package_id !==
+          null &&
+        Number(
+          circle.package_id
+        ) !== packageId
+      ) {
+        return errorResponse(
+          "PACKAGE_DOES_NOT_MATCH_CIRCLE",
+          409
+        );
+      }
+
+      const currentCount =
+        await getCircleEnrollmentCount(
+          db,
+          circleId,
+          studentId
+        );
+
+      const capacity =
+        circleType ===
+        "individual"
+          ? 1
+          : Number(
+              circle.capacity
+            );
+
+      if (
+        !Number.isInteger(
+          capacity
+        ) ||
+        capacity <= 0
+      ) {
+        return errorResponse(
+          "INVALID_CIRCLE_CAPACITY",
+          409
+        );
+      }
+
+      if (
+        currentCount >=
+        capacity
+      ) {
+        return errorResponse(
+          "CIRCLE_IS_FULL",
+          409,
+          {
+            current_count:
+              currentCount,
+            capacity,
+          }
+        );
+      }
+    }
+
     const updated =
       await db
         .prepare(`
@@ -912,7 +1451,9 @@ export async function onRequestPatch(context) {
           RETURNING *
         `)
         .bind(
-          Number(subscriptionId),
+          Number(
+            subscriptionId
+          ),
           startDate,
           endDate,
           status,
@@ -932,7 +1473,8 @@ export async function onRequestPatch(context) {
       success: true,
       message:
         "SUBSCRIPTION_UPDATED_SUCCESSFULLY",
-      data: row || updated,
+      data:
+        row || updated,
     });
   } catch (error) {
     console.error(
