@@ -14,15 +14,13 @@
  * - الإيقاف
  * - الانتهاء
  * - الإلغاء
- * - تاريخ البداية والنهاية
- * - تاريخ انتهاء التجربة
  */
 
 const HEADERS = {
   "Content-Type": "application/json; charset=utf-8",
 };
 
-const SUBSCRIPTION_STATUSES = [
+const STATUSES = [
   "trial",
   "active",
   "expired",
@@ -30,26 +28,14 @@ const SUBSCRIPTION_STATUSES = [
   "cancelled",
 ];
 
-const CIRCLE_TYPES = [
-  "individual",
-  "group",
-];
-
 function json(data, status = 200) {
-  return new Response(
-    JSON.stringify(data),
-    {
-      status,
-      headers: HEADERS,
-    }
-  );
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: HEADERS,
+  });
 }
 
-function errorResponse(
-  message,
-  status = 400,
-  extra = {}
-) {
+function errorResponse(message, status = 400, extra = {}) {
   return json(
     {
       success: false,
@@ -71,57 +57,62 @@ function nullable(value) {
 
 function validId(value) {
   const n = Number(value);
-
-  return (
-    Number.isInteger(n) &&
-    n > 0
-  );
+  return Number.isInteger(n) && n > 0;
 }
 
 function validDate(value) {
-  return /^\d{4}-\d{2}-\d{2}$/.test(
-    clean(value)
-  );
+  return /^\d{4}-\d{2}-\d{2}$/.test(clean(value));
+}
+
+function today() {
+  return new Date().toISOString().slice(0, 10);
 }
 
 function now() {
   return new Date().toISOString();
 }
 
-function today() {
-  return now().slice(0, 10);
-}
-
 function addDays(dateString, days) {
-  const date = new Date(
-    `${dateString}T00:00:00`
-  );
+  const date = new Date(`${dateString}T00:00:00`);
 
-  if (
-    Number.isNaN(
-      date.getTime()
-    )
-  ) {
+  if (Number.isNaN(date.getTime())) {
     return null;
   }
 
-  date.setDate(
-    date.getDate() + days
-  );
+  date.setDate(date.getDate() + Number(days));
 
-  return date
-    .toISOString()
-    .slice(0, 10);
+  return date.toISOString().slice(0, 10);
+}
+
+function validateStatus(status) {
+  if (!STATUSES.includes(status)) {
+    return "INVALID_SUBSCRIPTION_STATUS";
+  }
+
+  return null;
+}
+
+function validateDates(startDate, endDate) {
+  if (!validDate(startDate)) {
+    return "INVALID_START_DATE";
+  }
+
+  if (endDate && !validDate(endDate)) {
+    return "INVALID_END_DATE";
+  }
+
+  if (endDate && endDate < startDate) {
+    return "END_DATE_BEFORE_START_DATE";
+  }
+
+  return null;
 }
 
 /* =========================================================
-   Related records
+   Student
 ========================================================= */
 
-async function getStudent(
-  db,
-  studentId
-) {
+async function getStudent(db, studentId) {
   return db
     .prepare(`
       SELECT
@@ -136,17 +127,20 @@ async function getStudent(
     .first();
 }
 
-async function getPackage(
-  db,
-  packageId
-) {
+/* =========================================================
+   Package
+========================================================= */
+
+async function getPackage(db, packageId) {
   return db
     .prepare(`
       SELECT
         id,
         name,
         package_type,
-        duration_days,
+        duration_minutes,
+        trial_days,
+        sessions_per_month,
         price,
         currency,
         capacity,
@@ -159,10 +153,11 @@ async function getPackage(
     .first();
 }
 
-async function getCircle(
-  db,
-  circleId
-) {
+/* =========================================================
+   Circle
+========================================================= */
+
+async function getCircle(db, circleId) {
   if (!circleId) {
     return null;
   }
@@ -185,10 +180,11 @@ async function getCircle(
     .first();
 }
 
-async function getSubscription(
-  db,
-  subscriptionId
-) {
+/* =========================================================
+   Subscription
+========================================================= */
+
+async function getSubscription(db, subscriptionId) {
   return db
     .prepare(`
       SELECT
@@ -208,7 +204,9 @@ async function getSubscription(
 
         p.name AS package_name,
         p.package_type,
-        p.duration_days,
+        p.duration_minutes,
+        p.trial_days,
+        p.sessions_per_month,
         p.price AS package_price,
         p.currency AS package_currency,
 
@@ -234,57 +232,10 @@ async function getSubscription(
 }
 
 /* =========================================================
-   Validation
-========================================================= */
-
-function validateStatus(
-  status
-) {
-  if (
-    !SUBSCRIPTION_STATUSES.includes(
-      status
-    )
-  ) {
-    return "INVALID_SUBSCRIPTION_STATUS";
-  }
-
-  return null;
-}
-
-function validateDates(
-  startDate,
-  endDate
-) {
-  if (
-    !validDate(startDate)
-  ) {
-    return "INVALID_START_DATE";
-  }
-
-  if (
-    endDate &&
-    !validDate(endDate)
-  ) {
-    return "INVALID_END_DATE";
-  }
-
-  if (
-    endDate &&
-    endDate < startDate
-  ) {
-    return "END_DATE_BEFORE_START_DATE";
-  }
-
-  return null;
-}
-
-/* =========================================================
    GET
 ========================================================= */
 
-export async function onRequestGet(
-  context
-) {
+export async function onRequestGet(context) {
   const db = context.env?.DB;
 
   if (!db) {
@@ -294,41 +245,28 @@ export async function onRequestGet(
     );
   }
 
-  const url =
-    new URL(
-      context.request.url
-    );
+  const url = new URL(context.request.url);
 
   const subscriptionId =
     url.searchParams.get("id");
 
   const studentId =
-    url.searchParams.get(
-      "student_id"
-    );
+    url.searchParams.get("student_id");
 
   const packageId =
-    url.searchParams.get(
-      "package_id"
-    );
+    url.searchParams.get("package_id");
 
   const circleId =
-    url.searchParams.get(
-      "circle_id"
-    );
+    url.searchParams.get("circle_id");
 
   const status =
     clean(
-      url.searchParams.get(
-        "status"
-      )
+      url.searchParams.get("status")
     ).toLowerCase();
 
   try {
     if (subscriptionId) {
-      if (
-        !validId(subscriptionId)
-      ) {
+      if (!validId(subscriptionId)) {
         return errorResponse(
           "INVALID_SUBSCRIPTION_ID"
         );
@@ -371,7 +309,9 @@ export async function onRequestGet(
 
         p.name AS package_name,
         p.package_type,
-        p.duration_days,
+        p.duration_minutes,
+        p.trial_days,
+        p.sessions_per_month,
         p.price AS package_price,
         p.currency AS package_currency,
 
@@ -395,17 +335,13 @@ export async function onRequestGet(
     const params = [];
 
     if (studentId) {
-      if (
-        !validId(studentId)
-      ) {
+      if (!validId(studentId)) {
         return errorResponse(
           "INVALID_STUDENT_ID"
         );
       }
 
-      params.push(
-        Number(studentId)
-      );
+      params.push(Number(studentId));
 
       sql += `
         AND sub.student_id = ?${params.length}
@@ -413,17 +349,13 @@ export async function onRequestGet(
     }
 
     if (packageId) {
-      if (
-        !validId(packageId)
-      ) {
+      if (!validId(packageId)) {
         return errorResponse(
           "INVALID_PACKAGE_ID"
         );
       }
 
-      params.push(
-        Number(packageId)
-      );
+      params.push(Number(packageId));
 
       sql += `
         AND sub.package_id = ?${params.length}
@@ -431,17 +363,13 @@ export async function onRequestGet(
     }
 
     if (circleId) {
-      if (
-        !validId(circleId)
-      ) {
+      if (!validId(circleId)) {
         return errorResponse(
           "INVALID_CIRCLE_ID"
         );
       }
 
-      params.push(
-        Number(circleId)
-      );
+      params.push(Number(circleId));
 
       sql += `
         AND sub.circle_id = ?${params.length}
@@ -479,15 +407,13 @@ export async function onRequestGet(
 
     return json({
       success: true,
-      data:
-        result.results || [],
-      count:
-        result.results?.length || 0,
+      data: result.results || [],
+      count: result.results?.length || 0,
     });
-  } catch (e) {
+  } catch (error) {
     console.error(
       "SUBSCRIPTIONS_GET_ERROR",
-      e
+      error
     );
 
     return errorResponse(
@@ -501,9 +427,7 @@ export async function onRequestGet(
    POST
 ========================================================= */
 
-export async function onRequestPost(
-  context
-) {
+export async function onRequestPost(context) {
   const db = context.env?.DB;
 
   if (!db) {
@@ -516,18 +440,14 @@ export async function onRequestPost(
   let data;
 
   try {
-    data =
-      await context.request.json();
+    data = await context.request.json();
   } catch {
     return errorResponse(
       "INVALID_JSON"
     );
   }
 
-  if (
-    !data ||
-    typeof data !== "object"
-  ) {
+  if (!data || typeof data !== "object") {
     return errorResponse(
       "INVALID_REQUEST_BODY"
     );
@@ -545,24 +465,23 @@ export async function onRequestPost(
       data.packageId
     );
 
-  const circleId =
+  const circleValue =
     data.circle_id ??
     data.circleId;
 
-  const finalCircleId =
-    circleId === undefined ||
-    circleId === null ||
-    circleId === ""
+  const circleId =
+    circleValue === undefined ||
+    circleValue === null ||
+    circleValue === ""
       ? null
-      : Number(circleId);
+      : Number(circleValue);
 
   let status =
     clean(
-      data.status ||
-      "active"
+      data.status || "active"
     ).toLowerCase();
 
-  let startDate =
+  const startDate =
     clean(
       data.start_date ??
       data.startDate
@@ -583,25 +502,21 @@ export async function onRequestPost(
   const notes =
     nullable(data.notes);
 
-  if (
-    !validId(studentId)
-  ) {
+  if (!validId(studentId)) {
     return errorResponse(
       "STUDENT_ID_REQUIRED"
     );
   }
 
-  if (
-    !validId(packageId)
-  ) {
+  if (!validId(packageId)) {
     return errorResponse(
       "PACKAGE_ID_REQUIRED"
     );
   }
 
   if (
-    finalCircleId !== null &&
-    !validId(finalCircleId)
+    circleId !== null &&
+    !validId(circleId)
   ) {
     return errorResponse(
       "INVALID_CIRCLE_ID"
@@ -644,9 +559,7 @@ export async function onRequestPost(
       );
     }
 
-    if (
-      pkg.status !== "active"
-    ) {
+    if (pkg.status !== "active") {
       return errorResponse(
         "PACKAGE_IS_NOT_ACTIVE",
         409
@@ -655,11 +568,11 @@ export async function onRequestPost(
 
     let circle = null;
 
-    if (finalCircleId) {
+    if (circleId !== null) {
       circle =
         await getCircle(
           db,
-          finalCircleId
+          circleId
         );
 
       if (!circle) {
@@ -670,10 +583,8 @@ export async function onRequestPost(
       }
 
       if (
-        circle.status ===
-          "inactive" ||
-        circle.status ===
-          "archived"
+        circle.status === "inactive" ||
+        circle.status === "archived"
       ) {
         return errorResponse(
           "CIRCLE_NOT_AVAILABLE",
@@ -681,13 +592,22 @@ export async function onRequestPost(
         );
       }
 
-      /*
-       * يجب أن تتوافق الباقة
-       * مع نوع الحلقة.
-       */
       if (
-        pkg.package_type !==
-        circle.circle_type
+        circle.package_id !== null &&
+        Number(circle.package_id) !==
+          Number(packageId)
+      ) {
+        return errorResponse(
+          "PACKAGE_DOES_NOT_MATCH_CIRCLE",
+          409
+        );
+      }
+
+      if (
+        circle.circle_type &&
+        pkg.package_type &&
+        circle.circle_type !==
+          pkg.package_type
       ) {
         return errorResponse(
           "PACKAGE_TYPE_DOES_NOT_MATCH_CIRCLE_TYPE",
@@ -697,34 +617,33 @@ export async function onRequestPost(
     }
 
     /*
-     * إذا لم يرسل المستخدم تاريخ نهاية،
-     * نستخدم مدة الباقة إن كانت موجودة.
+     * لا نستخدم duration_days.
+     * مدة الباقة محفوظة كـ duration_minutes،
+     * لذلك لا نحولها إلى أيام بشكل خاطئ.
+     *
+     * إذا أرسل المستخدم end_date نستخدمه.
+     * وإذا لم يرسله، يبقى NULL.
      */
-    if (
-      !endDate &&
-      pkg.duration_days
-    ) {
-      endDate =
-        addDays(
-          startDate,
-          Number(
-            pkg.duration_days
-          )
-        );
-    }
 
-    /*
-     * تجربة 3 أيام عند اختيار trial.
-     */
-    if (
-      status === "trial"
-    ) {
+    if (status === "trial") {
+      const trialDays =
+        Number(pkg.trial_days || 0);
+
       if (!trialEndsAt) {
+        const days =
+          trialDays > 0
+            ? trialDays
+            : 3;
+
         trialEndsAt =
           addDays(
             startDate,
-            3
+            days
           );
+      }
+
+      if (!endDate) {
+        endDate = trialEndsAt;
       }
     }
 
@@ -741,14 +660,21 @@ export async function onRequestPost(
     }
 
     /*
-     * منع وجود اشتراك فعال
+     * منع الاشتراك النشط المكرر
      * لنفس الطالب في نفس الحلقة.
      */
-    if (finalCircleId) {
+    if (circleId !== null) {
       const existing =
         await db
           .prepare(`
-            SELECT *
+            SELECT
+              id,
+              student_id,
+              package_id,
+              circle_id,
+              start_date,
+              end_date,
+              status
             FROM subscriptions
             WHERE student_id = ?1
               AND circle_id = ?2
@@ -762,7 +688,7 @@ export async function onRequestPost(
           `)
           .bind(
             studentId,
-            finalCircleId
+            circleId
           )
           .first();
 
@@ -771,8 +697,7 @@ export async function onRequestPost(
           "STUDENT_ALREADY_HAS_ACTIVE_SUBSCRIPTION",
           409,
           {
-            subscription:
-              existing,
+            subscription: existing,
           }
         );
       }
@@ -809,7 +734,7 @@ export async function onRequestPost(
         .bind(
           studentId,
           packageId,
-          finalCircleId,
+          circleId,
           startDate,
           endDate,
           status,
@@ -837,15 +762,15 @@ export async function onRequestPost(
       },
       201
     );
-  } catch (e) {
+  } catch (error) {
     console.error(
       "SUBSCRIPTIONS_POST_ERROR",
-      e
+      error
     );
 
     return errorResponse(
-      e instanceof Error
-        ? e.message
+      error instanceof Error
+        ? error.message
         : "SUBSCRIPTION_CREATE_FAILED",
       500
     );
@@ -856,9 +781,7 @@ export async function onRequestPost(
    PATCH
 ========================================================= */
 
-export async function onRequestPatch(
-  context
-) {
+export async function onRequestPatch(context) {
   const db = context.env?.DB;
 
   if (!db) {
@@ -871,11 +794,16 @@ export async function onRequestPatch(
   let data;
 
   try {
-    data =
-      await context.request.json();
+    data = await context.request.json();
   } catch {
     return errorResponse(
       "INVALID_JSON"
+    );
+  }
+
+  if (!data || typeof data !== "object") {
+    return errorResponse(
+      "INVALID_REQUEST_BODY"
     );
   }
 
@@ -884,9 +812,7 @@ export async function onRequestPatch(
     data.subscription_id ??
     data.subscriptionId;
 
-  if (
-    !validId(subscriptionId)
-  ) {
+  if (!validId(subscriptionId)) {
     return errorResponse(
       "SUBSCRIPTION_ID_REQUIRED"
     );
@@ -914,12 +840,41 @@ export async function onRequestPatch(
     }
 
     const status =
-      data.status !==
-        undefined
-        ? clean(
-            data.status
-          ).toLowerCase()
+      data.status !== undefined
+        ? clean(data.status).toLowerCase()
         : current.status;
+
+    const startDate =
+      data.start_date !== undefined ||
+      data.startDate !== undefined
+        ? clean(
+            data.start_date ??
+            data.startDate
+          )
+        : current.start_date;
+
+    const endDate =
+      data.end_date !== undefined ||
+      data.endDate !== undefined
+        ? nullable(
+            data.end_date ??
+            data.endDate
+          )
+        : current.end_date;
+
+    const trialEndsAt =
+      data.trial_ends_at !== undefined ||
+      data.trialEndsAt !== undefined
+        ? nullable(
+            data.trial_ends_at ??
+            data.trialEndsAt
+          )
+        : current.trial_ends_at;
+
+    const notes =
+      data.notes !== undefined
+        ? nullable(data.notes)
+        : current.notes;
 
     const statusError =
       validateStatus(status);
@@ -929,47 +884,6 @@ export async function onRequestPatch(
         statusError
       );
     }
-
-    const startDate =
-      data.start_date !==
-        undefined ||
-      data.startDate !==
-        undefined
-        ? clean(
-            data.start_date ??
-            data.startDate
-          )
-        : current.start_date;
-
-    const endDate =
-      data.end_date !==
-        undefined ||
-      data.endDate !==
-        undefined
-        ? nullable(
-            data.end_date ??
-            data.endDate
-          )
-        : current.end_date;
-
-    const trialEndsAt =
-      data.trial_ends_at !==
-        undefined ||
-      data.trialEndsAt !==
-        undefined
-        ? nullable(
-            data.trial_ends_at ??
-            data.trialEndsAt
-          )
-        : current.trial_ends_at;
-
-    const notes =
-      data.notes !==
-        undefined
-        ? nullable(
-            data.notes
-          )
-        : current.notes;
 
     const dateError =
       validateDates(
@@ -981,25 +895,6 @@ export async function onRequestPatch(
       return errorResponse(
         dateError
       );
-    }
-
-    /*
-     * إذا تحول الاشتراك إلى trial
-     * ولا يوجد تاريخ تجربة،
-     * نضع تجربة 3 أيام.
-     */
-    let finalTrialEndsAt =
-      trialEndsAt;
-
-    if (
-      status === "trial" &&
-      !finalTrialEndsAt
-    ) {
-      finalTrialEndsAt =
-        addDays(
-          startDate,
-          3
-        );
     }
 
     const updated =
@@ -1021,7 +916,7 @@ export async function onRequestPatch(
           startDate,
           endDate,
           status,
-          finalTrialEndsAt,
+          trialEndsAt,
           notes,
           now()
         )
@@ -1030,25 +925,24 @@ export async function onRequestPatch(
     const row =
       await getSubscription(
         db,
-        subscriptionId
+        Number(subscriptionId)
       );
 
     return json({
       success: true,
       message:
         "SUBSCRIPTION_UPDATED_SUCCESSFULLY",
-      data:
-        row || updated,
+      data: row || updated,
     });
-  } catch (e) {
+  } catch (error) {
     console.error(
       "SUBSCRIPTIONS_PATCH_ERROR",
-      e
+      error
     );
 
     return errorResponse(
-      e instanceof Error
-        ? e.message
+      error instanceof Error
+        ? error.message
         : "SUBSCRIPTION_UPDATE_FAILED",
       500
     );
@@ -1059,9 +953,7 @@ export async function onRequestPatch(
    Router
 ========================================================= */
 
-export async function onRequest(
-  context
-) {
+export async function onRequest(context) {
   switch (
     context.request.method.toUpperCase()
   ) {
