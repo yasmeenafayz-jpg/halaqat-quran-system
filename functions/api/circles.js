@@ -8,7 +8,8 @@
  */
 
 const HEADERS = {
-  "Content-Type": "application/json; charset=utf-8",
+  "Content-Type":
+    "application/json; charset=utf-8",
 };
 
 const VALID_TYPES = [
@@ -52,13 +53,13 @@ function errorResponse(
   );
 }
 
-function cleanString(value) {
+function clean(value) {
   return String(value ?? "").trim();
 }
 
-function nullableString(value) {
-  const valueClean = cleanString(value);
-  return valueClean ? valueClean : null;
+function nullable(value) {
+  const valueClean = clean(value);
+  return valueClean || null;
 }
 
 function validId(value) {
@@ -70,24 +71,43 @@ function validId(value) {
   );
 }
 
-function positiveInteger(value, fallback = 1) {
+function positiveInteger(value) {
   const number = Number(value);
 
-  if (!Number.isFinite(number)) {
-    return fallback;
+  if (
+    !Number.isFinite(number) ||
+    number <= 0
+  ) {
+    return null;
   }
 
-  return Math.max(
-    1,
-    Math.floor(number)
-  );
+  return Math.floor(number);
 }
 
-/* =========================================================
-   Get Circle
-========================================================= */
+function normalizeType(value) {
+  const type = clean(value).toLowerCase();
 
-async function getCircleById(db, id) {
+  if (
+    type === "فردية" ||
+    type === "فردي"
+  ) {
+    return "individual";
+  }
+
+  if (
+    type === "جماعية" ||
+    type === "جماعي"
+  ) {
+    return "group";
+  }
+
+  return type;
+}
+
+async function getCircleById(
+  db,
+  circleId
+) {
   return db
     .prepare(`
       SELECT
@@ -127,15 +147,40 @@ async function getCircleById(db, id) {
       WHERE c.id = ?1
       LIMIT 1
     `)
-    .bind(id)
+    .bind(circleId)
     .first();
 }
 
+async function getEnrollmentCount(
+  db,
+  circleId
+) {
+  const row =
+    await db
+      .prepare(`
+        SELECT COUNT(*) AS count
+        FROM circle_enrollments
+        WHERE circle_id = ?1
+          AND status IN (
+            'pending',
+            'active',
+            'paused'
+          )
+      `)
+      .bind(circleId)
+      .first();
+
+  return Number(row?.count || 0);
+}
+
 /* =========================================================
-   Validate Teacher
+   Teacher Validation
 ========================================================= */
 
-async function validateTeacher(db, teacherId) {
+async function validateTeacher(
+  db,
+  teacherId
+) {
   if (
     teacherId === null ||
     teacherId === undefined
@@ -149,18 +194,19 @@ async function validateTeacher(db, teacherId) {
     };
   }
 
-  const teacher = await db
-    .prepare(`
-      SELECT
-        id,
-        full_name,
-        status
-      FROM teachers
-      WHERE id = ?1
-      LIMIT 1
-    `)
-    .bind(teacherId)
-    .first();
+  const teacher =
+    await db
+      .prepare(`
+        SELECT
+          id,
+          full_name,
+          status
+        FROM teachers
+        WHERE id = ?1
+        LIMIT 1
+      `)
+      .bind(teacherId)
+      .first();
 
   if (!teacher) {
     return {
@@ -171,7 +217,8 @@ async function validateTeacher(db, teacherId) {
   if (teacher.status !== "active") {
     return {
       error: "TEACHER_IS_NOT_ACTIVE",
-      teacher_status: teacher.status,
+      teacher_status:
+        teacher.status,
     };
   }
 
@@ -179,7 +226,7 @@ async function validateTeacher(db, teacherId) {
 }
 
 /* =========================================================
-   Validate Package
+   Package Validation
 ========================================================= */
 
 async function validatePackage(
@@ -201,20 +248,21 @@ async function validatePackage(
     };
   }
 
-  const pkg = await db
-    .prepare(`
-      SELECT
-        id,
-        name,
-        package_type,
-        capacity,
-        status
-      FROM packages
-      WHERE id = ?1
-      LIMIT 1
-    `)
-    .bind(packageId)
-    .first();
+  const pkg =
+    await db
+      .prepare(`
+        SELECT
+          id,
+          name,
+          package_type,
+          capacity,
+          status
+        FROM packages
+        WHERE id = ?1
+        LIMIT 1
+      `)
+      .bind(packageId)
+      .first();
 
   if (!pkg) {
     return {
@@ -228,7 +276,11 @@ async function validatePackage(
     };
   }
 
-  if (pkg.package_type !== circleType) {
+  if (
+    normalizeType(
+      pkg.package_type
+    ) !== circleType
+  ) {
     return {
       error:
         "PACKAGE_TYPE_DOES_NOT_MATCH_CIRCLE_TYPE",
@@ -259,7 +311,9 @@ async function validatePackage(
    GET
 ========================================================= */
 
-export async function onRequestGet(context) {
+export async function onRequestGet(
+  context
+) {
   const db = context.env?.DB;
 
   if (!db) {
@@ -276,35 +330,42 @@ export async function onRequestGet(context) {
     url.searchParams.get("id");
 
   const circleType =
-    url.searchParams.get("circle_type");
+    url.searchParams.get(
+      "circle_type"
+    );
 
   const status =
     url.searchParams.get("status");
 
   const teacherId =
-    url.searchParams.get("teacher_id");
+    url.searchParams.get(
+      "teacher_id"
+    );
 
   const packageId =
-    url.searchParams.get("package_id");
+    url.searchParams.get(
+      "package_id"
+    );
 
   const search =
-    cleanString(
-      url.searchParams.get("search")
+    clean(
+      url.searchParams.get(
+        "search"
+      )
     );
 
   try {
     if (id) {
       if (!validId(id)) {
         return errorResponse(
-          "INVALID_CIRCLE_ID",
-          400
+          "INVALID_CIRCLE_ID"
         );
       }
 
       const circle =
         await getCircleById(
           db,
-          id
+          Number(id)
         );
 
       if (!circle) {
@@ -361,18 +422,22 @@ export async function onRequestGet(context) {
     const params = [];
 
     if (circleType) {
+      const normalized =
+        normalizeType(
+          circleType
+        );
+
       if (
         !VALID_TYPES.includes(
-          circleType
+          normalized
         )
       ) {
         return errorResponse(
-          "INVALID_CIRCLE_TYPE",
-          400
+          "INVALID_CIRCLE_TYPE"
         );
       }
 
-      params.push(circleType);
+      params.push(normalized);
 
       sql += `
         AND c.circle_type = ?${params.length}
@@ -386,8 +451,7 @@ export async function onRequestGet(context) {
         )
       ) {
         return errorResponse(
-          "INVALID_CIRCLE_STATUS",
-          400
+          "INVALID_CIRCLE_STATUS"
         );
       }
 
@@ -401,12 +465,13 @@ export async function onRequestGet(context) {
     if (teacherId) {
       if (!validId(teacherId)) {
         return errorResponse(
-          "INVALID_TEACHER_ID",
-          400
+          "INVALID_TEACHER_ID"
         );
       }
 
-      params.push(Number(teacherId));
+      params.push(
+        Number(teacherId)
+      );
 
       sql += `
         AND c.teacher_id = ?${params.length}
@@ -416,12 +481,13 @@ export async function onRequestGet(context) {
     if (packageId) {
       if (!validId(packageId)) {
         return errorResponse(
-          "INVALID_PACKAGE_ID",
-          400
+          "INVALID_PACKAGE_ID"
         );
       }
 
-      params.push(Number(packageId));
+      params.push(
+        Number(packageId)
+      );
 
       sql += `
         AND c.package_id = ?${params.length}
@@ -429,27 +495,27 @@ export async function onRequestGet(context) {
     }
 
     if (search) {
-      const searchValue =
+      const value =
         `%${search}%`;
 
-      const firstSearchParam =
+      const first =
         params.length + 1;
 
       params.push(
-        searchValue,
-        searchValue,
-        searchValue,
-        searchValue,
-        searchValue
+        value,
+        value,
+        value,
+        value,
+        value
       );
 
       sql += `
         AND (
-          c.name LIKE ?${firstSearchParam}
-          OR t.full_name LIKE ?${firstSearchParam + 1}
-          OR p.name LIKE ?${firstSearchParam + 2}
-          OR c.level_name LIKE ?${firstSearchParam + 3}
-          OR c.path_name LIKE ?${firstSearchParam + 4}
+          c.name LIKE ?${first}
+          OR t.full_name LIKE ?${first + 1}
+          OR p.name LIKE ?${first + 2}
+          OR c.level_name LIKE ?${first + 3}
+          OR c.path_name LIKE ?${first + 4}
         )
       `;
     }
@@ -471,7 +537,8 @@ export async function onRequestGet(context) {
       data:
         result.results || [],
       count:
-        result.results?.length || 0,
+        result.results?.length ||
+        0,
     });
   } catch (error) {
     console.error(
@@ -492,7 +559,9 @@ export async function onRequestGet(context) {
    POST
 ========================================================= */
 
-export async function onRequestPost(context) {
+export async function onRequestPost(
+  context
+) {
   const db = context.env?.DB;
 
   if (!db) {
@@ -509,8 +578,7 @@ export async function onRequestPost(context) {
       await context.request.json();
   } catch {
     return errorResponse(
-      "INVALID_JSON",
-      400
+      "INVALID_JSON"
     );
   }
 
@@ -519,24 +587,22 @@ export async function onRequestPost(context) {
     typeof data !== "object"
   ) {
     return errorResponse(
-      "INVALID_REQUEST_BODY",
-      400
+      "INVALID_REQUEST_BODY"
     );
   }
 
   const name =
-    cleanString(data.name);
+    clean(data.name);
 
   const circleType =
-    cleanString(
+    normalizeType(
       data.circle_type ??
       data.circleType
     );
 
   if (!name) {
     return errorResponse(
-      "CIRCLE_NAME_REQUIRED",
-      400
+      "CIRCLE_NAME_REQUIRED"
     );
   }
 
@@ -546,25 +612,43 @@ export async function onRequestPost(context) {
     )
   ) {
     return errorResponse(
-      "CIRCLE_TYPE_MUST_BE_INDIVIDUAL_OR_GROUP",
-      400
+      "CIRCLE_TYPE_MUST_BE_INDIVIDUAL_OR_GROUP"
     );
   }
 
-  const capacity =
+  /*
+   * الفردية = طالب واحد فقط.
+   *
+   * الجماعية يجب أن تحدد لها السعة
+   * صراحةً؛ لا نعطيها 1 تلقائيًا.
+   */
+  let capacity;
+
+  if (
     circleType === "individual"
-      ? 1
-      : positiveInteger(
-          data.capacity,
-          1
-        );
+  ) {
+    capacity = 1;
+  } else {
+    capacity =
+      positiveInteger(
+        data.capacity
+      );
+
+    if (!capacity) {
+      return errorResponse(
+        "GROUP_CIRCLE_CAPACITY_REQUIRED"
+      );
+    }
+  }
 
   const teacherId =
     data.teacher_id !==
       undefined &&
     data.teacher_id !== null &&
     data.teacher_id !== ""
-      ? Number(data.teacher_id)
+      ? Number(
+          data.teacher_id
+        )
       : null;
 
   const packageId =
@@ -572,12 +656,15 @@ export async function onRequestPost(context) {
       undefined &&
     data.package_id !== null &&
     data.package_id !== ""
-      ? Number(data.package_id)
+      ? Number(
+          data.package_id
+        )
       : null;
 
   const status =
-    cleanString(
-      data.status || "active"
+    clean(
+      data.status ||
+        "active"
     );
 
   if (
@@ -586,25 +673,36 @@ export async function onRequestPost(context) {
     )
   ) {
     return errorResponse(
-      "INVALID_CIRCLE_STATUS",
-      400
+      "INVALID_CIRCLE_STATUS"
+    );
+  }
+
+  /*
+   * لا نسمح بإنشاء حلقة full
+   * يدويًا.
+   */
+  if (
+    status === "full"
+  ) {
+    return errorResponse(
+      "CIRCLE_FULL_STATUS_IS_AUTOMATIC"
     );
   }
 
   const scheduleNote =
-    nullableString(
+    nullable(
       data.schedule_note ??
       data.scheduleNote
     );
 
   const levelName =
-    nullableString(
+    nullable(
       data.level_name ??
       data.levelName
     );
 
   const pathName =
-    nullableString(
+    nullable(
       data.path_name ??
       data.pathName
     );
@@ -622,8 +720,16 @@ export async function onRequestPost(context) {
         teacher.error ===
           "TEACHER_NOT_FOUND"
           ? 404
-          : 409,
-        teacher
+          : 409
+      );
+    }
+
+    /*
+     * الباقة مطلوبة للحلقة.
+     */
+    if (!packageId) {
+      return errorResponse(
+        "PACKAGE_ID_REQUIRED"
       );
     }
 
@@ -706,7 +812,7 @@ export async function onRequestPost(context) {
       {
         success: true,
         message:
-          "Circle created successfully.",
+          "CIRCLE_CREATED_SUCCESSFULLY",
         data: created,
       },
       201
@@ -730,7 +836,9 @@ export async function onRequestPost(context) {
    PATCH
 ========================================================= */
 
-export async function onRequestPatch(context) {
+export async function onRequestPatch(
+  context
+) {
   const db = context.env?.DB;
 
   if (!db) {
@@ -747,8 +855,7 @@ export async function onRequestPatch(context) {
       await context.request.json();
   } catch {
     return errorResponse(
-      "INVALID_JSON",
-      400
+      "INVALID_JSON"
     );
   }
 
@@ -757,8 +864,7 @@ export async function onRequestPatch(context) {
     typeof data !== "object"
   ) {
     return errorResponse(
-      "INVALID_REQUEST_BODY",
-      400
+      "INVALID_REQUEST_BODY"
     );
   }
 
@@ -769,8 +875,7 @@ export async function onRequestPatch(context) {
 
   if (!validId(circleId)) {
     return errorResponse(
-      "CIRCLE_ID_REQUIRED",
-      400
+      "CIRCLE_ID_REQUIRED"
     );
   }
 
@@ -778,7 +883,7 @@ export async function onRequestPatch(context) {
     const current =
       await getCircleById(
         db,
-        circleId
+        Number(circleId)
       );
 
     if (!current) {
@@ -788,28 +893,12 @@ export async function onRequestPatch(context) {
       );
     }
 
-    const name =
-      data.name !== undefined
-        ? cleanString(data.name)
-        : current.name;
-
-    if (!name) {
-      return errorResponse(
-        "CIRCLE_NAME_REQUIRED",
-        400
-      );
-    }
-
     const circleType =
-      data.circle_type !==
-        undefined ||
-      data.circleType !==
-        undefined
-        ? cleanString(
-            data.circle_type ??
-            data.circleType
-          )
-        : current.circle_type;
+      normalizeType(
+        data.circle_type ??
+        data.circleType ??
+        current.circle_type
+      );
 
     if (
       !VALID_TYPES.includes(
@@ -817,75 +906,121 @@ export async function onRequestPatch(context) {
       )
     ) {
       return errorResponse(
-        "INVALID_CIRCLE_TYPE",
-        400
+        "INVALID_CIRCLE_TYPE"
       );
     }
 
-    const capacity =
-      circleType === "individual"
-        ? 1
-        : data.capacity !==
-            undefined
-          ? positiveInteger(
-              data.capacity,
-              current.capacity
-            )
-          : current.capacity;
+    const name =
+      data.name !== undefined
+        ? clean(data.name)
+        : current.name;
+
+    if (!name) {
+      return errorResponse(
+        "CIRCLE_NAME_REQUIRED"
+      );
+    }
+
+    /*
+     * تحديد السعة الجديدة.
+     */
+    let capacity;
+
+    if (
+      circleType ===
+      "individual"
+    ) {
+      capacity = 1;
+    } else if (
+      data.capacity !==
+        undefined
+    ) {
+      capacity =
+        positiveInteger(
+          data.capacity
+        );
+
+      if (!capacity) {
+        return errorResponse(
+          "GROUP_CIRCLE_CAPACITY_REQUIRED"
+        );
+      }
+    } else {
+      capacity =
+        Number(
+          current.capacity
+        );
+
+      if (
+        !Number.isInteger(
+          capacity
+        ) ||
+        capacity <= 0
+      ) {
+        return errorResponse(
+          "GROUP_CIRCLE_CAPACITY_REQUIRED"
+        );
+      }
+    }
+
+    /*
+     * لا يمكن خفض السعة عن عدد
+     * الطلاب المسجلين حاليًا.
+     */
+    const enrolledCount =
+      await getEnrollmentCount(
+        db,
+        Number(circleId)
+      );
+
+    if (
+      capacity < enrolledCount
+    ) {
+      return errorResponse(
+        "CAPACITY_CANNOT_BE_LESS_THAN_CURRENT_ENROLLMENTS",
+        409,
+        {
+          current_enrollments:
+            enrolledCount,
+          requested_capacity:
+            capacity,
+        }
+      );
+    }
 
     const teacherId =
       data.teacher_id !==
-        undefined ||
-      data.teacherId !==
         undefined
         ? (
-            data.teacher_id ??
-            data.teacherId
-          ) === null ||
-          (
-            data.teacher_id ??
-            data.teacherId
-          ) === ""
-          ? null
-          : Number(
-              data.teacher_id ??
-              data.teacherId
-            )
+            data.teacher_id ===
+              null ||
+            data.teacher_id ===
+              ""
+              ? null
+              : Number(
+                  data.teacher_id
+                )
+          )
         : current.teacher_id;
 
     const packageId =
       data.package_id !==
-        undefined ||
-      data.packageId !==
         undefined
         ? (
-            data.package_id ??
-            data.packageId
-          ) === null ||
-          (
-            data.package_id ??
-            data.packageId
-          ) === ""
-          ? null
-          : Number(
-              data.package_id ??
-              data.packageId
-            )
+            data.package_id ===
+              null ||
+            data.package_id ===
+              ""
+              ? null
+              : Number(
+                  data.package_id
+                )
+          )
         : current.package_id;
 
-    const status =
-      data.status !== undefined
-        ? cleanString(data.status)
-        : current.status;
-
-    if (
-      !VALID_STATUSES.includes(
-        status
-      )
-    ) {
+    if (!packageId) {
       return errorResponse(
-        "INVALID_CIRCLE_STATUS",
-        400
+        "PACKAGE_ID_REQUIRED"
       );
     }
 
@@ -901,8 +1036,7 @@ export async function onRequestPatch(context) {
         teacher.error ===
           "TEACHER_NOT_FOUND"
           ? 404
-          : 409,
-        teacher
+          : 409
       );
     }
 
@@ -925,36 +1059,34 @@ export async function onRequestPatch(context) {
       );
     }
 
-    const activeCount =
-      await db
-        .prepare(`
-          SELECT COUNT(*) AS count
-          FROM circle_enrollments
-          WHERE circle_id = ?1
-            AND status = 'active'
-        `)
-        .bind(circleId)
-        .first();
-
-    const enrolledCount =
-      Number(
-        activeCount?.count || 0
-      );
+    let status =
+      data.status !== undefined
+        ? clean(data.status)
+        : current.status;
 
     if (
-      capacity <
-      enrolledCount
+      !VALID_STATUSES.includes(
+        status
+      )
     ) {
       return errorResponse(
-        "CAPACITY_BELOW_ACTIVE_ENROLLMENTS",
-        409,
-        {
-          active_enrollments:
-            enrolledCount,
-          requested_capacity:
-            capacity,
-        }
+        "INVALID_CIRCLE_STATUS"
       );
+    }
+
+    /*
+     * حالة full يتم حسابها تلقائيًا
+     * بناءً على السعة.
+     */
+    if (
+      enrolledCount >=
+      capacity
+    ) {
+      status = "full";
+    } else if (
+      status === "full"
+    ) {
+      status = "active";
     }
 
     const scheduleNote =
@@ -962,7 +1094,7 @@ export async function onRequestPatch(context) {
         undefined ||
       data.scheduleNote !==
         undefined
-        ? nullableString(
+        ? nullable(
             data.schedule_note ??
             data.scheduleNote
           )
@@ -973,7 +1105,7 @@ export async function onRequestPatch(context) {
         undefined ||
       data.levelName !==
         undefined
-        ? nullableString(
+        ? nullable(
             data.level_name ??
             data.levelName
           )
@@ -984,66 +1116,72 @@ export async function onRequestPatch(context) {
         undefined ||
       data.pathName !==
         undefined
-        ? nullableString(
+        ? nullable(
             data.path_name ??
             data.pathName
           )
         : current.path_name;
 
-    let finalStatus = status;
-
-    if (
-      status === "active" &&
-      enrolledCount >= capacity
-    ) {
-      finalStatus = "full";
-    }
-
-    const now =
+    const updatedAt =
       new Date().toISOString();
 
-    await db
-      .prepare(`
-        UPDATE circles
-        SET
-          name = ?1,
-          circle_type = ?2,
-          teacher_id = ?3,
-          package_id = ?4,
-          capacity = ?5,
-          status = ?6,
-          schedule_note = ?7,
-          level_name = ?8,
-          path_name = ?9,
-          updated_at = ?10
-        WHERE id = ?11
-      `)
-      .bind(
-        name,
-        circleType,
-        teacherId,
-        packageId,
-        capacity,
-        finalStatus,
-        scheduleNote,
-        levelName,
-        pathName,
-        now,
-        circleId
-      )
-      .run();
-
     const updated =
+      await db
+        .prepare(`
+          UPDATE circles
+          SET
+            name = ?2,
+            circle_type = ?3,
+            teacher_id = ?4,
+            package_id = ?5,
+            capacity = ?6,
+            status = ?7,
+            schedule_note = ?8,
+            level_name = ?9,
+            path_name = ?10,
+            updated_at = ?11
+          WHERE id = ?1
+          RETURNING
+            id,
+            name,
+            circle_type,
+            teacher_id,
+            package_id,
+            capacity,
+            status,
+            schedule_note,
+            level_name,
+            path_name,
+            created_at,
+            updated_at
+        `)
+        .bind(
+          Number(circleId),
+          name,
+          circleType,
+          teacherId,
+          packageId,
+          capacity,
+          status,
+          scheduleNote,
+          levelName,
+          pathName,
+          updatedAt
+        )
+        .first();
+
+    const complete =
       await getCircleById(
         db,
-        circleId
+        Number(circleId)
       );
 
     return json({
       success: true,
       message:
-        "Circle updated successfully.",
-      data: updated,
+        "CIRCLE_UPDATED_SUCCESSFULLY",
+      data:
+        complete || updated,
     });
   } catch (error) {
     console.error(
@@ -1061,21 +1199,30 @@ export async function onRequestPatch(context) {
 }
 
 /* =========================================================
-   Method Router
+   Router
 ========================================================= */
 
-export async function onRequest(context) {
-  switch (
-    context.request.method.toUpperCase()
-  ) {
+export async function onRequest(
+  context
+) {
+  const method =
+    context.request.method.toUpperCase();
+
+  switch (method) {
     case "GET":
-      return onRequestGet(context);
+      return onRequestGet(
+        context
+      );
 
     case "POST":
-      return onRequestPost(context);
+      return onRequestPost(
+        context
+      );
 
     case "PATCH":
-      return onRequestPatch(context);
+      return onRequestPatch(
+        context
+      );
 
     default:
       return errorResponse(
