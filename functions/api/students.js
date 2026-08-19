@@ -9,14 +9,11 @@
  * مسؤول عن:
  * - عرض الطلاب.
  * - عرض طالب محدد.
+ * - البحث في الطلاب.
  * - إضافة طالب.
  * - تعديل بيانات الطالب.
  * - تغيير حالة الطالب.
- *
- * ملاحظة:
- * Authentication / Authorization سيتم توحيدها
- * في طبقة الحماية العامة للمشروع، ولا نضع
- * نظام دخول مختلف داخل كل ملف API.
+ * - تسجيل العمليات في audit_logs.
  */
 
 const STUDENT_STATUSES = [
@@ -28,7 +25,8 @@ const STUDENT_STATUSES = [
 ];
 
 const JSON_HEADERS = {
-  "Content-Type": "application/json; charset=utf-8",
+  "Content-Type":
+    "application/json; charset=utf-8",
 };
 
 /* =========================================================
@@ -45,7 +43,11 @@ function json(data, status = 200) {
   );
 }
 
-function error(message, status = 400, extra = {}) {
+function error(
+  message,
+  status = 400,
+  extra = {}
+) {
   return json(
     {
       ok: false,
@@ -68,7 +70,8 @@ function clean(value) {
 }
 
 function nullable(value) {
-  const valueClean = clean(value);
+  const valueClean =
+    clean(value);
 
   return valueClean
     ? valueClean
@@ -81,9 +84,21 @@ function validStatus(status) {
   );
 }
 
+function validId(value) {
+  const number =
+    Number(value);
+
+  return (
+    Number.isInteger(number) &&
+    number > 0
+  );
+}
+
 function generateStudentCode() {
   const timestamp =
-    Date.now().toString(36).toUpperCase();
+    Date.now()
+      .toString(36)
+      .toUpperCase();
 
   const random =
     Math.random()
@@ -95,12 +110,12 @@ function generateStudentCode() {
 }
 
 /* =========================================================
-   Student Queries
+   Student Query
 ========================================================= */
 
 async function getStudentById(
   db,
-  id
+  studentId
 ) {
   return db
     .prepare(`
@@ -127,7 +142,7 @@ async function getStudentById(
       WHERE id = ?1
       LIMIT 1
     `)
-    .bind(id)
+    .bind(studentId)
     .first();
 }
 
@@ -170,7 +185,7 @@ async function writeAudit(
       .run();
   } catch (auditError) {
     /*
-     * فشل سجل العمليات لا يجب أن يمنع
+     * فشل سجل العمليات لا يمنع
      * عملية الطالب الأساسية.
      */
     console.error(
@@ -202,11 +217,17 @@ export async function onRequestGet(
       context.request.url
     );
 
-  const id =
-    url.searchParams.get("id");
+  const studentId =
+    url.searchParams.get(
+      "id"
+    );
 
   const status =
-    url.searchParams.get("status");
+    clean(
+      url.searchParams.get(
+        "status"
+      )
+    );
 
   const search =
     clean(
@@ -216,14 +237,24 @@ export async function onRequestGet(
     );
 
   try {
-    /*
-     * طالب واحد
-     */
-    if (id) {
+    /* =====================================================
+       طالب واحد
+    ===================================================== */
+
+    if (studentId) {
+      if (
+        !validId(studentId)
+      ) {
+        return error(
+          "INVALID_STUDENT_ID",
+          400
+        );
+      }
+
       const student =
         await getStudentById(
           db,
-          id
+          Number(studentId)
         );
 
       if (!student) {
@@ -239,9 +270,10 @@ export async function onRequestGet(
       });
     }
 
-    /*
-     * قائمة الطلاب
-     */
+    /* =====================================================
+       قائمة الطلاب
+    ===================================================== */
+
     let sql = `
       SELECT
         id,
@@ -268,6 +300,10 @@ export async function onRequestGet(
 
     const params = [];
 
+    /* -----------------------------------------------------
+       فلترة الحالة
+    ----------------------------------------------------- */
+
     if (status) {
       if (
         !validStatus(status)
@@ -285,37 +321,48 @@ export async function onRequestGet(
       params.push(status);
 
       sql += `
-        AND status = ?
+        AND status = ?${params.length}
       `;
     }
 
+    /* -----------------------------------------------------
+       البحث
+       
+       الإصلاح المهم:
+       نضع قيمة البحث مرة لكل placeholder
+       بدون إضافة parameter زائد.
+    ----------------------------------------------------- */
+
     if (search) {
+      const searchValue =
+        `%${search}%`;
+
       params.push(
-        `%${search}%`
+        searchValue,
+        searchValue,
+        searchValue,
+        searchValue,
+        searchValue,
+        searchValue
       );
 
-      sql += `
-        AND (
-          full_name LIKE ?
-          OR student_code LIKE ?
-          OR phone LIKE ?
-          OR guardian_name LIKE ?
-          OR guardian_phone LIKE ?
-          OR email LIKE ?
-        )
-      `;
+      const start =
+        params.length - 5;
 
       /*
-       * نفس قيمة البحث تستخدم
-       * في كل شروط LIKE.
+       * نستخدم أرقام placeholders
+       * متوافقة مع ترتيب params.
        */
-      params.push(
-        `%${search}%`,
-        `%${search}%`,
-        `%${search}%`,
-        `%${search}%`,
-        `%${search}%`
-      );
+      sql += `
+        AND (
+          full_name LIKE ?${start}
+          OR student_code LIKE ?${start + 1}
+          OR phone LIKE ?${start + 2}
+          OR guardian_name LIKE ?${start + 3}
+          OR guardian_phone LIKE ?${start + 4}
+          OR email LIKE ?${start + 5}
+        )
+      `;
     }
 
     sql += `
@@ -335,7 +382,8 @@ export async function onRequestGet(
       data:
         result.results || [],
       count:
-        result.results?.length || 0,
+        result.results?.length ||
+        0,
     });
   } catch (errorObject) {
     console.error(
@@ -404,21 +452,20 @@ export async function onRequestPost(
     );
   }
 
-  const studentCodeInput =
+  const suppliedCode =
     clean(
       body.student_code ??
       body.studentCode
     );
 
   const studentCode =
-    studentCodeInput ||
+    suppliedCode ||
     generateStudentCode();
 
   const status =
     clean(
       body.status
-    ) ||
-    "active";
+    ) || "active";
 
   if (
     !validStatus(status)
@@ -433,9 +480,6 @@ export async function onRequestPost(
     );
   }
 
-  /*
-   * تجهيز كل بيانات جدول students.
-   */
   const userId =
     body.user_id ??
     body.userId ??
@@ -488,8 +532,7 @@ export async function onRequestPost(
   const country =
     clean(
       body.country
-    ) ||
-    "Egypt";
+    ) || "Egypt";
 
   const educationalLevel =
     nullable(
@@ -503,9 +546,10 @@ export async function onRequestPost(
     );
 
   try {
-    /*
-     * التأكد من عدم تكرار كود الطالب.
-     */
+    /* -----------------------------------------------------
+       منع تكرار كود الطالب
+    ----------------------------------------------------- */
+
     const existingCode =
       await db
         .prepare(`
@@ -523,6 +567,9 @@ export async function onRequestPost(
         409
       );
     }
+
+    const createdAt =
+      new Date().toISOString();
 
     const result =
       await db
@@ -582,7 +629,7 @@ export async function onRequestPost(
           educationalLevel,
           notes,
           status,
-          new Date().toISOString()
+          createdAt
         )
         .run();
 
@@ -607,7 +654,7 @@ export async function onRequestPost(
       studentId
         ? await getStudentById(
             db,
-            studentId
+            Number(studentId)
           )
         : null;
 
@@ -633,9 +680,6 @@ export async function onRequestPost(
         ? errorObject.message
         : "";
 
-    /*
-     * UNIQUE(student_code)
-     */
     if (
       message
         .toLowerCase()
@@ -700,9 +744,7 @@ export async function onRequestPatch(
     body.studentId;
 
   if (
-    studentId === undefined ||
-    studentId === null ||
-    String(studentId).trim() === ""
+    !validId(studentId)
   ) {
     return error(
       "STUDENT_ID_REQUIRED",
@@ -714,7 +756,7 @@ export async function onRequestPatch(
     const current =
       await getStudentById(
         db,
-        studentId
+        Number(studentId)
       );
 
     if (!current) {
@@ -724,13 +766,11 @@ export async function onRequestPatch(
       );
     }
 
-    /*
-     * نستخدم القيمة القديمة إذا لم
-     * يتم إرسال الحقل.
-     */
     const fullName =
-      body.full_name !== undefined ||
-      body.fullName !== undefined
+      body.full_name !==
+        undefined ||
+      body.fullName !==
+        undefined
         ? clean(
             body.full_name ??
             body.fullName
@@ -745,8 +785,10 @@ export async function onRequestPatch(
     }
 
     const studentCode =
-      body.student_code !== undefined ||
-      body.studentCode !== undefined
+      body.student_code !==
+        undefined ||
+      body.studentCode !==
+        undefined
         ? clean(
             body.student_code ??
             body.studentCode
@@ -761,8 +803,11 @@ export async function onRequestPatch(
     }
 
     const status =
-      body.status !== undefined
-        ? clean(body.status)
+      body.status !==
+        undefined
+        ? clean(
+            body.status
+          )
         : current.status;
 
     if (
@@ -778,10 +823,10 @@ export async function onRequestPatch(
       );
     }
 
-    /*
-     * منع تغيير كود الطالب إلى كود
-     * مستخدم من طالب آخر.
-     */
+    /* -----------------------------------------------------
+       منع تكرار كود الطالب
+    ----------------------------------------------------- */
+
     if (
       studentCode !==
       current.student_code
@@ -797,7 +842,7 @@ export async function onRequestPatch(
           `)
           .bind(
             studentCode,
-            studentId
+            Number(studentId)
           )
           .first();
 
@@ -810,22 +855,30 @@ export async function onRequestPatch(
     }
 
     const userId =
-      body.user_id !== undefined ||
-      body.userId !== undefined
+      body.user_id !==
+        undefined ||
+      body.userId !==
+        undefined
         ? (
             body.user_id ??
-            body.userId
+            body.userId ??
+            null
           )
         : current.user_id;
 
     const gender =
-      body.gender !== undefined
-        ? nullable(body.gender)
+      body.gender !==
+        undefined
+        ? nullable(
+            body.gender
+          )
         : current.gender;
 
     const birthDate =
-      body.birth_date !== undefined ||
-      body.birthDate !== undefined
+      body.birth_date !==
+        undefined ||
+      body.birthDate !==
+        undefined
         ? nullable(
             body.birth_date ??
             body.birthDate
@@ -833,18 +886,26 @@ export async function onRequestPatch(
         : current.birth_date;
 
     const phone =
-      body.phone !== undefined
-        ? nullable(body.phone)
+      body.phone !==
+        undefined
+        ? nullable(
+            body.phone
+          )
         : current.phone;
 
     const email =
-      body.email !== undefined
-        ? nullable(body.email)
+      body.email !==
+        undefined
+        ? nullable(
+            body.email
+          )
         : current.email;
 
     const guardianName =
-      body.guardian_name !== undefined ||
-      body.guardianName !== undefined
+      body.guardian_name !==
+        undefined ||
+      body.guardianName !==
+        undefined
         ? nullable(
             body.guardian_name ??
             body.guardianName
@@ -852,8 +913,10 @@ export async function onRequestPatch(
         : current.guardian_name;
 
     const guardianPhone =
-      body.guardian_phone !== undefined ||
-      body.guardianPhone !== undefined
+      body.guardian_phone !==
+        undefined ||
+      body.guardianPhone !==
+        undefined
         ? nullable(
             body.guardian_phone ??
             body.guardianPhone
@@ -861,8 +924,10 @@ export async function onRequestPatch(
         : current.guardian_phone;
 
     const guardianEmail =
-      body.guardian_email !== undefined ||
-      body.guardianEmail !== undefined
+      body.guardian_email !==
+        undefined ||
+      body.guardianEmail !==
+        undefined
         ? nullable(
             body.guardian_email ??
             body.guardianEmail
@@ -870,20 +935,28 @@ export async function onRequestPatch(
         : current.guardian_email;
 
     const address =
-      body.address !== undefined
-        ? nullable(body.address)
+      body.address !==
+        undefined
+        ? nullable(
+            body.address
+          )
         : current.address;
 
     const country =
-      body.country !== undefined
-        ? clean(body.country) ||
-          "Egypt"
-        : current.country ||
-          "Egypt";
+      body.country !==
+        undefined
+        ? (
+            clean(
+              body.country
+            ) || "Egypt"
+          )
+        : current.country;
 
     const educationalLevel =
-      body.educational_level !== undefined ||
-      body.educationalLevel !== undefined
+      body.educational_level !==
+        undefined ||
+      body.educationalLevel !==
+        undefined
         ? nullable(
             body.educational_level ??
             body.educationalLevel
@@ -891,72 +964,99 @@ export async function onRequestPatch(
         : current.educational_level;
 
     const notes =
-      body.notes !== undefined
-        ? nullable(body.notes)
+      body.notes !==
+        undefined
+        ? nullable(
+            body.notes
+          )
         : current.notes;
 
-    await db
-      .prepare(`
-        UPDATE students
-        SET
-          user_id = ?1,
-          student_code = ?2,
-          full_name = ?3,
-          gender = ?4,
-          birth_date = ?5,
-          phone = ?6,
-          email = ?7,
-          guardian_name = ?8,
-          guardian_phone = ?9,
-          guardian_email = ?10,
-          address = ?11,
-          country = ?12,
-          educational_level = ?13,
-          notes = ?14,
-          status = ?15,
-          updated_at = ?16
-        WHERE id = ?17
-      `)
-      .bind(
-        userId,
-        studentCode,
-        fullName,
-        gender,
-        birthDate,
-        phone,
-        email,
-        guardianName,
-        guardianPhone,
-        guardianEmail,
-        address,
-        country,
-        educationalLevel,
-        notes,
-        status,
-        new Date().toISOString(),
-        studentId
-      )
-      .run();
+    const updatedAt =
+      new Date().toISOString();
 
     const updated =
-      await getStudentById(
-        db,
-        studentId
-      );
+      await db
+        .prepare(`
+          UPDATE students
+          SET
+            user_id = ?2,
+            student_code = ?3,
+            full_name = ?4,
+            gender = ?5,
+            birth_date = ?6,
+            phone = ?7,
+            email = ?8,
+            guardian_name = ?9,
+            guardian_phone = ?10,
+            guardian_email = ?11,
+            address = ?12,
+            country = ?13,
+            educational_level = ?14,
+            notes = ?15,
+            status = ?16,
+            updated_at = ?17
+          WHERE id = ?1
+          RETURNING
+            id,
+            user_id,
+            student_code,
+            full_name,
+            gender,
+            birth_date,
+            phone,
+            email,
+            guardian_name,
+            guardian_phone,
+            guardian_email,
+            address,
+            country,
+            educational_level,
+            notes,
+            status,
+            created_at,
+            updated_at
+        `)
+        .bind(
+          Number(studentId),
+          userId,
+          studentCode,
+          fullName,
+          gender,
+          birthDate,
+          phone,
+          email,
+          guardianName,
+          guardianPhone,
+          guardianEmail,
+          address,
+          country,
+          educationalLevel,
+          notes,
+          status,
+          updatedAt
+        )
+        .first();
 
     await writeAudit(
       db,
       "student_updated",
-      studentId,
+      Number(studentId),
       {
-        old_status:
-          current.status,
-        new_status:
+        before: {
+          student_code:
+            current.student_code,
+          full_name:
+            current.full_name,
+          status:
+            current.status,
+        },
+        after: {
+          student_code:
+            studentCode,
+          full_name:
+            fullName,
           status,
-        old_student_code:
-          current.student_code,
-        new_student_code:
-          studentCode,
+        },
       }
     );
 
@@ -995,15 +1095,16 @@ export async function onRequestPatch(
 }
 
 /* =========================================================
-   Unsupported Methods
+   Router
 ========================================================= */
 
 export async function onRequest(
   context
 ) {
-  switch (
-    context.request.method.toUpperCase()
-  ) {
+  const method =
+    context.request.method.toUpperCase();
+
+  switch (method) {
     case "GET":
       return onRequestGet(
         context
