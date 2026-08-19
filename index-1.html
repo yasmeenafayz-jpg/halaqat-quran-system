@@ -2,13 +2,262 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="refresh" content="0;url=halaqat_phone.html">
-<title>نظام حلقات تحفيظ القرآن</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#176b4d">
+<title>حلقات التحفيظ — نسخة الهاتف</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Tahoma,Arial,sans-serif;background:#f5f7f6;color:#17201c}
+button,input,select,textarea{font:inherit}button{cursor:pointer;border:0;border-radius:12px;padding:11px 14px;background:#e8eeeb;color:#17352a}
+button.primary{background:#176b4d;color:white}.danger{background:#fee2e2!important;color:#991b1b!important}.muted{color:#68756f}.small{font-size:.88rem}
+header{background:#176b4d;color:#fff;padding:18px 16px;position:sticky;top:0;z-index:10;box-shadow:0 2px 12px #0002}
+header h1{font-size:20px;margin:0 0 5px}header p{margin:0;opacity:.88;font-size:13px}
+.top{display:flex;justify-content:space-between;gap:10px;align-items:center}.top button{background:#ffffff20;color:#fff}
+nav{display:flex;gap:7px;overflow:auto;padding:9px;background:#fff;border-bottom:1px solid #dde5e0;position:sticky;top:78px;z-index:9}
+nav button{white-space:nowrap;padding:9px 12px;font-size:13px}nav button.active{background:#176b4d;color:#fff}
+main{max-width:1100px;margin:auto;padding:14px 12px 70px}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.card{background:#fff;border:1px solid #e1e8e4;border-radius:16px;padding:14px;margin-bottom:12px;box-shadow:0 2px 8px #00000008}
+.stat{font-size:26px;font-weight:800;margin-top:3px}.hero{background:linear-gradient(135deg,#e8f5ef,#fff)}
+h2{font-size:19px;margin:0 0 12px}h3{font-size:16px;margin:12px 0 8px}
+.form{display:grid;gap:9px}.two{display:grid;grid-template-columns:1fr 1fr;gap:9px}.three{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+input,select,textarea{width:100%;border:1px solid #ccd8d2;background:#fff;border-radius:11px;padding:11px;outline:none}textarea{min-height:80px;resize:vertical}
+.actions{display:flex;gap:8px;flex-wrap:wrap}.list{display:grid;gap:8px}.item{border:1px solid #e1e8e4;border-radius:12px;padding:11px;background:#fbfcfb}
+.badge{display:inline-block;padding:4px 8px;border-radius:999px;background:#eaf3ee;color:#176b4d;font-size:12px}.ok{color:#176b4d;font-weight:700}.err{color:#a33;font-size:13px}
+table{width:100%;border-collapse:collapse}th,td{padding:9px 7px;border-bottom:1px solid #e7ece9;text-align:right;font-size:13px}th{background:#f6f9f7}
+.tablewrap{overflow:auto}.quran{font-family:"Amiri","Noto Naskh Arabic",serif;font-size:23px;line-height:2.1;background:#fffdf5;border:2px solid #d9c99a;border-radius:15px;padding:18px}
+.toast{position:fixed;bottom:18px;left:18px;right:18px;z-index:30;background:#17352a;color:#fff;padding:13px;border-radius:13px;display:none}
+.empty{padding:22px;text-align:center;color:#718078}
+@media(max-width:700px){.two,.three{grid-template-columns:1fr}.grid4{grid-template-columns:repeat(2,1fr)}nav{top:76px}.stat{font-size:22px}}
+</style>
 </head>
 <body>
+<header>
+  <div class="top">
+    <div><h1>نظام حلقات تحفيظ القرآن</h1><p>نسخة الهاتف — تعمل محليًا بدون خادم أو Docker</p></div>
+    <button onclick="resetDemo()">بيانات تجريبية</button>
+  </div>
+</header>
+<nav id="nav"></nav>
+<main id="app"></main>
+<div id="toast" class="toast"></div>
+
 <script>
-location.replace("halaqat_phone.html");
+const KEY="halaqat_phone_v1";
+const plans=["حفظ جديد","مراجعة","حفظ ومراجعة","سرد تراكمي"];
+const portions=["ربع وجه","نصف وجه","وجه","ربعين","حزب","جزء"];
+const attendance=["حاضر","غائب","غياب بعذر","متأخر"];
+const testTypes=["أسبوعي","شهري","تراكمي","نوع آخر"];
+const views=[
+ ["home","الرئيسية"],["circles","الحلقات"],["students","الطلاب"],["plans","خطة الطالب"],
+ ["records","المتابعة"],["quran","المصحف"],["tests","الاختبارات"],["finance","المالية"],
+ ["meetings","اللقاءات"],["telegram","Telegram"],["settings","الإعدادات"]
+];
+let state=load();
+let current="home";
+
+function blank(){return {circles:[],students:[],records:[],tests:[],ledger:[],meetings:[],warnings:[],settings:{telegramReady:false,cloudReady:false},seq:{circle:1,student:1,record:1,test:1,ledger:1,meeting:1,warning:1}}}
+function load(){try{return Object.assign(blank(),JSON.parse(localStorage.getItem(KEY))||{})}catch(e){return blank()}}
+function save(){localStorage.setItem(KEY,JSON.stringify(state))}
+function id(k){return state.seq[k]++}
+function esc(x){return String(x??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
+function toast(t){let x=document.getElementById("toast");x.textContent=t;x.style.display="block";setTimeout(()=>x.style.display="none",2200)}
+function nav(){document.getElementById("nav").innerHTML=views.map(v=>`<button class="${current===v[0]?'active':''}" onclick="go('${v[0]}')">${v[1]}</button>`).join("")}
+function go(v){current=v;nav();({home, circles, students, plans, records, quran, tests, finance, meetings, telegram, settings}[v])()}
+function circleName(id){return state.circles.find(x=>x.id==id)?.name||"بدون حلقة"}
+function studentName(id){return state.students.find(x=>x.id==id)?.name||"—"}
+function selectStudents(id="student_id"){return `<select id="${id}">${state.students.map(s=>`<option value="${s.id}">${esc(s.name)} — ${esc(s.number||"")}</option>`).join("")}</select>`}
+function selectCircles(id="circle_id"){return `<select id="${id}"><option value="">بدون حلقة</option>${state.circles.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join("")}</select>`}
+function stat(t,v){return `<div class="card"><div class="muted">${t}</div><div class="stat">${v}</div></div>`}
+
+function home(){
+ const group=state.circles.filter(x=>x.type==="جماعية").length;
+ const upcoming=state.meetings.filter(x=>new Date(x.at)>=new Date()).length;
+ document.getElementById("app").innerHTML=`
+ <div class="grid">${stat("الحلقات",state.circles.length)}${stat("الطلاب",state.students.length)}${stat("الجماعية",group)}${stat("اللقاءات القادمة",upcoming)}</div><div class="card"><h3>إنذارات الحذف</h3><p>هذا الشهر: <b class="err">${state.warnings.filter(w=>w.month===monthKey(new Date().toISOString().slice(0,10))).length}</b> إنذار. يتم إنشاء الإنذار تلقائيًا بعد 3 غيابات عادية للطالب في الشهر نفسه.</p></div>
+ <div class="card hero"><h2>جاهز للعمل على الهاتف</h2>
+ <p>هذه النسخة تحفظ بياناتك داخل الهاتف باستخدام التخزين المحلي. لا تحتاج إلى كمبيوتر أو Docker أو Android Studio.</p>
+ <div class="actions"><button class="primary" onclick="go('students')">إضافة طالب</button><button onclick="go('circles')">إضافة حلقة</button><button onclick="go('records')">متابعة اليوم</button></div></div>
+ <div class="card"><h3>حالة المزامنة</h3><p>الخادم السحابي: <b>${state.settings.cloudReady?"متصل":"غير مضاف بعد"}</b></p><p>Telegram: <b>${state.settings.telegramReady?"مفعل":"سيتم ربطه بعد إضافة الخادم"}</b></p>
+ <p class="small muted">بيانات النسخة المحلية لا تُرسل لأي جهة. عند الانتقال للخادم سنضيف مزامنة آمنة وTelegram.</p></div>`;
+}
+
+function circles(){
+ document.getElementById("app").innerHTML=`
+ <div class="card"><h2>إضافة حلقة</h2><div class="form">
+ <input id="cname" placeholder="اسم الحلقة"><input id="teacher" placeholder="اسم المعلمة">
+ <div class="two"><select id="ctype"><option>جماعية</option><option>فردية</option></select><input id="chat" placeholder="Telegram Chat ID (اختياري الآن)"></div>
+ <input id="link" placeholder="رابط Zoom أو Teams"><div class="two"><input id="days" placeholder="الأيام"><input id="time" type="time" value="19:00"></div>
+ <input id="reminder" type="number" value="30" min="1" placeholder="التذكير قبل الموعد بالدقائق">
+ <button class="primary" onclick="addCircle()">حفظ الحلقة</button></div></div>
+ <div class="card"><h2>الحلقات</h2><div class="list">${state.circles.length?state.circles.map(c=>`
+ <div class="item"><b>${esc(c.name)}</b> <span class="badge">${esc(c.type)}</span><br>
+ المعلمة: ${esc(c.teacher)}<br>الموعد: ${esc(c.days||"")} ${esc(c.time||"")}<br>
+ <span class="small">Telegram: ${esc(c.chat||"غير مضبوط")} — الرابط: ${esc(c.link||"غير مضبوط")}</span></div>`).join(""):'<div class="empty">لا توجد حلقات بعد</div>'}</div></div>`;
+}
+function addCircle(){
+ let c={id:id("circle"),name:val("cname"),teacher:val("teacher"),type:val("ctype"),chat:val("chat"),link:val("link"),days:val("days"),time:val("time"),reminder:+val("reminder")||30};
+ if(!c.name){toast("اكتب اسم الحلقة");return}state.circles.push(c);save();toast("تم حفظ الحلقة");go("circles")
+}
+
+function students(){
+ document.getElementById("app").innerHTML=`
+ <div class="card"><h2>إضافة طالب</h2><div class="form">
+ <div class="two"><input id="sname" placeholder="اسم الطالب"><input id="snum" placeholder="رقم الطالب"></div>
+ <div class="two">${selectCircles("scircle")}<input id="steacher" placeholder="المعلمة"></div>
+ <div class="two"><input id="companion" placeholder="الرفيق (اختياري)"><select id="splan">${plans.map(x=>`<option>${x}</option>`).join("")}</select></div>
+ <div class="two"><select id="portion">${portions.map(x=>`<option>${x}</option>`).join("")}</select><input id="lastPage" type="number" min="1" max="604" step=".25" placeholder="آخر موضع (صفحة)"></div>
+ <div class="three"><select id="newP"><option>ربع وجه</option>${portions.slice(1).map(x=>`<option>${x}</option>`).join("")}</select>
+ <select id="repeatP">${portions.map(x=>`<option>${x}</option>`).join("")}</select><select id="masteryP">${portions.map(x=>`<option>${x}</option>`).join("")}</select></div>
+ <button class="primary" onclick="addStudent()">حفظ الطالب</button></div></div>
+ <div class="card"><h2>الطلاب</h2><div class="tablewrap"><table><thead><tr><th>الاسم</th><th>الحلقة</th><th>الخطة</th><th>المقدار</th><th>آخر موضع</th><th>الرصيد</th></tr></thead><tbody>
+ ${state.students.length?state.students.map(s=>`<tr><td>${esc(s.name)}</td><td>${esc(circleName(s.circleId))}</td><td>${esc(s.plan)}</td><td>${esc(s.portion)}</td><td>${s.lastPage||"—"}</td><td>${balance(s.id).toFixed(2)}</td></tr>`).join(""):'<tr><td colspan="6" class="empty">لا يوجد طلاب</td></tr>'}</tbody></table></div></div>`;
+}
+function addStudent(){
+ let s={id:id("student"),name:val("sname"),number:val("snum"),circleId:+val("scircle")||null,teacher:val("steacher"),companion:val("companion"),plan:val("splan"),portion:val("portion"),newP:val("newP"),repeatP:val("repeatP"),masteryP:val("masteryP"),lastPage:+val("lastPage")||1};
+ if(!s.name){toast("اكتب اسم الطالب");return}state.students.push(s);save();toast("تم حفظ الطالب");go("students")
+}
+
+function portionPages(p){
+ return {"ربع وجه":.25,"نصف وجه":.5,"وجه":1,"ربعين":.5,"حزب":10,"جزء":20}[p]||1;
+}
+function nextPage(s,kind){
+ let start=Math.max(1,Number(s.lastPage)||1), size=portionPages(kind==="new"?s.newP:kind==="review"?s.repeatP:s.portion);
+ if(kind==="cumulative") return {from:1,to:Math.min(604,Math.max(1,start+20))};
+ return {from:start,to:Math.min(604,start+size)};
+}
+function plans(){
+ if(!state.students.length){document.getElementById("app").innerHTML='<div class="card empty">أضف طالبًا أولًا.</div>';return}
+ document.getElementById("app").innerHTML=`
+ <div class="card"><h2>خطة الطالب والورد التالي</h2><div class="form">${selectStudents("pstudent")}<button class="primary" onclick="showPlan()">عرض الورد التالي</button></div><div id="planResult"></div></div>`;
+}
+function showPlan(){
+ let s=state.students.find(x=>x.id==+val("pstudent")); if(!s)return;
+ let n=nextPage(s,"new"),r=nextPage(s,"review"),c=nextPage(s,"cumulative");
+ document.getElementById("planResult").innerHTML=`<div class="card"><h3>${esc(s.name)}</h3>
+ <p>الخطة: <b>${esc(s.plan)}</b> — المقدار: <b>${esc(s.portion)}</b> — آخر صفحة: <b>${s.lastPage}</b></p>
+ <div class="three"><div class="item"><b>ورد جديد</b><br>صفحة ${n.from} → ${n.to}</div><div class="item"><b>ورد التكرار</b><br>صفحة ${r.from} → ${r.to}</div><div class="item"><b>السرد التراكمي</b><br>صفحة ${c.from} → ${c.to}</div></div>
+ <p class="small muted">هذا حساب محلي للمقدار. عند إضافة الخادم سنربطه ببيانات المصحف الموثوقة لإعطاء الموضع الدقيق بالآيات.</p></div>`;
+}
+
+function monthKey(date){return String(date||"").slice(0,7)}
+function monthlyAbsences(studentId,date){
+ const m=monthKey(date);
+ return state.records.filter(r=>r.studentId==studentId&&monthKey(r.date)===m&&r.att==="غائب").length;
+}
+function warningForMonth(studentId,date){
+ const m=monthKey(date);
+ return state.warnings.find(w=>w.studentId==studentId&&w.month===m);
+}
+function createAbsenceWarning(studentId,date){
+ const m=monthKey(date);
+ if(monthlyAbsences(studentId,date)<3 || warningForMonth(studentId,date)) return false;
+ const w={id:id("warning"),studentId,month:m,createdAt:new Date().toISOString(),type:"إنذار حذف",reason:"3 غيابات عادية في الشهر",telegramSent:false};
+ state.warnings.push(w);
+ return true;
+}
+function warningStatus(s,date){
+ const n=monthlyAbsences(s.id,date),w=warningForMonth(s.id,date);
+ return `<span class="${n>=3?'err':'ok'}">غياب الشهر: ${n}/3</span>${w?` — <b class="err">إنذار حذف مسجل</b>`:""}`;
+}
+function records(){
+ if(!state.students.length){document.getElementById("app").innerHTML='<div class="card empty">أضف طالبًا أولًا.</div>';return}
+ const today=new Date().toISOString().slice(0,10);
+ document.getElementById("app").innerHTML=`
+ <div class="card"><h2>المتابعة اليومية</h2><div class="form">${selectStudents("rstudent")}
+ <input id="rdate" type="date" value="${today}"><select id="att">${attendance.map(x=>`<option>${x}</option>`).join("")}</select>
+ <select id="complete"><option>تم</option><option>لم يتم</option></select><select id="recite"><option>تم</option><option>جزئي</option><option>لم يتم</option></select>
+ <input id="amount" placeholder="مقدار ما حفظه أو راجعه"><textarea id="notes" placeholder="ملاحظات"></textarea><button class="primary" onclick="saveRecord()">حفظ المتابعة</button></div></div>
+ <div class="card"><h2>حالة الغياب والإنذارات</h2><div class="list">${state.students.map(s=>`<div class="item"><b>${esc(s.name)}</b><br>${warningStatus(s,today)}${warningForMonth(s.id,today)?`<br><span class="small">تم تسجيل إنذار حذف لهذا الشهر. عند ربط Telegram بالخادم يمكن إرسال التنبيه تلقائيًا.</span>`:""}</div>`).join("")}</div></div>
+ <div class="card"><h2>آخر المتابعات</h2><div class="list">${state.records.slice().reverse().slice(0,15).map(r=>`<div class="item"><b>${esc(studentName(r.studentId))}</b> — ${esc(r.date)}<br>${esc(r.att)} — تمام: ${esc(r.complete)} — سرد: ${esc(r.recite)}<br><span class="small">${esc(r.amount||"")} ${esc(r.notes||"")}</span></div>`).join("")||'<div class="empty">لا توجد متابعة</div>'}</div></div>`;
+}
+function saveRecord(){
+ const studentId=+val("rstudent"),date=val("rdate"),att=val("att");
+ state.records.push({id:id("record"),studentId,date,att,complete:val("complete"),recite:val("recite"),amount:val("amount"),notes:val("notes")});
+ const created=createAbsenceWarning(studentId,date);
+ save();
+ toast(created?"تم حفظ المتابعة وتسجيل إنذار الحذف":"تم حفظ المتابعة");
+ go("records")
+}
+
+function quran(){
+ document.getElementById("app").innerHTML=`
+ <div class="card"><h2>المصحف والورد التلقائي</h2><p>يمكنك اختيار طالب والحصول على الموضع التالي. النسخة المحلية لا تحتاج مفتاح API.</p>
+ ${state.students.length?`<div class="form">${selectStudents("qstudent")}<button class="primary" onclick="qNext()">اقتراح الورد</button></div>`:'<div class="empty">أضف طالبًا أولًا</div>'}<div id="qresult"></div></div>
+ <div class="card"><h3>صفحات المصحف</h3><p class="small muted">المصحف الكامل والربط الموثوق سيكونان من الخادم في المرحلة التالية؛ هنا نحافظ على النسخة التي تعمل مباشرة دون إنترنت/خادم.</p></div>`;
+}
+function qNext(){
+ let s=state.students.find(x=>x.id==+val("qstudent"));if(!s)return;
+ let n=nextPage(s,"new"),r=nextPage(s,"review"),c=nextPage(s,"cumulative");
+ document.getElementById("qresult").innerHTML=`<div class="quran"><div>الطالب: <b>${esc(s.name)}</b></div><div>حفظ جديد: صفحة ${n.from}–${n.to}</div><div>مراجعة: صفحة ${r.from}–${r.to}</div><div>سرد تراكمي: صفحة ${c.from}–${c.to}</div></div>`;
+}
+
+function tests(){
+ if(!state.students.length){document.getElementById("app").innerHTML='<div class="card empty">أضف طالبًا أولًا.</div>';return}
+ document.getElementById("app").innerHTML=`
+ <div class="card"><h2>الاختبارات</h2><div class="form">${selectStudents("tstudent")}<select id="ttype">${testTypes.map(x=>`<option>${x}</option>`).join("")}</select>
+ <div class="two"><input id="score" type="number" min="0" placeholder="الدرجة"><input id="max" type="number" min="1" value="100" placeholder="الدرجة القصوى"></div>
+ <input id="tdate" type="date" value="${new Date().toISOString().slice(0,10)}"><textarea id="tnote" placeholder="ملاحظات"></textarea><button class="primary" onclick="saveTest()">حفظ الاختبار</button></div></div>
+ <div class="card"><h2>النتيجة التراكمية</h2>${state.students.map(s=>`<div class="item"><b>${esc(s.name)}</b> — ${testPercent(s.id)}%</div>`).join("")}</div>`;
+}
+function testPercent(sid){let a=state.tests.filter(x=>x.studentId==sid),sc=a.reduce((z,x)=>z+x.score,0),mx=a.reduce((z,x)=>z+x.max,0);return mx?((sc/mx)*100).toFixed(1):"0.0"}
+function saveTest(){
+ state.tests.push({id:id("test"),studentId:+val("tstudent"),type:val("ttype"),score:+val("score")||0,max:+val("max")||100,date:val("tdate"),note:val("tnote")});save();toast("تم حفظ الاختبار");go("tests")
+}
+
+function balance(sid){
+ return state.ledger.filter(x=>x.studentId==sid).reduce((z,x)=>z+(x.kind==="دفعة"||x.kind==="تسوية دائنة"?-x.amount:x.amount),0)
+}
+function finance(){
+ if(!state.students.length){document.getElementById("app").innerHTML='<div class="card empty">أضف طالبًا أولًا.</div>';return}
+ document.getElementById("app").innerHTML=`
+ <div class="card"><h2>المالية</h2><div class="form">${selectStudents("fstudent")}
+ <select id="fkind"><option>رسوم</option><option>دفعة</option><option>غرامة</option><option>تسوية دائنة</option></select>
+ <input id="famount" type="number" min="0" step=".01" placeholder="المبلغ"><input id="fnote" placeholder="ملاحظة">
+ <button class="primary" onclick="saveLedger()">حفظ الحركة</button></div></div>
+ <div class="card"><h2>كشف الحساب</h2>${state.students.map(s=>`<div class="item"><b>${esc(s.name)}</b> — الرصيد: <b>${balance(s.id).toFixed(2)}</b></div>`).join("")}</div>`;
+}
+function saveLedger(){
+ let s=state.students.find(x=>x.id==+val("fstudent")),kind=val("fkind"),amount=+val("famount")||0;
+ if(kind==="غرامة" && s && !state.circles.find(c=>c.id==s.circleId && c.type==="جماعية")){toast("الغرامات للحلقات الجماعية فقط");return}
+ state.ledger.push({id:id("ledger"),studentId:s.id,kind,amount,note:val("fnote")});save();toast("تم حفظ الحركة");go("finance")
+}
+
+function meetings(){
+ document.getElementById("app").innerHTML=`
+ <div class="card"><h2>اللقاءات</h2>${state.circles.length?`<div class="form">${selectCircles("mcircle")}<input id="mat" type="datetime-local"><button class="primary" onclick="addMeeting()">جدولة لقاء</button></div>`:'<div class="empty">أضف حلقة أولًا</div>'}</div>
+ <div class="card"><h2>اللقاءات المجدولة</h2><div class="list">${state.meetings.map(m=>`<div class="item"><b>${esc(circleName(m.circleId))}</b><br>${new Date(m.at).toLocaleString("ar-EG")}<br><span class="small">${m.sent?"تم تجهيز التذكير":"بانتظار الخادم السحابي لإرسال Telegram"}</span></div>`).join("")||'<div class="empty">لا توجد لقاءات</div>'}</div></div>`;
+}
+function addMeeting(){
+ let at=val("mat");if(!at){toast("اختر موعدًا");return}
+ state.meetings.push({id:id("meeting"),circleId:+val("mcircle"),at:new Date(at).toISOString(),sent:false});save();toast("تمت جدولة اللقاء");go("meetings")
+}
+
+function telegram(){
+ document.getElementById("app").innerHTML=`
+ <div class="card"><h2>Telegram</h2><p>في النسخة التي تعمل مباشرة على الهاتف، لا يتم وضع Bot Token داخل الصفحة.</p>
+ <p>الحالة: <b>${state.settings.telegramReady?"مفعل":"غير متصل — ينتظر الخادم السحابي"}</b></p>
+ <p class="small muted">بعد إضافة الخادم: لكل حلقة جماعية Chat ID مستقل، والخادم يرسل التذكير تلقائيًا قبل الموعد ويمنع التكرار.</p></div>
+ <div class="card"><h3>الحلقات الجماعية</h3>${state.circles.filter(c=>c.type==="جماعية").map(c=>`<div class="item"><b>${esc(c.name)}</b><br>Chat ID: ${esc(c.chat||"لم يضف بعد")}<br>رابط اللقاء: ${esc(c.link||"لم يضف بعد")}</div>`).join("")||'<div class="empty">لا توجد حلقات جماعية</div>'}</div>`;
+}
+
+function settings(){
+ document.getElementById("app").innerHTML=`
+ <div class="card"><h2>الإعدادات</h2><p>هذه النسخة مستقلة وتخزن البيانات محليًا داخل هذا المتصفح.</p>
+ <div class="actions"><button onclick="exportData()">تصدير نسخة احتياطية</button><label><button onclick="document.getElementById('import').click()">استيراد نسخة</button></label><input id="import" type="file" accept=".json" hidden onchange="importData(event)"></div></div>
+ <div class="card"><h3>المرحلة التالية</h3><p>الخادم السحابي + قاعدة البيانات + Telegram + المصحف الموثوق + المزامنة بين الأجهزة.</p>
+ <button class="danger" onclick="clearAll()">مسح بيانات الهاتف</button></div>`;
+}
+function exportData(){let b=new Blob([JSON.stringify(state,null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="halaqat-backup.json";a.click();URL.revokeObjectURL(a.href)}
+function importData(e){let f=e.target.files[0];if(!f)return;let r=new FileReader();r.onload=()=>{try{state=JSON.parse(r.result);save();toast("تم الاستيراد");go("home")}catch{toast("الملف غير صالح")}};r.readAsText(f)}
+function clearAll(){if(confirm("سيتم حذف كل بيانات هذه النسخة من الهاتف. هل أنت متأكد؟")){state=blank();save();go("home");toast("تم المسح")}}
+function resetDemo(){
+ if(!confirm("إضافة بيانات تجريبية؟"))return;
+ state=blank();
+ let c={id:id("circle"),name:"حلقة النور",teacher:"المعلمة",type:"جماعية",chat:"",link:"https://zoom.us/",days:"الأحد والثلاثاء",time:"19:00",reminder:30};state.circles.push(c);
+ state.students.push({id:id("student"),name:"طالب تجريبي",number:"001",circleId:c.id,teacher:"المعلمة",companion:"",plan:"حفظ ومراجعة",portion:"نصف وجه",newP:"نصف وجه",repeatP:"وجه",masteryP:"ربع وجه",lastPage:10});
+ save();toast("تمت إضافة البيانات التجريبية");go("home")
+}
+function val(id){return document.getElementById(id)?.value||""}
+nav();go("home");
 </script>
 </body>
 </html>

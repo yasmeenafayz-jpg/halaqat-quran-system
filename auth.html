@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0f766e">
+<title>الأوَّابين - الدخول</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Tahoma,sans-serif;background:#f5f7f7;color:#17322e}
+main{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.card{width:min(520px,100%);background:#fff;border-radius:24px;padding:28px;box-shadow:0 12px 40px rgba(0,0,0,.08)}
+h1{text-align:center;margin:0 0 8px}.sub{text-align:center;color:#65736f;margin:0 0 24px}
+.roles{display:grid;grid-template-columns:1fr 1fr;gap:12px}button{border:1px solid #d9e3e1;background:#fff;border-radius:16px;padding:18px 12px;font-size:16px;font-weight:700;cursor:pointer}
+.selected{border:2px solid #0f766e;background:#effaf8}.icon{display:block;font-size:30px;margin-bottom:7px}
+.actions{margin-top:18px}.primary{width:100%;background:#0f766e;color:#fff;border:0}
+#status{text-align:center;margin-top:14px;color:#65736f;min-height:24px}
+@media(max-width:420px){.roles{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main><section class="card">
+<h1>الأوَّابين</h1>
+<p class="sub">اختر نوع الحساب الذي تريد الدخول إليه</p>
+<div class="roles" id="roles">
+<button data-role="student"><span class="icon">👩‍🎓</span>طالب</button>
+<button data-role="teacher"><span class="icon">👩‍🏫</span>معلم</button>
+<button data-role="guardian"><span class="icon">👨‍👩‍👧</span>ولي أمر</button>
+<button data-role="supervisor"><span class="icon">👩‍💼</span>مشرفة</button>
+<button data-role="admin"><span class="icon">🏢</span>إدارة</button>
+</div>
+<div class="actions"><button class="primary" id="continueBtn">متابعة</button></div>
+<div id="status"></div>
+</section></main>
+<script>
+let selectedRole=null;
+document.querySelectorAll("#roles button").forEach(button=>{
+button.addEventListener("click",()=>{
+document.querySelectorAll("#roles button").forEach(b=>b.classList.remove("selected"));
+button.classList.add("selected"); selectedRole=button.dataset.role;
+document.getElementById("status").textContent="تم اختيار: "+button.textContent.trim();
+});
+});
+document.getElementById("continueBtn").addEventListener("click",()=>{
+if(!selectedRole){document.getElementById("status").textContent="اختاري نوع الحساب أولًا.";return;}
+window.location.href="index.html?role="+encodeURIComponent(selectedRole);
+});
+</script>
+</body>
+</html>
