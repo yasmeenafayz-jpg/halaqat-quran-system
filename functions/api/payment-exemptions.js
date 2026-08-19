@@ -6,10 +6,8 @@
  * POST   /api/payment-exemptions
  * PATCH  /api/payment-exemptions
  *
- * ملاحظة:
- * هذا السجل إداري فقط.
- * لا يتم إرجاع بيانات الإعفاء لأي واجهة طالب
- * إلا من خلال صلاحية الإدارة في طبقة المصادقة.
+ * هذا الملف خاص بالإدارة.
+ * بيانات الإعفاءات المالية لا يجب عرضها في واجهة الطالب.
  */
 
 const HEADERS = {
@@ -139,7 +137,7 @@ async function getSubscription(
 }
 
 /* =========================================================
-   Exemption record
+   Get one exemption
 ========================================================= */
 
 async function getExemption(
@@ -162,7 +160,7 @@ async function getExemption(
 
         s.full_name AS student_name,
 
-        u.name AS approved_by_name
+        u.full_name AS approved_by_name
 
       FROM payment_exemptions pe
 
@@ -274,7 +272,7 @@ export async function onRequestGet(
 
         s.full_name AS student_name,
 
-        u.name AS approved_by_name
+        u.full_name AS approved_by_name
 
       FROM payment_exemptions pe
 
@@ -589,7 +587,8 @@ export async function onRequestPost(
       const approver =
         await db
           .prepare(`
-            SELECT id
+            SELECT
+              id
             FROM users
             WHERE id = ?1
             LIMIT 1
@@ -866,7 +865,8 @@ export async function onRequestPatch(
       const approver =
         await db
           .prepare(`
-            SELECT id
+            SELECT
+              id
             FROM users
             WHERE id = ?1
             LIMIT 1
