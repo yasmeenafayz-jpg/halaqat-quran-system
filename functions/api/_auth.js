@@ -549,3 +549,53 @@ export {
   destroySession,
   writeAudit,
 };
+metadata === undefined
+  ? null
+  : typeof metadata === "string"
+    ? metadata
+    : JSON.stringify(metadata);
+
+  await env.DB
+    .prepare(
+      `
+      INSERT INTO audit_logs (
+        user_id,
+        action,
+        entity,
+        entity_id,
+        ip_address,
+        user_agent,
+        metadata
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      `
+    )
+    .bind(
+      userId,
+      action,
+      entity,
+      entityId,
+      request
+        ? getClientIp(request)
+        : null,
+      request
+        ? getUserAgent(request)
+        : null,
+      metadataJson
+    )
+    .run();
+}
+
+export {
+  SESSION_COOKIE,
+  json,
+  getCookie,
+  getCurrentUser,
+  requireAuth,
+  requirePermission,
+  requireRole,
+  hasPermission,
+  createSession,
+  destroySession,
+  writeAudit,
+};
