@@ -1,0 +1,19 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "alawabin",
+  "compatibility_date": "2026-08-19",
+  "pages_build_output_dir": "./dist",
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "alawabin-db",
+      "database_id": "REPLACE_WITH_D1_DATABASE_ID"
+    }
+  ],
+
+  "vars": {
+    "APP_NAME": "الأوَّابين",
+    "APP_TIMEZONE": "Africa/Cairo"
+  }
+}
