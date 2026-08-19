@@ -67,10 +67,16 @@ function addDays(days) {
 }
 
 function isExpired(expiresAt) {
-  return !expiresAt || new Date(expiresAt).getTime() <= Date.now();
+  return (
+    !expiresAt ||
+    new Date(expiresAt).getTime() <= Date.now()
+  );
 }
 
-function sessionCookie(token, maxAge = SESSION_DAYS * 24 * 60 * 60) {
+function sessionCookie(
+  token,
+  maxAge = SESSION_DAYS * 24 * 60 * 60
+) {
   return [
     `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
     "Path=/",
@@ -96,10 +102,15 @@ async function getCurrentUser(request, env) {
   const db = env?.DB;
 
   if (!db) {
-    throw new Error("Database binding DB is not configured.");
+    throw new Error(
+      "Database binding DB is not configured."
+    );
   }
 
-  const token = getCookie(request, SESSION_COOKIE);
+  const token = getCookie(
+    request,
+    SESSION_COOKIE
+  );
 
   if (!token) {
     return null;
@@ -140,7 +151,10 @@ async function getCurrentUser(request, env) {
     return null;
   }
 
-  if (result.revoked_at || isExpired(result.expires_at)) {
+  if (
+    result.revoked_at ||
+    isExpired(result.expires_at)
+  ) {
     return null;
   }
 
@@ -171,12 +185,14 @@ async function getCurrentUser(request, env) {
 }
 
 async function requireAuth(request, env) {
-  const user = await getCurrentUser(request, env);
+  const user = await getCurrentUser(
+    request,
+    env
+  );
 
   if (!user) {
     return {
       ok: false,
-
       response: json(
         {
           success: false,
@@ -203,9 +219,7 @@ async function getPermissionState(db, user) {
       SELECT
         permission_key,
         allowed
-
       FROM role_permissions
-
       WHERE role = ?
       `
     )
@@ -225,9 +239,7 @@ async function getPermissionState(db, user) {
       SELECT
         permission_key,
         allowed
-
       FROM user_permissions
-
       WHERE user_id = ?
       `
     )
@@ -244,22 +256,25 @@ async function getPermissionState(db, user) {
   return permissions;
 }
 
-async function hasPermission(db, user, permission) {
+async function hasPermission(
+  db,
+  user,
+  permission
+) {
   if (!permission) {
     return false;
   }
 
-  // المدير لديه جميع الصلاحيات.
   if (user.role === "admin") {
     return true;
   }
 
-  const permissions = await getPermissionState(
-    db,
-    user
-  );
+  const permissions =
+    await getPermissionState(db, user);
 
-  return permissions.get(permission) === true;
+  return (
+    permissions.get(permission) === true
+  );
 }
 
 async function requirePermission(
@@ -267,7 +282,10 @@ async function requirePermission(
   env,
   permission
 ) {
-  const auth = await requireAuth(request, env);
+  const auth = await requireAuth(
+    request,
+    env
+  );
 
   if (!auth.ok) {
     return auth;
@@ -282,7 +300,6 @@ async function requirePermission(
   if (!allowed) {
     return {
       ok: false,
-
       response: json(
         {
           success: false,
@@ -301,8 +318,15 @@ async function requirePermission(
   };
 }
 
-async function requireRole(request, env, roles) {
-  const auth = await requireAuth(request, env);
+async function requireRole(
+  request,
+  env,
+  roles
+) {
+  const auth = await requireAuth(
+    request,
+    env
+  );
 
   if (!auth.ok) {
     return auth;
@@ -312,10 +336,13 @@ async function requireRole(request, env, roles) {
     ? roles
     : [roles];
 
-  if (!allowedRoles.includes(auth.user.role)) {
+  if (
+    !allowedRoles.includes(
+      auth.user.role
+    )
+  ) {
     return {
       ok: false,
-
       response: json(
         {
           success: false,
@@ -348,8 +375,11 @@ async function createSession(
   }
 
   const token = createToken();
-  const tokenHash = await sha256(token);
-  const expiresAt = addDays(SESSION_DAYS);
+  const tokenHash =
+    await sha256(token);
+
+  const expiresAt =
+    addDays(SESSION_DAYS);
 
   await db
     .prepare(
@@ -361,7 +391,6 @@ async function createSession(
         ip_address,
         user_agent
       )
-
       VALUES (?, ?, ?, ?, ?)
       `
     )
@@ -399,15 +428,14 @@ async function destroySession(
   );
 
   if (token) {
-    const tokenHash = await sha256(token);
+    const tokenHash =
+      await sha256(token);
 
     await db
       .prepare(
         `
         UPDATE auth_sessions
-
         SET revoked_at = CURRENT_TIMESTAMP
-
         WHERE session_token_hash = ?
         `
       )
@@ -453,7 +481,6 @@ async function writeAudit(
         user_agent,
         metadata
       )
-
       VALUES (?, ?, ?, ?, ?, ?, ?)
       `
     )
