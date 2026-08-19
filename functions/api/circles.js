@@ -7,15 +7,16 @@
  * PATCH  /api/circles
  *
  * يدعم:
- * - الحلقات الفردية
- * - الحلقات الجماعية
+ * - الحلقات الفردية والجماعية
+ * - ربط المعلم
+ * - ربط الباقة
  * - السعة
- * - ربط الحلقة بالمعلم
- * - ربط الحلقة بالباقة
  * - المستوى والمسار
- * - حالة الحلقة
- * - تعديل بيانات الحلقة
- * - التحقق من توافق الباقة مع نوع الحلقة
+ * - الجدول
+ * - حالات الحلقة
+ * - البحث والفلترة
+ * - منع تجاوز السعة
+ * - منع ربط الحلقة بمعلم غير نشط
  */
 
 const HEADERS = {
@@ -64,30 +65,18 @@ function errorResponse(
 }
 
 function cleanString(value) {
-  return String(
-    value ?? ""
-  ).trim();
+  return String(value ?? "").trim();
 }
 
 function nullableString(value) {
-  const valueClean =
-    cleanString(value);
-
-  return valueClean
-    ? valueClean
-    : null;
+  const valueClean = cleanString(value);
+  return valueClean ? valueClean : null;
 }
 
-function positiveInteger(
-  value,
-  fallback = 1
-) {
-  const number =
-    Number(value);
+function positiveInteger(value, fallback = 1) {
+  const number = Number(value);
 
-  if (
-    !Number.isFinite(number)
-  ) {
+  if (!Number.isFinite(number)) {
     return fallback;
   }
 
@@ -98,8 +87,7 @@ function positiveInteger(
 }
 
 function validId(value) {
-  const number =
-    Number(value);
+  const number = Number(value);
 
   return (
     Number.isInteger(number) &&
@@ -111,10 +99,7 @@ function validId(value) {
    Circle Query
 ========================================================= */
 
-async function getCircleById(
-  db,
-  id
-) {
+async function getCircleById(db, id) {
   return db
     .prepare(`
       SELECT
@@ -132,6 +117,7 @@ async function getCircleById(
         c.updated_at,
 
         t.full_name AS teacher_name,
+        t.status AS teacher_status,
 
         p.name AS package_name,
         p.package_type,
@@ -139,7 +125,8 @@ async function getCircleById(
         p.currency AS package_currency,
         p.sessions_per_month,
         p.duration_minutes,
-        p.capacity AS package_capacity
+        p.capacity AS package_capacity,
+        p.status AS package_status
 
       FROM circles c
 
@@ -160,10 +147,7 @@ async function getCircleById(
    Validate Teacher
 ========================================================= */
 
-async function validateTeacher(
-  db,
-  teacherId
-) {
+async function validateTeacher(db, teacherId) {
   if (
     teacherId === null ||
     teacherId === undefined
@@ -173,29 +157,33 @@ async function validateTeacher(
 
   if (!validId(teacherId)) {
     return {
-      error:
-        "INVALID_TEACHER_ID",
+      error: "INVALID_TEACHER_ID",
     };
   }
 
-  const teacher =
-    await db
-      .prepare(`
-        SELECT
-          id,
-          full_name,
-          status
-        FROM teachers
-        WHERE id = ?1
-        LIMIT 1
-      `)
-      .bind(teacherId)
-      .first();
+  const teacher = await db
+    .prepare(`
+      SELECT
+        id,
+        full_name,
+        status
+      FROM teachers
+      WHERE id = ?1
+      LIMIT 1
+    `)
+    .bind(teacherId)
+    .first();
 
   if (!teacher) {
     return {
-      error:
-        "TEACHER_NOT_FOUND",
+      error: "TEACHER_NOT_FOUND",
+    };
+  }
+
+  if (teacher.status !== "active") {
+    return {
+      error: "TEACHER_IS_NOT_ACTIVE",
+      teacher_status: teacher.status,
     };
   }
 
@@ -221,48 +209,38 @@ async function validatePackage(
 
   if (!validId(packageId)) {
     return {
-      error:
-        "INVALID_PACKAGE_ID",
+      error: "INVALID_PACKAGE_ID",
     };
   }
 
-  const pkg =
-    await db
-      .prepare(`
-        SELECT
-          id,
-          name,
-          package_type,
-          capacity,
-          status
-        FROM packages
-        WHERE id = ?1
-        LIMIT 1
-      `)
-      .bind(packageId)
-      .first();
+  const pkg = await db
+    .prepare(`
+      SELECT
+        id,
+        name,
+        package_type,
+        capacity,
+        status
+      FROM packages
+      WHERE id = ?1
+      LIMIT 1
+    `)
+    .bind(packageId)
+    .first();
 
   if (!pkg) {
     return {
-      error:
-        "PACKAGE_NOT_FOUND",
+      error: "PACKAGE_NOT_FOUND",
     };
   }
 
-  if (
-    pkg.status !==
-    "active"
-  ) {
+  if (pkg.status !== "active") {
     return {
-      error:
-        "PACKAGE_IS_INACTIVE",
+      error: "PACKAGE_IS_INACTIVE",
     };
   }
 
-  if (
-    pkg.package_type !==
-    circleType
-  ) {
+  if (pkg.package_type !== circleType) {
     return {
       error:
         "PACKAGE_TYPE_DOES_NOT_MATCH_CIRCLE_TYPE",
@@ -270,14 +248,11 @@ async function validatePackage(
   }
 
   const packageCapacity =
-    Number(
-      pkg.capacity || 0
-    );
+    Number(pkg.capacity || 0);
 
   if (
     packageCapacity > 0 &&
-    capacity >
-      packageCapacity
+    capacity > packageCapacity
   ) {
     return {
       error:
@@ -296,11 +271,8 @@ async function validatePackage(
    GET
 ========================================================= */
 
-export async function onRequestGet(
-  context
-) {
-  const db =
-    context.env?.DB;
+export async function onRequestGet(context) {
+  const db = context.env?.DB;
 
   if (!db) {
     return errorResponse(
@@ -309,15 +281,12 @@ export async function onRequestGet(
     );
   }
 
-  const url =
-    new URL(
-      context.request.url
-    );
+  const url = new URL(
+    context.request.url
+  );
 
   const id =
-    url.searchParams.get(
-      "id"
-    );
+    url.searchParams.get("id");
 
   const circleType =
     url.searchParams.get(
@@ -325,9 +294,7 @@ export async function onRequestGet(
     );
 
   const status =
-    url.searchParams.get(
-      "status"
-    );
+    url.searchParams.get("status");
 
   const teacherId =
     url.searchParams.get(
@@ -339,17 +306,15 @@ export async function onRequestGet(
       "package_id"
     );
 
-  const search =
-    cleanString(
-      url.searchParams.get(
-        "search"
-      )
-    );
+  const search = cleanString(
+    url.searchParams.get("search")
+  );
 
   try {
-    /*
-     * حلقة واحدة
-     */
+    /* -----------------------------------------
+       Circle by ID
+    ----------------------------------------- */
+
     if (id) {
       if (!validId(id)) {
         return errorResponse(
@@ -377,9 +342,10 @@ export async function onRequestGet(
       });
     }
 
-    /*
-     * قائمة الحلقات
-     */
+    /* -----------------------------------------
+       Circles list
+    ----------------------------------------- */
+
     let sql = `
       SELECT
         c.id,
@@ -396,6 +362,7 @@ export async function onRequestGet(
         c.updated_at,
 
         t.full_name AS teacher_name,
+        t.status AS teacher_status,
 
         p.name AS package_name,
         p.package_type,
@@ -403,7 +370,8 @@ export async function onRequestGet(
         p.currency AS package_currency,
         p.sessions_per_month,
         p.duration_minutes,
-        p.capacity AS package_capacity
+        p.capacity AS package_capacity,
+        p.status AS package_status
 
       FROM circles c
 
@@ -457,9 +425,7 @@ export async function onRequestGet(
     }
 
     if (teacherId) {
-      if (
-        !validId(teacherId)
-      ) {
+      if (!validId(teacherId)) {
         return errorResponse(
           "INVALID_TEACHER_ID",
           400
@@ -476,9 +442,7 @@ export async function onRequestGet(
     }
 
     if (packageId) {
-      if (
-        !validId(packageId)
-      ) {
+      if (!validId(packageId)) {
         return errorResponse(
           "INVALID_PACKAGE_ID",
           400
@@ -506,13 +470,16 @@ export async function onRequestGet(
         searchValue
       );
 
+      const start =
+        params.length - 4;
+
       sql += `
         AND (
-          c.name LIKE ?${params.length - 4}
-          OR t.full_name LIKE ?${params.length - 3}
-          OR p.name LIKE ?${params.length - 2}
-          OR c.level_name LIKE ?${params.length - 1}
-          OR c.path_name LIKE ?${params.length}
+          c.name LIKE ?${start}
+          OR t.full_name LIKE ?${start + 1}
+          OR p.name LIKE ?${start + 2}
+          OR c.level_name LIKE ?${start + 3}
+          OR c.path_name LIKE ?${start + 4}
         )
       `;
     }
@@ -523,19 +490,16 @@ export async function onRequestGet(
         c.id DESC
     `;
 
-    const result =
-      await db
-        .prepare(sql)
-        .bind(...params)
-        .all();
+    const result = await db
+      .prepare(sql)
+      .bind(...params)
+      .all();
 
     return json({
       success: true,
-      data:
-        result.results || [],
+      data: result.results || [],
       count:
-        result.results?.length ||
-        0,
+        result.results?.length || 0,
     });
   } catch (error) {
     console.error(
@@ -556,11 +520,8 @@ export async function onRequestGet(
    POST
 ========================================================= */
 
-export async function onRequestPost(
-  context
-) {
-  const db =
-    context.env?.DB;
+export async function onRequestPost(context) {
+  const db = context.env?.DB;
 
   if (!db) {
     return errorResponse(
@@ -583,8 +544,7 @@ export async function onRequestPost(
 
   if (
     !data ||
-    typeof data !==
-      "object"
+    typeof data !== "object"
   ) {
     return errorResponse(
       "INVALID_REQUEST_BODY",
@@ -592,10 +552,9 @@ export async function onRequestPost(
     );
   }
 
-  const name =
-    cleanString(
-      data.name
-    );
+  const name = cleanString(
+    data.name
+  );
 
   const circleType =
     cleanString(
@@ -621,19 +580,23 @@ export async function onRequestPost(
     );
   }
 
+  /*
+   * الحلقة الفردية = طالب واحد.
+   */
   const capacity =
-    positiveInteger(
-      data.capacity,
-      1
-    );
+    circleType === "individual"
+      ? 1
+      : positiveInteger(
+          data.capacity,
+          1
+        );
 
   const teacherId =
     data.teacher_id !==
       undefined &&
     data.teacher_id !==
       null &&
-    data.teacher_id !==
-      ""
+    data.teacher_id !== ""
       ? Number(
           data.teacher_id
         )
@@ -644,8 +607,7 @@ export async function onRequestPost(
       undefined &&
     data.package_id !==
       null &&
-    data.package_id !==
-      ""
+    data.package_id !== ""
       ? Number(
           data.package_id
         )
@@ -653,8 +615,7 @@ export async function onRequestPost(
 
   const status =
     cleanString(
-      data.status ||
-        "active"
+      data.status || "active"
     );
 
   if (
@@ -687,30 +648,31 @@ export async function onRequestPost(
     );
 
   try {
-    /*
-     * التحقق من المعلم
-     */
+    /* -----------------------------------------
+       Teacher validation
+    ----------------------------------------- */
+
     const teacher =
       await validateTeacher(
         db,
         teacherId
       );
 
-    if (
-      teacher?.error
-    ) {
+    if (teacher?.error) {
       return errorResponse(
         teacher.error,
         teacher.error ===
           "TEACHER_NOT_FOUND"
           ? 404
-          : 400
+          : 409,
+        teacher
       );
     }
 
-    /*
-     * التحقق من الباقة
-     */
+    /* -----------------------------------------
+       Package validation
+    ----------------------------------------- */
+
     const pkg =
       await validatePackage(
         db,
@@ -719,9 +681,7 @@ export async function onRequestPost(
         capacity
       );
 
-    if (
-      pkg?.error
-    ) {
+    if (pkg?.error) {
       return errorResponse(
         pkg.error,
         pkg.error ===
@@ -735,481 +695,14 @@ export async function onRequestPost(
     const now =
       new Date().toISOString();
 
-    const result =
-      await db
-        .prepare(`
-          INSERT INTO circles (
-            name,
-            circle_type,
-            teacher_id,
-            package_id,
-            capacity,
-            status,
-            schedule_note,
-            level_name,
-            path_name,
-            created_at,
-            updated_at
-          )
-          VALUES (
-            ?1,
-            ?2,
-            ?3,
-            ?4,
-            ?5,
-            ?6,
-            ?7,
-            ?8,
-            ?9,
-            ?10,
-            ?10
-          )
-        `)
-        .bind(
+    const result = await db
+      .prepare(`
+        INSERT INTO circles (
           name,
-          circleType,
-          teacherId,
-          packageId,
+          circle_type,
+          teacher_id,
+          package_id,
           capacity,
           status,
-          scheduleNote,
-          levelName,
-          pathName,
-          now
-        )
-        .run();
-
-    const circleId =
-      result.meta?.last_row_id;
-
-    const created =
-      await getCircleById(
-        db,
-        circleId
-      );
-
-    return json(
-      {
-        success: true,
-        message:
-          "Circle created successfully.",
-        data: created,
-      },
-      201
-    );
-  } catch (error) {
-    console.error(
-      "CIRCLES_POST_FAILED",
-      error
-    );
-
-    return errorResponse(
-      error instanceof Error
-        ? error.message
-        : "CIRCLE_CREATE_FAILED",
-      500
-    );
-  }
-}
-
-/* =========================================================
-   PATCH
-========================================================= */
-
-export async function onRequestPatch(
-  context
-) {
-  const db =
-    context.env?.DB;
-
-  if (!db) {
-    return errorResponse(
-      "DATABASE_NOT_CONFIGURED",
-      503
-    );
-  }
-
-  let data;
-
-  try {
-    data =
-      await context.request.json();
-  } catch {
-    return errorResponse(
-      "INVALID_JSON",
-      400
-    );
-  }
-
-  if (
-    !data ||
-    typeof data !==
-      "object"
-  ) {
-    return errorResponse(
-      "INVALID_REQUEST_BODY",
-      400
-    );
-  }
-
-  const circleId =
-    data.id ??
-    data.circle_id ??
-    data.circleId;
-
-  if (
-    !validId(circleId)
-  ) {
-    return errorResponse(
-      "CIRCLE_ID_REQUIRED",
-      400
-    );
-  }
-
-  try {
-    const current =
-      await getCircleById(
-        db,
-        circleId
-      );
-
-    if (!current) {
-      return errorResponse(
-        "CIRCLE_NOT_FOUND",
-        404
-      );
-    }
-
-    const name =
-      data.name !==
-        undefined
-        ? cleanString(
-            data.name
-          )
-        : current.name;
-
-    if (!name) {
-      return errorResponse(
-        "CIRCLE_NAME_REQUIRED",
-        400
-      );
-    }
-
-    const circleType =
-      data.circle_type !==
-        undefined ||
-      data.circleType !==
-        undefined
-        ? cleanString(
-            data.circle_type ??
-            data.circleType
-          )
-        : current.circle_type;
-
-    if (
-      !VALID_TYPES.includes(
-        circleType
-      )
-    ) {
-      return errorResponse(
-        "INVALID_CIRCLE_TYPE",
-        400
-      );
-    }
-
-    const capacity =
-      data.capacity !==
-        undefined
-        ? positiveInteger(
-            data.capacity,
-            current.capacity
-          )
-        : current.capacity;
-
-    const teacherId =
-      data.teacher_id !==
-        undefined ||
-      data.teacherId !==
-        undefined
-        ? (
-            data.teacher_id ??
-            data.teacherId
-          ) === null ||
-          (
-            data.teacher_id ??
-            data.teacherId
-          ) === ""
-          ? null
-          : Number(
-              data.teacher_id ??
-              data.teacherId
-            )
-        : current.teacher_id;
-
-    const packageId =
-      data.package_id !==
-        undefined ||
-      data.packageId !==
-        undefined
-        ? (
-            data.package_id ??
-            data.packageId
-          ) === null ||
-          (
-            data.package_id ??
-            data.packageId
-          ) === ""
-          ? null
-          : Number(
-              data.package_id ??
-              data.packageId
-            )
-        : current.package_id;
-
-    const status =
-      data.status !==
-        undefined
-        ? cleanString(
-            data.status
-          )
-        : current.status;
-
-    if (
-      !VALID_STATUSES.includes(
-        status
-      )
-    ) {
-      return errorResponse(
-        "INVALID_CIRCLE_STATUS",
-        400
-      );
-    }
-
-    /*
-     * التحقق من المعلم الجديد
-     */
-    const teacher =
-      await validateTeacher(
-        db,
-        teacherId
-      );
-
-    if (
-      teacher?.error
-    ) {
-      return errorResponse(
-        teacher.error,
-        teacher.error ===
-          "TEACHER_NOT_FOUND"
-          ? 404
-          : 400
-      );
-    }
-
-    /*
-     * التحقق من الباقة الجديدة
-     * ونوع الحلقة والسعة.
-     */
-    const pkg =
-      await validatePackage(
-        db,
-        packageId,
-        circleType,
-        capacity
-      );
-
-    if (
-      pkg?.error
-    ) {
-      return errorResponse(
-        pkg.error,
-        pkg.error ===
-          "PACKAGE_NOT_FOUND"
-          ? 404
-          : 409,
-        pkg
-      );
-    }
-
-    const scheduleNote =
-      data.schedule_note !==
-        undefined ||
-      data.scheduleNote !==
-        undefined
-        ? nullableString(
-            data.schedule_note ??
-            data.scheduleNote
-          )
-        : current.schedule_note;
-
-    const levelName =
-      data.level_name !==
-        undefined ||
-      data.levelName !==
-        undefined
-        ? nullableString(
-            data.level_name ??
-            data.levelName
-          )
-        : current.level_name;
-
-    const pathName =
-      data.path_name !==
-        undefined ||
-      data.pathName !==
-        undefined
-        ? nullableString(
-            data.path_name ??
-            data.pathName
-          )
-        : current.path_name;
-
-    /*
-     * حماية مهمة:
-     * لا يمكن خفض السعة إلى أقل من
-     * عدد الطلاب النشطين بالفعل.
-     */
-    const activeCount =
-      await db
-        .prepare(`
-          SELECT COUNT(*) AS count
-          FROM circle_enrollments
-          WHERE circle_id = ?1
-            AND status = 'active'
-        `)
-        .bind(circleId)
-        .first();
-
-    const enrolledCount =
-      Number(
-        activeCount?.count || 0
-      );
-
-    if (
-      capacity <
-      enrolledCount
-    ) {
-      return errorResponse(
-        "CAPACITY_BELOW_ACTIVE_ENROLLMENTS",
-        409,
-        {
-          active_enrollments:
-            enrolledCount,
-          requested_capacity:
-            capacity,
-        }
-      );
-    }
-
-    /*
-     * إذا أصبحت الحلقة ممتلئة،
-     * نضبط حالتها إلى full تلقائيًا.
-     *
-     * أما إذا كانت الإدارة أرسلت
-     * archived أو inactive فنحافظ عليها.
-     */
-    let finalStatus =
-      status;
-
-    if (
-      status === "active" &&
-      enrolledCount >=
-        capacity
-    ) {
-      finalStatus =
-        "full";
-    }
-
-    const now =
-      new Date().toISOString();
-
-    await db
-      .prepare(`
-        UPDATE circles
-        SET
-          name = ?1,
-          circle_type = ?2,
-          teacher_id = ?3,
-          package_id = ?4,
-          capacity = ?5,
-          status = ?6,
-          schedule_note = ?7,
-          level_name = ?8,
-          path_name = ?9,
-          updated_at = ?10
-        WHERE id = ?11
-      `)
-      .bind(
-        name,
-        circleType,
-        teacherId,
-        packageId,
-        capacity,
-        finalStatus,
-        scheduleNote,
-        levelName,
-        pathName,
-        now,
-        circleId
-      )
-      .run();
-
-    const updated =
-      await getCircleById(
-        db,
-        circleId
-      );
-
-    return json({
-      success: true,
-      message:
-        "Circle updated successfully.",
-      data: updated,
-    });
-  } catch (error) {
-    console.error(
-      "CIRCLES_PATCH_FAILED",
-      error
-    );
-
-    return errorResponse(
-      error instanceof Error
-        ? error.message
-        : "CIRCLE_UPDATE_FAILED",
-      500
-    );
-  }
-}
-
-/* =========================================================
-   Method Router
-========================================================= */
-
-export async function onRequest(
-  context
-) {
-  switch (
-    context.request.method.toUpperCase()
-  ) {
-    case "GET":
-      return onRequestGet(
-        context
-      );
-
-    case "POST":
-      return onRequestPost(
-        context
-      );
-
-    case "PATCH":
-      return onRequestPatch(
-        context
-      );
-
-    default:
-      return errorResponse(
-        "METHOD_NOT_ALLOWED",
-        405
-      );
-  }
-}
+          schedule_note,
+          level
