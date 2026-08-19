@@ -12,21 +12,6 @@
  * متوافق مع:
  * - Migration 006 Professional Scheduling & Billing
  * - Migration 007 Monthly Billing Rules
- *
- * يدير:
- * - الفاتورة الشهرية للطالب
- * - بداية الدورة من أول الشهر
- * - بداية الطالب الجديد من الشهر الجديد
- * - الباقة الشهرية
- * - عدد الجلسات المخططة والمجدولة والمنفذة
- * - الجلسات القابلة للمحاسبة
- * - الخصومات
- * - الإعفاء
- * - الغرامات
- * - المدفوع
- * - المتبقي
- * - بنود الفاتورة
- * - قواعد الفوترة المركزية
  */
 
 const HEADERS = {
@@ -40,6 +25,15 @@ const STATUSES = [
   "paid",
   "overdue",
   "cancelled",
+];
+
+const ITEM_TYPES = [
+  "package",
+  "session",
+  "discount",
+  "exemption",
+  "fine",
+  "adjustment",
 ];
 
 function json(data, status = 200) {
@@ -65,8 +59,8 @@ function clean(value) {
 }
 
 function nullable(value) {
-  const v = clean(value);
-  return v || null;
+  const valueClean = clean(value);
+  return valueClean || null;
 }
 
 function validId(value) {
@@ -194,11 +188,26 @@ function calculateStatus(
 }
 
 /* =========================================================
-   Migration 007
-   قواعد الفوترة
+   Billing Settings
 ========================================================= */
 
 async function getBillingSettings(db) {
+  const fallback = {
+    id: 1,
+    billing_day: 1,
+    default_due_day: 7,
+    currency: "EGP",
+    count_scheduled_sessions: 1,
+    count_completed_sessions: 1,
+    count_cancelled_sessions: 0,
+    charge_cancelled_sessions: 0,
+    create_cycle_automatically: 1,
+    calculate_sessions_automatically: 1,
+    issue_invoice_automatically: 1,
+    send_invoice_notification: 1,
+    active: 1,
+  };
+
   try {
     const row = await db
       .prepare(`
@@ -222,43 +231,27 @@ async function getBillingSettings(db) {
       `)
       .first();
 
-    return (
-      row || {
-        id: 1,
-        billing_day: 1,
-        default_due_day: 7,
-        currency: "EGP",
-        count_scheduled_sessions: 1,
-        count_completed_sessions: 1,
-        count_cancelled_sessions: 0,
-        charge_cancelled_sessions: 0,
-        create_cycle_automatically: 1,
-        calculate_sessions_automatically: 1,
-        issue_invoice_automatically: 1,
-        send_invoice_notification: 1,
-        active: 1,
-      }
-    );
+    return row || fallback;
   } catch {
-    return {
-      id: 1,
-      billing_day: 1,
-      default_due_day: 7,
-      currency: "EGP",
-      count_scheduled_sessions: 1,
-      count_completed_sessions: 1,
-      count_cancelled_sessions: 0,
-      charge_cancelled_sessions: 0,
-      create_cycle_automatically: 1,
-      calculate_sessions_automatically: 1,
-      issue_invoice_automatically: 1,
-      send_invoice_notification: 1,
-      active: 1,
-    };
+    return fallback;
   }
 }
 
+/* =========================================================
+   Billing Month Rules
+========================================================= */
+
 async function getBillingMonthRules(db) {
+  const fallback = {
+    id: 1,
+    cycle_anchor: "first_day_of_month",
+    period_type: "calendar_month",
+    new_student_starts_next_month: 1,
+    calculate_price_before_start: 0,
+    notify_student_before_cycle: 1,
+    active: 1,
+  };
+
   try {
     const row = await db
       .prepare(`
@@ -276,29 +269,15 @@ async function getBillingMonthRules(db) {
       `)
       .first();
 
-    return (
-      row || {
-        id: 1,
-        cycle_anchor: "first_day_of_month",
-        period_type: "calendar_month",
-        new_student_starts_next_month: 1,
-        calculate_price_before_start: 0,
-        notify_student_before_cycle: 1,
-        active: 1,
-      }
-    );
+    return row || fallback;
   } catch {
-    return {
-      id: 1,
-      cycle_anchor: "first_day_of_month",
-      period_type: "calendar_month",
-      new_student_starts_next_month: 1,
-      calculate_price_before_start: 0,
-      notify_student_before_cycle: 1,
-      active: 1,
-    };
+    return fallback;
   }
 }
+
+/* =========================================================
+   Student Billing Settings
+========================================================= */
 
 async function getStudentBillingSettings(db, studentId) {
   try {
@@ -324,17 +303,18 @@ async function getStudentBillingSettings(db, studentId) {
   }
 }
 
+/* =========================================================
+   Student Billing Start
+========================================================= */
+
 async function getStudentBillingStart(
   db,
   studentId,
-  subscriptionId,
-  billingMonth
+  subscriptionId
 ) {
   try {
-    let row;
-
-    if (subscriptionId) {
-      row = await db
+    if (subscriptionId !== null) {
+      return await db
         .prepare(`
           SELECT
             id,
@@ -352,68 +332,29 @@ async function getStudentBillingStart(
         `)
         .bind(studentId, subscriptionId)
         .first();
-    } else {
-      row = await db
-        .prepare(`
-          SELECT
-            id,
-            student_id,
-            subscription_id,
-            billing_start_date,
-            first_billing_month,
-            status
-          FROM student_billing_starts
-          WHERE student_id = ?1
-            AND subscription_id IS NULL
-            AND status = 'active'
-          ORDER BY id DESC
-          LIMIT 1
-        `)
-        .bind(studentId)
-        .first();
     }
 
-    if (!row) {
-      return null;
-    }
-
-    if (
-      validMonth(row.first_billing_month) &&
-      row.first_billing_month > billingMonth
-    ) {
-      return {
-        ...row,
-        not_started: true,
-      };
-    }
-
-    return row;
+    return await db
+      .prepare(`
+        SELECT
+          id,
+          student_id,
+          subscription_id,
+          billing_start_date,
+          first_billing_month,
+          status
+        FROM student_billing_starts
+        WHERE student_id = ?1
+          AND subscription_id IS NULL
+          AND status = 'active'
+        ORDER BY id DESC
+        LIMIT 1
+      `)
+      .bind(studentId)
+      .first();
   } catch {
     return null;
   }
-}
-
-function isBillingMonthAllowed({
-  billingMonth,
-  startMonth,
-  newStudentStartsNextMonth,
-}) {
-  if (!startMonth) {
-    return true;
-  }
-
-  if (!validMonth(startMonth)) {
-    return true;
-  }
-
-  if (
-    newStudentStartsNextMonth &&
-    billingMonth < startMonth
-  ) {
-    return false;
-  }
-
-  return billingMonth >= startMonth;
 }
 
 /* =========================================================
@@ -439,10 +380,7 @@ async function getStudent(db, studentId) {
    Subscription
 ========================================================= */
 
-async function getSubscription(
-  db,
-  subscriptionId
-) {
+async function getSubscription(db, subscriptionId) {
   if (!subscriptionId) {
     return null;
   }
@@ -469,31 +407,21 @@ async function getSubscription(
    Billing Cycle
 ========================================================= */
 
-async function getBillingCycle(
-  db,
-  billingCycleId
-) {
+async function getBillingCycle(db, billingCycleId) {
   const cycle = await db
     .prepare(`
       SELECT
         bc.*,
-
         st.full_name AS student_name,
-
         sub.package_id,
         sub.circle_id,
         sub.status AS subscription_status
-
       FROM billing_cycles bc
-
       JOIN students st
         ON st.id = bc.student_id
-
       LEFT JOIN subscriptions sub
         ON sub.id = bc.subscription_id
-
       WHERE bc.id = ?1
-
       LIMIT 1
     `)
     .bind(billingCycleId)
@@ -530,6 +458,133 @@ async function getBillingCycle(
 }
 
 /* =========================================================
+   Validate Billing Items
+========================================================= */
+
+function validateItems(items) {
+  if (!Array.isArray(items)) {
+    return {
+      valid: true,
+      items: [],
+    };
+  }
+
+  const normalized = [];
+
+  for (const item of items) {
+    if (!item || typeof item !== "object") {
+      return {
+        valid: false,
+        error: "INVALID_BILLING_ITEM",
+      };
+    }
+
+    const itemType = clean(
+      item.item_type ??
+        item.itemType
+    ).toLowerCase();
+
+    if (!ITEM_TYPES.includes(itemType)) {
+      return {
+        valid: false,
+        error: "INVALID_BILLING_ITEM_TYPE",
+        extra: {
+          item_type: itemType,
+        },
+      };
+    }
+
+    const description = clean(
+      item.description
+    );
+
+    if (!description) {
+      return {
+        valid: false,
+        error:
+          "BILLING_ITEM_DESCRIPTION_REQUIRED",
+      };
+    }
+
+    const quantity = nonNegativeNumber(
+      item.quantity ?? 1
+    );
+
+    const unitPrice = nonNegativeNumber(
+      item.unit_price ??
+        item.unitPrice ??
+        0
+    );
+
+    let amountValue =
+      item.amount ??
+      (
+        Number(quantity) *
+        Number(unitPrice)
+      );
+
+    const amount =
+      nonNegativeNumber(amountValue);
+
+    if (
+      quantity === null ||
+      unitPrice === null ||
+      amount === null
+    ) {
+      return {
+        valid: false,
+        error:
+          "INVALID_BILLING_ITEM_AMOUNT",
+      };
+    }
+
+    const referenceIdValue =
+      item.reference_id ??
+      item.referenceId;
+
+    const referenceId =
+      referenceIdValue === undefined ||
+      referenceIdValue === null ||
+      referenceIdValue === ""
+        ? null
+        : validId(referenceIdValue)
+          ? Number(referenceIdValue)
+          : null;
+
+    if (
+      referenceIdValue !== undefined &&
+      referenceIdValue !== null &&
+      referenceIdValue !== "" &&
+      referenceId === null
+    ) {
+      return {
+        valid: false,
+        error:
+          "INVALID_BILLING_ITEM_REFERENCE_ID",
+      };
+    }
+
+    normalized.push({
+      item_type: itemType,
+      description,
+      quantity,
+      unit_price: unitPrice,
+      amount,
+      reference_type: nullable(
+        item.reference_type ??
+          item.referenceType
+      ),
+      reference_id: referenceId,
+    });
+  }
+
+  return {
+    valid: true,
+    items: normalized,
+  };
+}
+
+/* =========================================================
    GET
 ========================================================= */
 
@@ -557,7 +612,9 @@ export async function onRequestGet(context) {
 
   const billingMonth =
     clean(
-      url.searchParams.get("billing_month")
+      url.searchParams.get(
+        "billing_month"
+      )
     );
 
   const status =
@@ -671,11 +728,10 @@ export async function onRequestGet(context) {
         bc.id DESC
     `;
 
-    const result =
-      await db
-        .prepare(sql)
-        .bind(...params)
-        .all();
+    const result = await db
+      .prepare(sql)
+      .bind(...params)
+      .all();
 
     return json({
       success: true,
@@ -746,15 +802,11 @@ export async function onRequestPost(context) {
       ? null
       : Number(subscriptionValue);
 
-  const requestedBillingMonth =
+  const billingMonth =
     clean(
       data.billing_month ??
         data.billingMonth
-    );
-
-  const billingMonth =
-    requestedBillingMonth ||
-    currentMonth();
+    ) || currentMonth();
 
   const currency =
     clean(data.currency)
@@ -787,13 +839,19 @@ export async function onRequestPost(context) {
   }
 
   const statusError =
-    validateStatus(requestedStatus);
+    validateStatus(
+      requestedStatus
+    );
 
   if (statusError) {
     return errorResponse(
       statusError
     );
   }
+
+  /* -------------------------------------------------------
+     الجلسات
+  ------------------------------------------------------- */
 
   const plannedSessions =
     nonNegativeInteger(
@@ -841,6 +899,10 @@ export async function onRequestPost(context) {
       "INVALID_SESSION_COUNTS"
     );
   }
+
+  /* -------------------------------------------------------
+     المبالغ
+  ------------------------------------------------------- */
 
   const packageAmount =
     nonNegativeNumber(
@@ -897,6 +959,10 @@ export async function onRequestPost(context) {
     );
   }
 
+  /* -------------------------------------------------------
+     الفترة
+  ------------------------------------------------------- */
+
   const periodStart =
     clean(
       data.period_start ??
@@ -930,6 +996,22 @@ export async function onRequestPost(context) {
   if (periodEnd < periodStart) {
     return errorResponse(
       "PERIOD_END_BEFORE_START"
+    );
+  }
+
+  /* -------------------------------------------------------
+     إصلاح مهم:
+     التحقق من البنود قبل إنشاء الدورة
+  ------------------------------------------------------- */
+
+  const itemsValidation =
+    validateItems(data.items);
+
+  if (!itemsValidation.valid) {
+    return errorResponse(
+      itemsValidation.error,
+      400,
+      itemsValidation.extra || {}
     );
   }
 
@@ -975,7 +1057,7 @@ export async function onRequestPost(context) {
         ) !== studentId
       ) {
         return errorResponse(
-          "SUBSCRIPTION_DOES_NOT_BELONG_TO_STUDENT",
+          "SUBSCRIPTION_NOT_BELONG_TO_STUDENT",
           409
         );
       }
@@ -991,15 +1073,19 @@ export async function onRequestPost(context) {
       await getStudentBillingStart(
         db,
         studentId,
-        subscriptionId,
-        billingMonth
+        subscriptionId
       );
 
     if (
-      billingStart?.not_started
+      billingStart?.first_billing_month &&
+      validMonth(
+        billingStart.first_billing_month
+      ) &&
+      billingMonth <
+        billingStart.first_billing_month
     ) {
       return errorResponse(
-        "BILLING_MONTH_NOT_STARTED_FOR_STUDENT",
+        "BILLING_MONTH_BEFORE_START",
         409,
         {
           first_billing_month:
@@ -1028,7 +1114,9 @@ export async function onRequestPost(context) {
     if (
       monthRules.new_student_starts_next_month &&
       configuredStartMonth &&
-      billingMonth < configuredStartMonth
+      validMonth(configuredStartMonth) &&
+      billingMonth <
+        configuredStartMonth
     ) {
       return errorResponse(
         "BILLING_MONTH_BEFORE_STUDENT_START",
@@ -1042,7 +1130,8 @@ export async function onRequestPost(context) {
 
     const finalCurrency =
       currency ||
-      clean(settings.currency).toUpperCase() ||
+      clean(settings.currency)
+        .toUpperCase() ||
       "EGP";
 
     const totalAmount =
@@ -1063,10 +1152,7 @@ export async function onRequestPost(context) {
 
     const remainingAmount =
       money(
-        Math.max(
-          0,
-          totalAmount - paidAmount
-        )
+        totalAmount - paidAmount
       );
 
     const finalStatus =
@@ -1076,7 +1162,69 @@ export async function onRequestPost(context) {
         requestedStatus
       );
 
-    const defaultDueDay =
+    /* -------------------------------------------------------
+       منع التكرار
+       مهم جدًا لأن subscription_id قد يكون NULL
+    ------------------------------------------------------- */
+
+    let existingQuery;
+    let existing;
+
+    if (subscriptionId === null) {
+      existingQuery = `
+        SELECT id
+        FROM billing_cycles
+        WHERE student_id = ?1
+          AND subscription_id IS NULL
+          AND billing_month = ?2
+        LIMIT 1
+      `;
+
+      existing =
+        await db
+          .prepare(existingQuery)
+          .bind(
+            studentId,
+            billingMonth
+          )
+          .first();
+    } else {
+      existingQuery = `
+        SELECT id
+        FROM billing_cycles
+        WHERE student_id = ?1
+          AND subscription_id = ?2
+          AND billing_month = ?3
+        LIMIT 1
+      `;
+
+      existing =
+        await db
+          .prepare(existingQuery)
+          .bind(
+            studentId,
+            subscriptionId,
+            billingMonth
+          )
+          .first();
+    }
+
+    if (existing) {
+      return errorResponse(
+        "BILLING_CYCLE_ALREADY_EXISTS",
+        409,
+        {
+          billing_cycle_id:
+            existing.id,
+        }
+      );
+    }
+
+    /* -------------------------------------------------------
+       التاريخ
+    ------------------------------------------------------- */
+
+    const defaultDueDayRaw =
       Number(
         studentSettings?.due_day ??
           settings.default_due_day ??
@@ -1084,20 +1232,17 @@ export async function onRequestPost(context) {
       );
 
     const dueDay =
-      Math.min(
-        28,
-        Math.max(
-          1,
-          Number.isInteger(defaultDueDay)
-            ? defaultDueDay
-            : 7
-        )
-      );
-
-    const defaultIssuedAt =
-      settings.issue_invoice_automatically
-        ? now()
-        : null;
+      Number.isInteger(
+        defaultDueDayRaw
+      )
+        ? Math.min(
+            28,
+            Math.max(
+              1,
+              defaultDueDayRaw
+            )
+          )
+        : 7;
 
     const issuedAt =
       data.issued_at !== undefined ||
@@ -1106,7 +1251,9 @@ export async function onRequestPost(context) {
             data.issued_at ??
               data.issuedAt
           )
-        : defaultIssuedAt;
+        : settings.issue_invoice_automatically
+          ? now()
+          : null;
 
     const dueAt =
       data.due_at !== undefined ||
@@ -1131,33 +1278,9 @@ export async function onRequestPost(context) {
     const notes =
       nullable(data.notes);
 
-    const existing =
-      await db
-        .prepare(`
-          SELECT id
-          FROM billing_cycles
-          WHERE student_id = ?1
-            AND subscription_id IS ?2
-            AND billing_month = ?3
-          LIMIT 1
-        `)
-        .bind(
-          studentId,
-          subscriptionId,
-          billingMonth
-        )
-        .first();
-
-    if (existing) {
-      return errorResponse(
-        "BILLING_CYCLE_ALREADY_EXISTS",
-        409,
-        {
-          billing_cycle_id:
-            existing.id,
-        }
-      );
-    }
+    /* -------------------------------------------------------
+       إنشاء الدورة
+    ------------------------------------------------------- */
 
     const created =
       await db
@@ -1279,88 +1402,14 @@ export async function onRequestPost(context) {
       );
     }
 
-    const items =
-      Array.isArray(data.items)
-        ? data.items
-        : [];
+    /* -------------------------------------------------------
+       إنشاء البنود بعد نجاح الدورة
+    ------------------------------------------------------- */
 
-    for (const item of items) {
-      if (
-        !item ||
-        typeof item !== "object"
-      ) {
-        continue;
-      }
-
-      const itemType =
-        clean(
-          item.item_type ??
-            item.itemType
-        ).toLowerCase();
-
-      const allowedTypes = [
-        "package",
-        "session",
-        "discount",
-        "exemption",
-        "fine",
-        "adjustment",
-      ];
-
-      if (
-        !allowedTypes.includes(
-          itemType
-        )
-      ) {
-        return errorResponse(
-          "INVALID_BILLING_ITEM_TYPE",
-          400,
-          {
-            item_type: itemType,
-          }
-        );
-      }
-
-      const description =
-        clean(item.description);
-
-      if (!description) {
-        return errorResponse(
-          "BILLING_ITEM_DESCRIPTION_REQUIRED"
-        );
-      }
-
-      const quantity =
-        nonNegativeNumber(
-          item.quantity ?? 1
-        );
-
-      const unitPrice =
-        nonNegativeNumber(
-          item.unit_price ??
-            item.unitPrice ??
-            0
-        );
-
-      const amount =
-        nonNegativeNumber(
-          item.amount ??
-            (
-              Number(quantity) *
-              Number(unitPrice)
-            )
-        );
-
-      if (
-        quantity === null ||
-        unitPrice === null ||
-        amount === null
-      ) {
-        return errorResponse(
-          "INVALID_BILLING_ITEM_AMOUNT"
-        );
-      }
-
+    for (
+      const item of
+        itemsValidation.items
+    ) {
       await db
         .prepare(`
           INSERT INTO billing_cycle_items (
@@ -1388,24 +1437,13 @@ export async function onRequestPost(context) {
         `)
         .bind(
           billingCycleId,
-          itemType,
-          description,
-          quantity,
-          unitPrice,
-          amount,
-          nullable(
-            item.reference_type ??
-              item.referenceType
-          ),
-          validId(
-            item.reference_id ??
-              item.referenceId
-          )
-            ? Number(
-                item.reference_id ??
-                  item.referenceId
-              )
-            : null,
+          item.item_type,
+          item.description,
+          item.quantity,
+          item.unit_price,
+          item.amount,
+          item.reference_type,
+          item.reference_id,
           now()
         )
         .run();
@@ -1582,6 +1620,73 @@ export async function onRequestPatch(context) {
       );
     }
 
+    const plannedSessions =
+      data.planned_sessions !== undefined ||
+      data.plannedSessions !== undefined
+        ? nonNegativeInteger(
+            data.planned_sessions ??
+              data.plannedSessions
+          )
+        : Number(
+            current.planned_sessions
+          );
+
+    const scheduledSessions =
+      data.scheduled_sessions !== undefined ||
+      data.scheduledSessions !== undefined
+        ? nonNegativeInteger(
+            data.scheduled_sessions ??
+              data.scheduledSessions
+          )
+        : Number(
+            current.scheduled_sessions
+          );
+
+    const completedSessions =
+      data.completed_sessions !== undefined ||
+      data.completedSessions !== undefined
+        ? nonNegativeInteger(
+            data.completed_sessions ??
+              data.completedSessions
+          )
+        : Number(
+            current.completed_sessions
+          );
+
+    const cancelledSessions =
+      data.cancelled_sessions !== undefined ||
+      data.cancelledSessions !== undefined
+        ? nonNegativeInteger(
+            data.cancelled_sessions ??
+              data.cancelledSessions
+          )
+        : Number(
+            current.cancelled_sessions
+          );
+
+    const chargeableSessions =
+      data.chargeable_sessions !== undefined ||
+      data.chargeableSessions !== undefined
+        ? nonNegativeInteger(
+            data.chargeable_sessions ??
+              data.chargeableSessions
+          )
+        : Number(
+            current.chargeable_sessions
+          );
+
+    if (
+      plannedSessions === null ||
+      scheduledSessions === null ||
+      completedSessions === null ||
+      cancelledSessions === null ||
+      chargeableSessions === null
+    ) {
+      return errorResponse(
+        "INVALID_SESSION_COUNTS"
+      );
+    }
+
     const totalAmount =
       calculateTotal({
         packageAmount,
@@ -1600,10 +1705,7 @@ export async function onRequestPatch(context) {
 
     const remainingAmount =
       money(
-        Math.max(
-          0,
-          totalAmount - paidAmount
-        )
+        totalAmount - paidAmount
       );
 
     const requestedStatus =
@@ -1629,6 +1731,50 @@ export async function onRequestPatch(context) {
         paidAmount,
         requestedStatus
       );
+
+    const issuedAt =
+      data.issued_at !== undefined ||
+      data.issuedAt !== undefined
+        ? nullable(
+            data.issued_at ??
+              data.issuedAt
+          )
+        : current.issued_at;
+
+    const dueAt =
+      data.due_at !== undefined ||
+      data.dueAt !== undefined
+        ? nullable(
+            data.due_at ??
+              data.dueAt
+          )
+        : current.due_at;
+
+    let paidAt;
+
+    if (
+      totalAmount > 0 &&
+      paidAmount >= totalAmount
+    ) {
+      paidAt =
+        current.paid_at ||
+        now();
+    } else if (
+      data.paid_at !== undefined ||
+      data.paidAt !== undefined
+    ) {
+      paidAt = nullable(
+        data.paid_at ??
+          data.paidAt
+      );
+    } else {
+      paidAt = current.paid_at;
+    }
+
+    const notes =
+      data.notes !== undefined
+        ? nullable(data.notes)
+        : current.notes;
 
     const updated =
       await db
@@ -1666,55 +1812,11 @@ export async function onRequestPatch(context) {
         .bind(
           Number(billingCycleId),
 
-          data.planned_sessions !== undefined ||
-          data.plannedSessions !== undefined
-            ? nonNegativeInteger(
-                data.planned_sessions ??
-                  data.plannedSessions
-              )
-            : Number(
-                current.planned_sessions
-              ),
-
-          data.scheduled_sessions !== undefined ||
-          data.scheduledSessions !== undefined
-            ? nonNegativeInteger(
-                data.scheduled_sessions ??
-                  data.scheduledSessions
-              )
-            : Number(
-                current.scheduled_sessions
-              ),
-
-          data.completed_sessions !== undefined ||
-          data.completedSessions !== undefined
-            ? nonNegativeInteger(
-                data.completed_sessions ??
-                  data.completedSessions
-              )
-            : Number(
-                current.completed_sessions
-              ),
-
-          data.cancelled_sessions !== undefined ||
-          data.cancelledSessions !== undefined
-            ? nonNegativeInteger(
-                data.cancelled_sessions ??
-                  data.cancelledSessions
-              )
-            : Number(
-                current.cancelled_sessions
-              ),
-
-          data.chargeable_sessions !== undefined ||
-          data.chargeableSessions !== undefined
-            ? nonNegativeInteger(
-                data.chargeable_sessions ??
-                  data.chargeableSessions
-              )
-            : Number(
-                current.chargeable_sessions
-              ),
+          plannedSessions,
+          scheduledSessions,
+          completedSessions,
+          cancelledSessions,
+          chargeableSessions,
 
           packageAmount,
           sessionAmount,
@@ -1728,38 +1830,11 @@ export async function onRequestPatch(context) {
 
           finalStatus,
 
-          data.issued_at !== undefined ||
-          data.issuedAt !== undefined
-            ? nullable(
-                data.issued_at ??
-                  data.issuedAt
-              )
-            : current.issued_at,
+          issuedAt,
+          dueAt,
+          paidAt,
 
-          data.due_at !== undefined ||
-          data.dueAt !== undefined
-            ? nullable(
-                data.due_at ??
-                  data.dueAt
-              )
-            : current.due_at,
-
-          paidAmount >= totalAmount &&
-          totalAmount > 0
-            ? current.paid_at ||
-              now()
-            : data.paid_at !== undefined ||
-              data.paidAt !== undefined
-              ? nullable(
-                  data.paid_at ??
-                    data.paidAt
-                )
-              : current.paid_at,
-
-          data.notes !== undefined
-            ? nullable(data.notes)
-            : current.notes,
-
+          notes,
           now()
         )
         .run();
@@ -1771,17 +1846,15 @@ export async function onRequestPatch(context) {
       );
     }
 
-    const row =
-      await getBillingCycle(
-        db,
-        Number(billingCycleId)
-      );
-
     return json({
       success: true,
       message:
         "BILLING_CYCLE_UPDATED_SUCCESSFULLY",
-      data: row,
+      data:
+        await getBillingCycle(
+          db,
+          Number(billingCycleId)
+        ),
     });
   } catch (error) {
     console.error(
@@ -1801,9 +1874,10 @@ export async function onRequestPatch(context) {
 ========================================================= */
 
 export async function onRequest(context) {
-  switch (
-    context.request.method.toUpperCase()
-  ) {
+  const method =
+    context.request.method.toUpperCase();
+
+  switch (method) {
     case "GET":
       return onRequestGet(context);
 
