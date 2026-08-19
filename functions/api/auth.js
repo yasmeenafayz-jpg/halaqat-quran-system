@@ -5,7 +5,6 @@
 
 import {
   json,
-  getCookie,
   getCurrentUser,
   createSession,
   destroySession,
@@ -28,10 +27,7 @@ function normalize(value) {
   return value.trim();
 }
 
-function errorResponse(
-  message,
-  status = 400
-) {
+function errorResponse(message, status = 400) {
   return json(
     {
       success: false,
@@ -40,6 +36,21 @@ function errorResponse(
     },
     status
   );
+}
+
+async function hashPassword(password) {
+  const data = new TextEncoder().encode(password);
+
+  const hash = await crypto.subtle.digest(
+    "SHA-256",
+    data
+  );
+
+  return Array.from(new Uint8Array(hash))
+    .map((byte) =>
+      byte.toString(16).padStart(2, "0")
+    )
+    .join("");
 }
 
 async function login(request, env) {
@@ -60,8 +71,8 @@ async function login(request, env) {
 
   const identifier = normalize(
     body.identifier ||
-    body.phone ||
-    body.email
+      body.phone ||
+      body.email
   );
 
   const password = normalize(
@@ -74,27 +85,8 @@ async function login(request, env) {
     );
   }
 
-  /*
-   * كلمة المرور هنا يتم تحويلها إلى SHA-256
-   * لمطابقة password_hash المخزن في قاعدة البيانات.
-   */
-  const data =
-    new TextEncoder().encode(password);
-
-  const hashBuffer =
-    await crypto.subtle.digest(
-      "SHA-256",
-      data
-    );
-
   const passwordHash =
-    Array.from(
-      new Uint8Array(hashBuffer)
-    )
-      .map((byte) =>
-        byte.toString(16).padStart(2, "0")
-      )
-      .join("");
+    await hashPassword(password);
 
   const user = await env.DB
     .prepare(`
@@ -120,10 +112,9 @@ async function login(request, env) {
   if (!user) {
     await writeAudit(env, {
       action: "login_failed",
-      entity: "user",
-      metadata: {
+      entityType: "user",
+      details: {
         reason: "user_not_found",
-        identifier,
       },
       request,
     });
@@ -138,9 +129,9 @@ async function login(request, env) {
     await writeAudit(env, {
       userId: user.id,
       action: "login_blocked",
-      entity: "user",
+      entityType: "user",
       entityId: user.id,
-      metadata: {
+      details: {
         reason: "inactive_user",
       },
       request,
@@ -159,9 +150,9 @@ async function login(request, env) {
     await writeAudit(env, {
       userId: user.id,
       action: "login_failed",
-      entity: "user",
+      entityType: "user",
       entityId: user.id,
-      metadata: {
+      details: {
         reason: "invalid_password",
       },
       request,
@@ -173,16 +164,17 @@ async function login(request, env) {
     );
   }
 
-  const session = await createSession(
-    request,
-    env,
-    user.id
-  );
+  const session =
+    await createSession(
+      request,
+      env,
+      user.id
+    );
 
   await writeAudit(env, {
     userId: user.id,
     action: "login_success",
-    entity: "user",
+    entityType: "user",
     entityId: user.id,
     request,
   });
@@ -190,6 +182,7 @@ async function login(request, env) {
   return new Response(
     JSON.stringify({
       success: true,
+      authenticated: true,
       message: "تم تسجيل الدخول بنجاح.",
       user: {
         id: user.id,
@@ -229,7 +222,7 @@ async function logout(request, env) {
     await writeAudit(env, {
       userId: user.id,
       action: "logout",
-      entity: "user",
+      entityType: "user",
       entityId: user.id,
       request,
     });
@@ -238,6 +231,7 @@ async function logout(request, env) {
   return new Response(
     JSON.stringify({
       success: true,
+      authenticated: false,
       message: "تم تسجيل الخروج.",
     }),
     {
@@ -277,9 +271,7 @@ async function me(request, env) {
   });
 }
 
-export async function onRequest(
-  context
-) {
+export async function onRequest(context) {
   const {
     request,
     env,
@@ -289,9 +281,8 @@ export async function onRequest(
     new URL(request.url);
 
   const action =
-    url.searchParams.get(
-      "action"
-    ) || "me";
+    url.searchParams.get("action") ||
+    "me";
 
   try {
     if (
@@ -325,7 +316,7 @@ export async function onRequest(
     }
 
     return errorResponse(
-      "طلب غير مدعوم.",
+      "الطلب غير مدعوم.",
       405
     );
   } catch (error) {
