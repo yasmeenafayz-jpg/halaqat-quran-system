@@ -21,7 +21,6 @@ function getCookie(request, name) {
 
   for (const item of header.split(";")) {
     const parts = item.trim().split("=");
-
     const key = parts.shift();
 
     if (key === name) {
@@ -35,7 +34,10 @@ function getCookie(request, name) {
 function getClientIp(request) {
   return (
     request.headers.get("CF-Connecting-IP") ||
-    request.headers.get("X-Forwarded-For")?.split(",")[0]?.trim() ||
+    request.headers
+      .get("X-Forwarded-For")
+      ?.split(",")[0]
+      ?.trim() ||
     null
   );
 }
@@ -46,7 +48,6 @@ function getUserAgent(request) {
 
 function createToken() {
   const bytes = new Uint8Array(32);
-
   crypto.getRandomValues(bytes);
 
   return Array.from(bytes)
@@ -67,7 +68,7 @@ async function sha256(value) {
     .join("");
 }
 
-function expiresAt() {
+function getExpiryDate() {
   const date = new Date();
 
   date.setUTCDate(
@@ -77,7 +78,7 @@ function expiresAt() {
   return date.toISOString();
 }
 
-function expired(value) {
+function isExpired(value) {
   return (
     !value ||
     new Date(value).getTime() <= Date.now()
@@ -95,7 +96,7 @@ function sessionCookie(token) {
   ].join("; ");
 }
 
-function clearCookie() {
+function clearSessionCookie() {
   return [
     `${SESSION_COOKIE}=`,
     "Path=/",
@@ -120,7 +121,7 @@ async function getCurrentUser(request, env) {
     return null;
   }
 
-  const hash = await sha256(token);
+  const tokenHash = await sha256(token);
 
   const row = await env.DB
     .prepare(`
@@ -129,19 +130,24 @@ async function getCurrentUser(request, env) {
         s.user_id,
         s.expires_at,
         s.revoked_at,
+
         u.id,
         u.role,
         u.full_name,
         u.phone,
         u.email,
         u.status
+
       FROM auth_sessions s
+
       INNER JOIN users u
         ON u.id = s.user_id
+
       WHERE s.session_token_hash = ?
+
       LIMIT 1
     `)
-    .bind(hash)
+    .bind(tokenHash)
     .first();
 
   if (!row) {
@@ -150,7 +156,7 @@ async function getCurrentUser(request, env) {
 
   if (
     row.revoked_at ||
-    expired(row.expires_at) ||
+    isExpired(row.expires_at) ||
     row.status !== "active"
   ) {
     return null;
@@ -189,7 +195,8 @@ async function requireAuth(request, env) {
         {
           success: false,
           error: "UNAUTHORIZED",
-          message: "يجب تسجيل الدخول أولًا.",
+          message:
+            "يجب تسجيل الدخول أولًا.",
         },
         401
       ),
@@ -230,7 +237,9 @@ async function hasPermission(
     .first();
 
   if (userPermission) {
-    return Number(userPermission.allowed) === 1;
+    return Number(
+      userPermission.allowed
+    ) === 1;
   }
 
   const rolePermission = await db
@@ -249,7 +258,9 @@ async function hasPermission(
 
   return (
     !!rolePermission &&
-    Number(rolePermission.allowed) === 1
+    Number(
+      rolePermission.allowed
+    ) === 1
   );
 }
 
@@ -267,11 +278,12 @@ async function requirePermission(
     return auth;
   }
 
-  const allowed = await hasPermission(
-    env.DB,
-    auth.user,
-    permission
-  );
+  const allowed =
+    await hasPermission(
+      env.DB,
+      auth.user,
+      permission
+    );
 
   if (!allowed) {
     return {
@@ -308,9 +320,10 @@ async function requireRole(
     return auth;
   }
 
-  const allowedRoles = Array.isArray(roles)
-    ? roles
-    : [roles];
+  const allowedRoles =
+    Array.isArray(roles)
+      ? roles
+      : [roles];
 
   if (
     !allowedRoles.includes(
@@ -347,8 +360,11 @@ async function createSession(
   }
 
   const token = createToken();
-  const hash = await sha256(token);
-  const expiry = expiresAt();
+  const tokenHash =
+    await sha256(token);
+
+  const expiresAt =
+    getExpiryDate();
 
   await env.DB
     .prepare(`
@@ -363,8 +379,8 @@ async function createSession(
     `)
     .bind(
       userId,
-      hash,
-      expiry,
+      tokenHash,
+      expiresAt,
       getClientIp(request),
       getUserAgent(request)
     )
@@ -372,7 +388,7 @@ async function createSession(
 
   return {
     token,
-    expiresAt: expiry,
+    expiresAt,
     cookie: sessionCookie(token),
   };
 }
@@ -391,7 +407,8 @@ async function destroySession(
   );
 
   if (token) {
-    const hash = await sha256(token);
+    const tokenHash =
+      await sha256(token);
 
     await env.DB
       .prepare(`
@@ -399,11 +416,11 @@ async function destroySession(
         SET revoked_at = CURRENT_TIMESTAMP
         WHERE session_token_hash = ?
       `)
-      .bind(hash)
+      .bind(tokenHash)
       .run();
   }
 
-  return clearCookie();
+  return clearSessionCookie();
 }
 
 async function writeAudit(
@@ -414,30 +431,37 @@ async function writeAudit(
     return;
   }
 
-  const metadata =
-    options.metadata == null
+  const details =
+    options.details ??
+    options.metadata ??
+    null;
+
+  const detailsJson =
+    details === null
       ? null
-      : typeof options.metadata === "string"
-        ? options.metadata
-        : JSON.stringify(options.metadata);
+      : typeof details === "string"
+        ? details
+        : JSON.stringify(details);
 
   await env.DB
     .prepare(`
       INSERT INTO audit_logs (
         user_id,
         action,
-        entity,
+        entity_type,
         entity_id,
         ip_address,
         user_agent,
-        metadata
+        details
       )
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `)
     .bind(
       options.userId ?? null,
       options.action,
-      options.entity ?? null,
+      options.entityType ??
+        options.entity ??
+        null,
       options.entityId ?? null,
       options.request
         ? getClientIp(options.request)
@@ -445,7 +469,7 @@ async function writeAudit(
       options.request
         ? getUserAgent(options.request)
         : null,
-      metadata
+      detailsJson
     )
     .run();
 }
