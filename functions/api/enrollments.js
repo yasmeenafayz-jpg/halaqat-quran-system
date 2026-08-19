@@ -1,3 +1,5 @@
+enrollments.js
+
 /**
  * الأوَّابين — Enrollment API
  *
@@ -5,22 +7,36 @@
  * GET   /api/enrollments
  * PATCH /api/enrollments
  *
- * يدعم:
+ * القواعد:
  * - التسجيل الفردي والجماعي.
- * - احترام سعة الحلقة المحددة من الإدارة.
- * - قائمة انتظار مرتبة.
- * - ترقية المنتظرين عند وجود مكان.
- * - إنشاء حلقة جماعية جديدة عند امتلاء قائمة الانتظار.
- * - نقل الطلاب فعليًا للحلقة الجديدة.
- * - إنشاء الاشتراك المرتبط بالحلقة الجديدة.
- * - تحديث حالة الحلقة إلى full / active.
- * - تسجيل القرارات المهمة.
- * - حماية عمليات الإدارة.
+ * - الفردية يمكن أن تضم العدد الذي تحدده الإدارة.
+ * - الجماعية لها سعة محددة.
+ * - عند اكتمال الجماعية يضاف الطالب إلى قائمة الانتظار.
+ * - قائمة الانتظار مرتبة حسب أولوية التسجيل.
+ * - عند وجود مكان شاغر يمكن ترقية أول منتظر.
+ * - الترقية من قائمة الانتظار تتم بقرار إداري.
+ * - عند بلوغ قائمة الانتظار سعة الحلقة يتم إنشاء حلقة جديدة.
+ * - لا يتم نقل الطلاب للحلقة الجديدة تلقائيًا.
+ * - يتم إشعار الإدارة بإنشاء الحلقة الجديدة.
+ * - عند زيادة السعة تتم ترقية المنتظرين حسب الترتيب.
+ * - عند امتلاء الحلقة تصبح حالتها full.
+ * - عند توفر مكان تصبح active.
+ *
+ * لا يحتوي هذا الملف على:
+ * - إنشاء اشتراكات.
+ * - تجربة مجانية 3 أيام.
+ * - منطق الدفع.
+ *
+ * هذه الأمور لها نظام مستقل.
  */
 
 const HEADERS = {
   "Content-Type": "application/json; charset=utf-8",
 };
+
+/* =========================================================
+   Basic
+========================================================= */
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -45,133 +61,154 @@ async function body(request) {
   }
 }
 
-/* =========================================================
-   Helpers
-========================================================= */
-
-function positiveInt(value, fallback = 0) {
-  const n = Number(value);
-  return Number.isInteger(n) && n >= 0 ? n : fallback;
-}
-
 function normalizeCircleType(value) {
-  const type = String(value || "").trim().toLowerCase();
+  const type = String(value || "")
+    .trim()
+    .toLowerCase();
 
-  if (["group", "جماعية", "جماعي"].includes(type)) {
+  if (
+    ["group", "جماعية", "جماعي"].includes(type)
+  ) {
     return "group";
   }
 
-  if (["individual", "فردية", "فردي"].includes(type)) {
+  if (
+    ["individual", "فردية", "فردي"].includes(type)
+  ) {
     return "individual";
   }
 
   return type;
 }
 
-function isActiveEnrollmentStatus(status) {
-  return ["pending", "active", "paused"].includes(
+function isEnrollmentActive(status) {
+  return [
+    "pending",
+    "active",
+    "paused",
+  ].includes(
     String(status || "").toLowerCase()
   );
 }
 
+function toCapacity(value) {
+  const n = Number(value);
+
+  if (
+    !Number.isInteger(n) ||
+    n < 0
+  ) {
+    return null;
+  }
+
+  return n;
+}
+
 /* =========================================================
-   Queries
+   Basic Queries
 ========================================================= */
 
 async function getStudent(db, id) {
   if (!id) return null;
 
-  return db
-    .prepare(`
-      SELECT *
-      FROM students
-      WHERE id = ?1
-      LIMIT 1
-    `)
-    .bind(id)
-    .first();
-}
-
-async function getPackage(db, id) {
-  if (!id) return null;
-
-  return db
-    .prepare(`
-      SELECT *
-      FROM packages
-      WHERE id = ?1
-      LIMIT 1
-    `)
-    .bind(id)
-    .first();
+  return db.prepare(`
+    SELECT *
+    FROM students
+    WHERE id = ?1
+    LIMIT 1
+  `).bind(id).first();
 }
 
 async function getCircle(db, id) {
   if (!id) return null;
 
-  return db
-    .prepare(`
+  return db.prepare(`
+    SELECT *
+    FROM circles
+    WHERE id = ?1
+    LIMIT 1
+  `).bind(id).first();
+}
+
+async function getPackage(db, id) {
+  if (!id) return null;
+
+  try {
+    return await db.prepare(`
       SELECT *
-      FROM circles
+      FROM packages
       WHERE id = ?1
       LIMIT 1
-    `)
-    .bind(id)
-    .first();
+    `).bind(id).first();
+  } catch {
+    return null;
+  }
 }
 
-async function getEnrollment(db, studentId, circleId) {
-  return db
-    .prepare(`
-      SELECT *
-      FROM circle_enrollments
-      WHERE student_id = ?1
-        AND circle_id = ?2
-      LIMIT 1
-    `)
-    .bind(studentId, circleId)
-    .first();
+async function getEnrollment(
+  db,
+  studentId,
+  circleId
+) {
+  return db.prepare(`
+    SELECT *
+    FROM circle_enrollments
+    WHERE student_id = ?1
+      AND circle_id = ?2
+    LIMIT 1
+  `).bind(
+    studentId,
+    circleId
+  ).first();
 }
 
-async function enrollmentCount(db, circleId) {
-  const row = await db
-    .prepare(`
-      SELECT COUNT(*) AS count
-      FROM circle_enrollments
-      WHERE circle_id = ?1
-        AND status IN (
-          'pending',
-          'active',
-          'paused'
-        )
-    `)
-    .bind(circleId)
-    .first();
+async function enrollmentCount(
+  db,
+  circleId
+) {
+  const row = await db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM circle_enrollments
+    WHERE circle_id = ?1
+      AND status IN (
+        'pending',
+        'active',
+        'paused'
+      )
+  `).bind(circleId).first();
 
-  return Number(row?.count || 0);
+  return Number(
+    row?.count || 0
+  );
 }
 
-async function waitlistCount(db, circleId) {
-  const row = await db
-    .prepare(`
-      SELECT COUNT(*) AS count
-      FROM circle_waitlist
-      WHERE circle_id = ?1
-        AND status = 'waiting'
-    `)
-    .bind(circleId)
-    .first();
+async function waitlistCount(
+  db,
+  circleId
+) {
+  const row = await db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM circle_waitlist
+    WHERE circle_id = ?1
+      AND status = 'waiting'
+  `).bind(circleId).first();
 
-  return Number(row?.count || 0);
+  return Number(
+    row?.count || 0
+  );
 }
 
 /* =========================================================
    Policies
 ========================================================= */
 
-async function getPolicy(db, circleId, packageId) {
-  return db
-    .prepare(`
+async function getPolicy(
+  db,
+  circleId,
+  packageId
+) {
+  try {
+    return await db.prepare(`
       SELECT *
       FROM enrollment_policies
       WHERE enabled = 1
@@ -188,49 +225,79 @@ async function getPolicy(db, circleId, packageId) {
         CASE
           WHEN circle_id = ?1
            AND package_id = ?2 THEN 1
+
           WHEN circle_id = ?1
            AND package_id IS NULL THEN 2
+
           WHEN circle_id IS NULL
            AND package_id = ?2 THEN 3
+
           ELSE 4
         END
       LIMIT 1
-    `)
-    .bind(circleId, packageId)
-    .first();
+    `).bind(
+      circleId,
+      packageId
+    ).first();
+  } catch {
+    return null;
+  }
 }
 
-async function getPackageCircleRule(db, packageId, circleType) {
-  return db
-    .prepare(`
+async function getPackageCircleRule(
+  db,
+  packageId,
+  circleType
+) {
+  if (!packageId) {
+    return null;
+  }
+
+  try {
+    return await db.prepare(`
       SELECT *
       FROM package_circle_rules
       WHERE package_id = ?1
         AND circle_type = ?2
         AND enabled = 1
       LIMIT 1
-    `)
-    .bind(packageId, circleType)
-    .first();
+    `).bind(
+      packageId,
+      circleType
+    ).first();
+  } catch {
+    return null;
+  }
 }
 
 /* =========================================================
-   Requests
+   Enrollment Requests
 ========================================================= */
 
-async function getPendingRequest(db, studentId, circleId) {
-  return db
-    .prepare(`
+async function getPendingRequest(
+  db,
+  studentId,
+  circleId
+) {
+  try {
+    return await db.prepare(`
       SELECT *
       FROM enrollment_requests
       WHERE student_id = ?1
         AND circle_id = ?2
-        AND status IN ('pending', 'introductory')
+        AND status IN (
+          'pending',
+          'introductory'
+        )
       ORDER BY id DESC
       LIMIT 1
-    `)
-    .bind(studentId, circleId)
-    .first();
+    `).bind(
+      studentId,
+      circleId
+    ).first();
+  } catch {
+    return null;
+  }
 }
 
 async function createRequest(
@@ -238,35 +305,39 @@ async function createRequest(
   studentId,
   circleId,
   requestType,
-  status,
+  status = "pending",
   notes = null
 ) {
-  return db
-    .prepare(`
-      INSERT INTO enrollment_requests (
-        student_id,
-        circle_id,
-        request_type,
-        status,
-        requested_at,
-        notes
-      )
-      VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-      RETURNING *
-    `)
-    .bind(
-      studentId,
-      circleId,
-      requestType,
+  return db.prepare(`
+    INSERT INTO enrollment_requests (
+      student_id,
+      circle_id,
+      request_type,
       status,
-      now(),
+      requested_at,
       notes
     )
-    .first();
+    VALUES (
+      ?1,
+      ?2,
+      ?3,
+      ?4,
+      ?5,
+      ?6
+    )
+    RETURNING *
+  `).bind(
+    studentId,
+    circleId,
+    requestType,
+    status,
+    now(),
+    notes
+  ).first();
 }
 
 /* =========================================================
-   Decisions
+   Enrollment Decisions
 ========================================================= */
 
 async function createDecision(
@@ -278,8 +349,8 @@ async function createDecision(
   reason = null,
   decidedBy = null
 ) {
-  return db
-    .prepare(`
+  try {
+    return await db.prepare(`
       INSERT INTO enrollment_decisions (
         enrollment_request_id,
         student_id,
@@ -289,171 +360,6 @@ async function createDecision(
         decided_by,
         decided_at
       )
-      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
-      RETURNING *
-    `)
-    .bind(
-      requestId,
-      studentId,
-      circleId,
-      decision,
-      reason,
-      decidedBy,
-      now()
-    )
-    .first();
-}
-
-/* =========================================================
-   Waitlist
-========================================================= */
-
-async function getWaitlist(db, studentId, circleId) {
-  return db
-    .prepare(`
-      SELECT *
-      FROM circle_waitlist
-      WHERE student_id = ?1
-        AND circle_id = ?2
-        AND status = 'waiting'
-      LIMIT 1
-    `)
-    .bind(studentId, circleId)
-    .first();
-}
-
-async function addWaitlist(db, studentId, circleId) {
-  const existing = await getWaitlist(db, studentId, circleId);
-
-  if (existing) {
-    return existing;
-  }
-
-  const positionRow = await db
-    .prepare(`
-      SELECT COALESCE(MAX(position), 0) + 1 AS position
-      FROM circle_waitlist
-      WHERE circle_id = ?1
-        AND status = 'waiting'
-    `)
-    .bind(circleId)
-    .first();
-
-  return db
-    .prepare(`
-      INSERT INTO circle_waitlist (
-        circle_id,
-        student_id,
-        position,
-        status,
-        created_at
-      )
-      VALUES (?1, ?2, ?3, 'waiting', ?4)
-      RETURNING *
-    `)
-    .bind(
-      circleId,
-      studentId,
-      Number(positionRow?.position || 1),
-      now()
-    )
-    .first();
-}
-
-async function normalizeWaitlist(db, circleId) {
-  const result = await db
-    .prepare(`
-      SELECT id
-      FROM circle_waitlist
-      WHERE circle_id = ?1
-        AND status = 'waiting'
-      ORDER BY position ASC, id ASC
-    `)
-    .bind(circleId)
-    .all();
-
-  const rows = result?.results || [];
-
-  for (let i = 0; i < rows.length; i++) {
-    await db
-      .prepare(`
-        UPDATE circle_waitlist
-        SET position = ?2
-        WHERE id = ?1
-      `)
-      .bind(rows[i].id, i + 1)
-      .run();
-  }
-}
-
-/* =========================================================
-   Subscriptions
-========================================================= */
-
-async function getActiveSubscription(
-  db,
-  studentId,
-  packageId,
-  circleId
-) {
-  try {
-    return await db
-      .prepare(`
-        SELECT *
-        FROM subscriptions
-        WHERE student_id = ?1
-          AND package_id = ?2
-          AND circle_id = ?3
-          AND status IN ('trial', 'active')
-        ORDER BY id DESC
-        LIMIT 1
-      `)
-      .bind(studentId, packageId, circleId)
-      .first();
-  } catch {
-    return null;
-  }
-}
-
-async function createSubscription(
-  db,
-  studentId,
-  packageId,
-  circleId,
-  trialDays = 3
-) {
-  const existing = await getActiveSubscription(
-    db,
-    studentId,
-    packageId,
-    circleId
-  );
-
-  if (existing) {
-    return existing;
-  }
-
-  const start = new Date();
-  const days = Math.max(0, Number(trialDays || 0));
-  const end = new Date(start);
-
-  if (days > 0) {
-    end.setDate(end.getDate() + days);
-  }
-
-  return db
-    .prepare(`
-      INSERT INTO subscriptions (
-        student_id,
-        package_id,
-        circle_id,
-        start_date,
-        end_date,
-        status,
-        trial_ends_at,
-        created_at,
-        updated_at
-      )
       VALUES (
         ?1,
         ?2,
@@ -461,216 +367,189 @@ async function createSubscription(
         ?4,
         ?5,
         ?6,
-        ?7,
-        ?8,
-        ?8
+        ?7
       )
       RETURNING *
-    `)
-    .bind(
+    `).bind(
+      requestId,
       studentId,
-      packageId,
       circleId,
-      start.toISOString().slice(0, 10),
-      end.toISOString().slice(0, 10),
-      days > 0 ? "trial" : "active",
-      days > 0 ? end.toISOString() : null,
+      decision,
+      reason,
+      decidedBy,
       now()
-    )
-    .first();
+    ).first();
+  } catch (error) {
+    console.error(
+      "Decision error:",
+      error
+    );
+
+    return null;
+  }
 }
 
 /* =========================================================
-   Permissions
+   Waitlist
 ========================================================= */
 
-async function getUser(db, userId) {
-  if (!userId) return null;
+async function getWaitlistEntry(
+  db,
+  studentId,
+  circleId
+) {
+  return db.prepare(`
+    SELECT *
+    FROM circle_waitlist
+    WHERE student_id = ?1
+      AND circle_id = ?2
+      AND status = 'waiting'
+    LIMIT 1
+  `).bind(
+    studentId,
+    circleId
+  ).first();
+}
 
-  return db
-    .prepare(`
-      SELECT id, role, status
+async function addWaitlist(
+  db,
+  studentId,
+  circleId
+) {
+  const existing =
+    await getWaitlistEntry(
+      db,
+      studentId,
+      circleId
+    );
+
+  if (existing) {
+    return existing;
+  }
+
+  const positionRow =
+    await db.prepare(`
+      SELECT
+        COALESCE(
+          MAX(position),
+          0
+        ) + 1 AS position
+      FROM circle_waitlist
+      WHERE circle_id = ?1
+        AND status = 'waiting'
+    `).bind(
+      circleId
+    ).first();
+
+  return db.prepare(`
+    INSERT INTO circle_waitlist (
+      circle_id,
+      student_id,
+      position,
+      status,
+      created_at
+    )
+    VALUES (
+      ?1,
+      ?2,
+      ?3,
+      'waiting',
+      ?4
+    )
+    RETURNING *
+  `).bind(
+    circleId,
+    studentId,
+    Number(
+      positionRow?.position || 1
+    ),
+    now()
+  ).first();
+}
+
+async function normalizeWaitlist(
+  db,
+  circleId
+) {
+  const result =
+    await db.prepare(`
+      SELECT id
+      FROM circle_waitlist
+      WHERE circle_id = ?1
+        AND status = 'waiting'
+      ORDER BY
+        position ASC,
+        id ASC
+    `).bind(
+      circleId
+    ).all();
+
+  const rows =
+    result?.results || [];
+
+  for (
+    let index = 0;
+    index < rows.length;
+    index++
+  ) {
+    await db.prepare(`
+      UPDATE circle_waitlist
+      SET position = ?2
+      WHERE id = ?1
+    `).bind(
+      rows[index].id,
+      index + 1
+    ).run();
+  }
+}
+
+/* =========================================================
+   Users / Permissions
+========================================================= */
+
+async function getUser(
+  db,
+  userId
+) {
+  if (!userId) {
+    return null;
+  }
+
+  try {
+    return await db.prepare(`
+      SELECT
+        id,
+        role,
+        status
       FROM users
       WHERE id = ?1
       LIMIT 1
-    `)
-    .bind(userId)
-    .first();
+    `).bind(
+      userId
+    ).first();
+  } catch {
+    return null;
+  }
 }
 
-async function canDecide(db, userId) {
-  const user = await getUser(db, userId);
+async function isAdminOrSupervisor(
+  db,
+  userId
+) {
+  const user =
+    await getUser(
+      db,
+      userId
+    );
 
   return Boolean(
     user &&
     user.status === "active" &&
-    ["admin", "supervisor"].includes(user.role)
-  );
-}
-
-/* =========================================================
-   Circle Status
-========================================================= */
-
-async function refreshCircleStatus(db, circleId) {
-  const circle = await getCircle(db, circleId);
-
-  if (!circle) {
-    return null;
-  }
-
-  const capacity = Number(circle.capacity || 0);
-  const count = await enrollmentCount(db, circleId);
-
-  let status = String(circle.status || "active");
-
-  if (capacity > 0 && count >= capacity) {
-    status = "full";
-  } else if (status === "full") {
-    status = "active";
-  }
-
-  await db
-    .prepare(`
-      UPDATE circles
-      SET status = ?2,
-          updated_at = ?3
-      WHERE id = ?1
-    `)
-    .bind(circleId, status, now())
-    .run();
-
-  return {
-    ...circle,
-    status,
-    enrollment_count: count,
-    capacity,
-  };
-}
-
-/* =========================================================
-   Enrollment
-========================================================= */
-
-async function activateEnrollment(
-  db,
-  studentId,
-  circleId,
-  joinedVia = "direct"
-) {
-  const existing = await getEnrollment(
-    db,
-    studentId,
-    circleId
-  );
-
-  if (existing) {
-    if (isActiveEnrollmentStatus(existing.status)) {
-      return existing;
-    }
-
-    return db
-      .prepare(`
-        UPDATE circle_enrollments
-        SET
-          status = 'active',
-          start_date = ?3,
-          end_date = NULL,
-          joined_via = ?4,
-          updated_at = ?5
-        WHERE student_id = ?1
-          AND circle_id = ?2
-        RETURNING *
-      `)
-      .bind(
-        studentId,
-        circleId,
-        today(),
-        joinedVia,
-        now()
-      )
-      .first();
-  }
-
-  return db
-    .prepare(`
-      INSERT INTO circle_enrollments (
-        circle_id,
-        student_id,
-        start_date,
-        end_date,
-        status,
-        joined_via,
-        notes,
-        created_at,
-        updated_at
-      )
-      VALUES (
-        ?1,
-        ?2,
-        ?3,
-        NULL,
-        'active',
-        ?4,
-        NULL,
-        ?5,
-        ?5
-      )
-      RETURNING *
-    `)
-    .bind(
-      circleId,
-      studentId,
-      today(),
-      joinedVia,
-      now()
+    (
+      user.role === "admin" ||
+      user.role === "supervisor"
     )
-    .first();
-}
-
-/* =========================================================
-   Move Request
-========================================================= */
-
-async function moveRequestToNewCircle(
-  db,
-  studentId,
-  oldCircleId,
-  newCircleId
-) {
-  const request = await db
-    .prepare(`
-      SELECT *
-      FROM enrollment_requests
-      WHERE student_id = ?1
-        AND circle_id = ?2
-        AND status IN ('pending', 'introductory')
-      ORDER BY id DESC
-      LIMIT 1
-    `)
-    .bind(studentId, oldCircleId)
-    .first();
-
-  if (!request) {
-    return null;
-  }
-
-  await db
-    .prepare(`
-      UPDATE enrollment_requests
-      SET
-        circle_id = ?2,
-        notes = ?3
-      WHERE id = ?1
-    `)
-    .bind(
-      request.id,
-      newCircleId,
-      "تم نقل الطالب إلى الحلقة الجديدة بعد اكتمال الحلقة الأصلية."
-    )
-    .run();
-
-  return request.id;
+  );
 }
 
 /* =========================================================
@@ -683,29 +562,33 @@ async function notifyAdmins(
   message
 ) {
   try {
-    await db
-      .prepare(`
-        INSERT INTO notifications (
-          user_id,
-          type,
-          title,
-          message,
-          created_at
-        )
-        SELECT
-          id,
-          'enrollment_system',
-          ?1,
-          ?2,
-          ?3
-        FROM users
-        WHERE role = 'admin'
-          AND status = 'active'
-      `)
-      .bind(title, message, now())
-      .run();
+    await db.prepare(`
+      INSERT INTO notifications (
+        user_id,
+        type,
+        title,
+        message,
+        created_at
+      )
+      SELECT
+        id,
+        'enrollment_system',
+        ?1,
+        ?2,
+        ?3
+      FROM users
+      WHERE role = 'admin'
+        AND status = 'active'
+    `).bind(
+      title,
+      message,
+      now()
+    ).run();
   } catch (error) {
-    console.error("Admin notification error:", error);
+    console.error(
+      "Admin notification error:",
+      error
+    );
   }
 }
 
@@ -716,38 +599,42 @@ async function notifyStudent(
   message
 ) {
   try {
-    const student = await getStudent(db, studentId);
+    const student =
+      await getStudent(
+        db,
+        studentId
+      );
 
     if (!student?.user_id) {
       return;
     }
 
-    await db
-      .prepare(`
-        INSERT INTO notifications (
-          user_id,
-          type,
-          title,
-          message,
-          created_at
-        )
-        VALUES (
-          ?1,
-          'enrollment',
-          ?2,
-          ?3,
-          ?4
-        )
-      `)
-      .bind(
-        student.user_id,
+    await db.prepare(`
+      INSERT INTO notifications (
+        user_id,
+        type,
         title,
         message,
-        now()
+        created_at
       )
-      .run();
+      VALUES (
+        ?1,
+        'enrollment',
+        ?2,
+        ?3,
+        ?4
+      )
+    `).bind(
+      student.user_id,
+      title,
+      message,
+      now()
+    ).run();
   } catch (error) {
-    console.error("Student notification error:", error);
+    console.error(
+      "Student notification error:",
+      error
+    );
   }
 }
 
@@ -761,112 +648,277 @@ async function audit(
   action,
   entityType,
   entityId,
-  details
+  details = {}
 ) {
   try {
-    await db
-      .prepare(`
-        INSERT INTO audit_logs (
-          user_id,
-          action,
-          entity_type,
-          entity_id,
-          details,
-          created_at
-        )
-        VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-      `)
-      .bind(
-        userId || null,
+    await db.prepare(`
+      INSERT INTO audit_logs (
+        user_id,
         action,
-        entityType,
-        entityId,
-        JSON.stringify(details || {}),
-        now()
+        entity_type,
+        entity_id,
+        details,
+        created_at
       )
-      .run();
+      VALUES (
+        ?1,
+        ?2,
+        ?3,
+        ?4,
+        ?5,
+        ?6
+      )
+    `).bind(
+      userId || null,
+      action,
+      entityType,
+      entityId,
+      JSON.stringify(details),
+      now()
+    ).run();
   } catch (error) {
-    console.error("Audit error:", error);
+    console.error(
+      "Audit error:",
+      error
+    );
   }
 }
 
 /* =========================================================
-   Generate Circle Name
+   Circle Status
 ========================================================= */
 
-async function generateNewCircleName(db, originalCircle) {
-  const baseName =
-    String(originalCircle.name || "الحلقة").trim();
+async function refreshCircleStatus(
+  db,
+  circleId
+) {
+  const circle =
+    await getCircle(
+      db,
+      circleId
+    );
 
-  const result = await db
-    .prepare(`
+  if (!circle) {
+    return null;
+  }
+
+  const capacity =
+    Number(circle.capacity || 0);
+
+  const count =
+    await enrollmentCount(
+      db,
+      circleId
+    );
+
+  let status =
+    String(
+      circle.status || "active"
+    );
+
+  if (
+    capacity > 0 &&
+    count >= capacity
+  ) {
+    status = "full";
+  } else if (
+    status === "full"
+  ) {
+    status = "active";
+  }
+
+  await db.prepare(`
+    UPDATE circles
+    SET
+      status = ?2,
+      updated_at = ?3
+    WHERE id = ?1
+  `).bind(
+    circleId,
+    status,
+    now()
+  ).run();
+
+  return {
+    ...circle,
+    status,
+    capacity,
+    enrollment_count: count,
+  };
+}
+
+/* =========================================================
+   Enrollment Creation
+========================================================= */
+
+async function activateEnrollment(
+  db,
+  studentId,
+  circleId,
+  joinedVia = "direct"
+) {
+  const existing =
+    await getEnrollment(
+      db,
+      studentId,
+      circleId
+    );
+
+  if (existing) {
+    if (
+      isEnrollmentActive(
+        existing.status
+      )
+    ) {
+      return existing;
+    }
+
+    return db.prepare(`
+      UPDATE circle_enrollments
+      SET
+        status = 'active',
+        start_date = ?3,
+        end_date = NULL,
+        joined_via = ?4,
+        updated_at = ?5
+      WHERE student_id = ?1
+        AND circle_id = ?2
+      RETURNING *
+    `).bind(
+      studentId,
+      circleId,
+      today(),
+      joinedVia,
+      now()
+    ).first();
+  }
+
+  return db.prepare(`
+    INSERT INTO circle_enrollments (
+      circle_id,
+      student_id,
+      start_date,
+      end_date,
+      status,
+      joined_via,
+      notes,
+      created_at,
+      updated_at
+    )
+    VALUES (
+      ?1,
+      ?2,
+      ?3,
+      NULL,
+      'active',
+      ?4,
+      NULL,
+      ?5,
+      ?5
+    )
+    RETURNING *
+  `).bind(
+    circleId,
+    studentId,
+    today(),
+    joinedVia,
+    now()
+  ).first();
+}
+
+/* =========================================================
+   Generate New Circle Name
+========================================================= */
+
+async function generateNewCircleName(
+  db,
+  originalCircle
+) {
+  const base =
+    String(
+      originalCircle.name ||
+      "الحلقة"
+    ).trim();
+
+  const result =
+    await db.prepare(`
       SELECT name
       FROM circles
       WHERE name LIKE ?1
       ORDER BY id DESC
-    `)
-    .bind(`${baseName}%`)
-    .all();
+    `).bind(
+      `${base}%`
+    ).all();
 
-  const names = result?.results || [];
+  const names =
+    result?.results || [];
 
   let number = 2;
 
   while (
     names.some(
       row =>
-        String(row.name || "").trim() ===
-        `${baseName} ${number}`
+        String(
+          row.name || ""
+        ).trim() ===
+        `${base} ${number}`
     )
   ) {
     number++;
   }
 
-  return `${baseName} ${number}`;
+  return `${base} ${number}`;
 }
 
 /* =========================================================
    Create New Group Circle
+   IMPORTANT:
+   لا يتم نقل الطلاب تلقائيًا.
 ========================================================= */
 
 async function createNewGroupCircle(
   db,
   originalCircle,
   packageId,
-  reason = "امتلاء قائمة الانتظار"
+  reason
 ) {
-  const type = normalizeCircleType(
-    originalCircle.circle_type
-  );
-
-  if (type !== "group") {
+  if (
+    normalizeCircleType(
+      originalCircle.circle_type
+    ) !== "group"
+  ) {
     return null;
   }
 
-  const capacity = Number(
-    originalCircle.capacity || 0
-  );
+  const capacity =
+    Number(
+      originalCircle.capacity || 0
+    );
 
   if (capacity <= 0) {
     return null;
   }
 
-  const waiting = await waitlistCount(
-    db,
-    originalCircle.id
-  );
+  const waiting =
+    await waitlistCount(
+      db,
+      originalCircle.id
+    );
 
-  if (waiting < capacity) {
+  if (
+    waiting < capacity
+  ) {
     return null;
   }
 
-  const name = await generateNewCircleName(
-    db,
-    originalCircle
-  );
+  const name =
+    await generateNewCircleName(
+      db,
+      originalCircle
+    );
 
-  const result = await db
-    .prepare(`
+  const newCircle =
+    await db.prepare(`
       INSERT INTO circles (
         name,
         circle_type,
@@ -894,20 +946,23 @@ async function createNewGroupCircle(
         ?8
       )
       RETURNING *
-    `)
-    .bind(
+    `).bind(
       name,
       originalCircle.teacher_id || null,
-      packageId || originalCircle.package_id || null,
+      packageId ||
+        originalCircle.package_id ||
+        null,
       capacity,
-      originalCircle.schedule_note || null,
-      originalCircle.level_name || null,
-      originalCircle.path_name || null,
+      originalCircle.schedule_note ||
+        null,
+      originalCircle.level_name ||
+        null,
+      originalCircle.path_name ||
+        null,
       now()
-    )
-    .first();
+    ).first();
 
-  if (!result) {
+  if (!newCircle) {
     return null;
   }
 
@@ -916,182 +971,64 @@ async function createNewGroupCircle(
     null,
     "new_group_circle_created",
     "circle",
-    result.id,
+    newCircle.id,
     {
-      original_circle_id: originalCircle.id,
-      original_circle_name: originalCircle.name,
-      new_circle_id: result.id,
-      new_circle_name: result.name,
+      original_circle_id:
+        originalCircle.id,
+
+      original_circle_name:
+        originalCircle.name,
+
+      new_circle_id:
+        newCircle.id,
+
+      new_circle_name:
+        newCircle.name,
+
+      capacity,
+      waiting_count:
+        waiting,
+
       reason,
     }
   );
 
   await notifyAdmins(
     db,
-    "تم إنشاء حلقة جماعية جديدة",
-    `تم إنشاء "${result.name}" بسبب ${reason}.`
+    "حلقة جماعية جديدة تحتاج اعتمادًا",
+    `تم تجهيز الحلقة "${newCircle.name}" `
+    + `بسبب ${reason}. `
+    + `عدد المنتظرين: ${waiting}. `
+    + `السعة: ${capacity}. `
+    + `لم يتم نقل أي طالب تلقائيًا.`
   );
 
-  return result;
+  return newCircle;
 }
 
 /* =========================================================
-   Move Waitlist To New Circle
-========================================================= */
-
-async function moveWaitlistStudents(
-  db,
-  originalCircle,
-  newCircle,
-  packageId,
-  trialDays = 3
-) {
-  const capacity = Number(
-    newCircle.capacity || 0
-  );
-
-  if (capacity <= 0) {
-    return [];
-  }
-
-  const result = await db
-    .prepare(`
-      SELECT *
-      FROM circle_waitlist
-      WHERE circle_id = ?1
-        AND status = 'waiting'
-      ORDER BY position ASC, id ASC
-      LIMIT ?2
-    `)
-    .bind(
-      originalCircle.id,
-      capacity
-    )
-    .all();
-
-  const waiting = result?.results || [];
-  const moved = [];
-
-  for (const item of waiting) {
-    const student = await getStudent(
-      db,
-      item.student_id
-    );
-
-    if (!student || student.status !== "active") {
-      await db
-        .prepare(`
-          UPDATE circle_waitlist
-          SET status = 'cancelled'
-          WHERE id = ?1
-        `)
-        .bind(item.id)
-        .run();
-
-      continue;
-    }
-
-    const enrollment = await activateEnrollment(
-      db,
-      item.student_id,
-      newCircle.id,
-      "waitlist"
-    );
-
-    const subscription = packageId
-      ? await createSubscription(
-          db,
-          item.student_id,
-          packageId,
-          newCircle.id,
-          trialDays
-        )
-      : null;
-
-    await moveRequestToNewCircle(
-      db,
-      item.student_id,
-      originalCircle.id,
-      newCircle.id
-    );
-
-    await db
-      .prepare(`
-        UPDATE circle_waitlist
-        SET status = 'accepted'
-        WHERE id = ?1
-      `)
-      .bind(item.id)
-      .run();
-
-    await notifyStudent(
-      db,
-      item.student_id,
-      "تم قبول تسجيلك",
-      `تم نقلك إلى الحلقة الجديدة "${newCircle.name}".`
-    );
-
-    await audit(
-      db,
-      null,
-      "waitlist_student_moved",
-      "circle_enrollment",
-      enrollment?.id || null,
-      {
-        student_id: item.student_id,
-        old_circle_id: originalCircle.id,
-        new_circle_id: newCircle.id,
-        waitlist_id: item.id,
-      }
-    );
-
-    moved.push({
-      student_id: item.student_id,
-      enrollment,
-      subscription,
-    });
-  }
-
-  await normalizeWaitlist(
-    db,
-    originalCircle.id
-  );
-
-  await refreshCircleStatus(
-    db,
-    originalCircle.id
-  );
-
-  await refreshCircleStatus(
-    db,
-    newCircle.id
-  );
-
-  return moved;
-}
-
-/* =========================================================
-   Promote Waiting Student
+   Promote First Waiting Student
+   الترقية لا تتم إلا بعد قرار إداري.
 ========================================================= */
 
 async function promoteNextWaiting(
   db,
   circle,
-  packageId,
-  trialDays = 3
+  actorId,
+  reason = "ترقية من قائمة الانتظار"
 ) {
-  const capacity = Number(
-    circle.capacity || 0
-  );
+  const capacity =
+    Number(circle.capacity || 0);
 
   if (capacity <= 0) {
     return null;
   }
 
-  const count = await enrollmentCount(
-    db,
-    circle.id
-  );
+  const count =
+    await enrollmentCount(
+      db,
+      circle.id
+    );
 
   if (count >= capacity) {
     await refreshCircleStatus(
@@ -1102,36 +1039,41 @@ async function promoteNextWaiting(
     return null;
   }
 
-  const row = await db
-    .prepare(`
+  const waiting =
+    await db.prepare(`
       SELECT *
       FROM circle_waitlist
       WHERE circle_id = ?1
         AND status = 'waiting'
-      ORDER BY position ASC, id ASC
+      ORDER BY
+        position ASC,
+        id ASC
       LIMIT 1
-    `)
-    .bind(circle.id)
-    .first();
+    `).bind(
+      circle.id
+    ).first();
 
-  if (!row) {
+  if (!waiting) {
     return null;
   }
 
-  const student = await getStudent(
-    db,
-    row.student_id
-  );
+  const student =
+    await getStudent(
+      db,
+      waiting.student_id
+    );
 
-  if (!student || student.status !== "active") {
-    await db
-      .prepare(`
-        UPDATE circle_waitlist
-        SET status = 'cancelled'
-        WHERE id = ?1
-      `)
-      .bind(row.id)
-      .run();
+  if (
+    !student ||
+    student.status !== "active"
+  ) {
+    await db.prepare(`
+      UPDATE circle_waitlist
+      SET status = 'cancelled'
+      WHERE id = ?1
+    `).bind(
+      waiting.id
+    ).run();
 
     await normalizeWaitlist(
       db,
@@ -1141,69 +1083,80 @@ async function promoteNextWaiting(
     return promoteNextWaiting(
       db,
       circle,
-      packageId,
-      trialDays
+      actorId,
+      reason
     );
   }
 
-  const enrollment = await activateEnrollment(
-    db,
-    row.student_id,
-    circle.id,
-    "waitlist"
-  );
+  const enrollment =
+    await activateEnrollment(
+      db,
+      waiting.student_id,
+      circle.id,
+      "waitlist"
+    );
 
-  const subscription = packageId
-    ? await createSubscription(
-        db,
-        row.student_id,
-        packageId,
-        circle.id,
-        trialDays
-      )
-    : null;
+  await db.prepare(`
+    UPDATE circle_waitlist
+    SET status = 'accepted'
+    WHERE id = ?1
+  `).bind(
+    waiting.id
+  ).run();
 
-  await db
-    .prepare(`
-      UPDATE circle_waitlist
-      SET status = 'accepted'
-      WHERE id = ?1
-    `)
-    .bind(row.id)
-    .run();
-
-  const request = await getPendingRequest(
-    db,
-    row.student_id,
-    circle.id
-  );
+  const request =
+    await getPendingRequest(
+      db,
+      waiting.student_id,
+      circle.id
+    );
 
   if (request) {
-    await db
-      .prepare(`
-        UPDATE enrollment_requests
-        SET status = 'approved'
-        WHERE id = ?1
-      `)
-      .bind(request.id)
-      .run();
+    await db.prepare(`
+      UPDATE enrollment_requests
+      SET status = 'approved'
+      WHERE id = ?1
+    `).bind(
+      request.id
+    ).run();
 
     await createDecision(
       db,
       request.id,
-      row.student_id,
+      waiting.student_id,
       circle.id,
       "approved",
-      "تمت الترقية من قائمة الانتظار.",
-      null
+      reason,
+      actorId
     );
   }
 
   await notifyStudent(
     db,
-    row.student_id,
+    waiting.student_id,
     "تم قبول تسجيلك",
-    `تمت ترقيتك من قائمة الانتظار إلى الحلقة "${circle.name}".`
+    `تمت ترقيتك من قائمة الانتظار `
+    + `إلى الحلقة "${circle.name}".`
+  );
+
+  await audit(
+    db,
+    actorId,
+    "waitlist_student_promoted",
+    "circle_enrollment",
+    enrollment?.id || null,
+    {
+      student_id:
+        waiting.student_id,
+
+      circle_id:
+        circle.id,
+
+      waitlist_id:
+        waiting.id,
+
+      reason,
+    }
   );
 
   await normalizeWaitlist(
@@ -1217,9 +1170,10 @@ async function promoteNextWaiting(
   );
 
   return {
-    student_id: row.student_id,
+    student_id:
+      waiting.student_id,
+
     enrollment,
-    subscription,
   };
 }
 
@@ -1227,9 +1181,22 @@ async function promoteNextWaiting(
    POST
 ========================================================= */
 
-async function handlePost(request, env) {
+async function handlePost(
+  request,
+  env
+) {
   const db = env.DB;
   const data = await body(request);
+
+  if (!db) {
+    return json(
+      {
+        ok: false,
+        error: "DB_NOT_CONFIGURED",
+      },
+      500
+    );
+  }
 
   if (!data) {
     return json(
@@ -1254,20 +1221,25 @@ async function handlePost(request, env) {
     data.packageId ||
     null;
 
-  if (!studentId || !circleId) {
+  if (
+    !studentId ||
+    !circleId
+  ) {
     return json(
       {
         ok: false,
-        error: "student_id_and_circle_id_required",
+        error:
+          "student_id_and_circle_id_required",
       },
       400
     );
   }
 
-  const student = await getStudent(
-    db,
-    studentId
-  );
+  const student =
+    await getStudent(
+      db,
+      studentId
+    );
 
   if (!student) {
     return json(
@@ -1279,7 +1251,9 @@ async function handlePost(request, env) {
     );
   }
 
-  if (student.status !== "active") {
+  if (
+    student.status !== "active"
+  ) {
     return json(
       {
         ok: false,
@@ -1289,10 +1263,11 @@ async function handlePost(request, env) {
     );
   }
 
-  const circle = await getCircle(
-    db,
-    circleId
-  );
+  const circle =
+    await getCircle(
+      db,
+      circleId
+    );
 
   if (!circle) {
     return json(
@@ -1304,33 +1279,86 @@ async function handlePost(request, env) {
     );
   }
 
-  const circleType = normalizeCircleType(
-    circle.circle_type
-  );
+  const circleType =
+    normalizeCircleType(
+      circle.circle_type
+    );
 
-  const pkg = packageId
-    ? await getPackage(db, packageId)
-    : null;
-
-  if (packageId && !pkg) {
+  if (
+    ![
+      "individual",
+      "group",
+    ].includes(circleType)
+  ) {
     return json(
       {
         ok: false,
-        error: "package_not_found",
+        error:
+          "unsupported_circle_type",
       },
-      404
+      400
     );
   }
 
-  const existing = await getEnrollment(
-    db,
-    studentId,
-    circleId
-  );
+  if (packageId) {
+    const pkg =
+      await getPackage(
+        db,
+        packageId
+      );
+
+    if (!pkg) {
+      return json(
+        {
+          ok: false,
+          error:
+            "package_not_found",
+        },
+        404
+      );
+    }
+
+    const rule =
+      await getPackageCircleRule(
+        db,
+        packageId,
+        circleType
+      );
+
+    if (
+      rule &&
+      Number(rule.enabled) === 0
+    ) {
+      return json(
+        {
+          ok: false,
+          error:
+            "package_not_allowed_for_circle",
+        },
+        403
+      );
+    }
+  }
+
+  const policy =
+    await getPolicy(
+      db,
+      circleId,
+      packageId
+    );
+
+  const existing =
+    await getEnrollment(
+      db,
+      studentId,
+      circleId
+    );
 
   if (
     existing &&
-    isActiveEnrollmentStatus(existing.status)
+    isEnrollmentActive(
+      existing.status
+    )
   ) {
     return json({
       ok: true,
@@ -1339,57 +1367,24 @@ async function handlePost(request, env) {
     });
   }
 
-  const policy = await getPolicy(
-    db,
-    circleId,
-    packageId
-  );
-
-  if (policy?.enabled === 0) {
-    return json(
-      {
-        ok: false,
-        error: "enrollment_disabled",
-      },
-      403
+  const capacity =
+    Number(
+      circle.capacity || 0
     );
-  }
 
-  if (packageId) {
-    const rule = await getPackageCircleRule(
+  const count =
+    await enrollmentCount(
       db,
-      packageId,
-      circleType
+      circleId
     );
 
-    if (
-      rule &&
-      rule.enabled === 0
-    ) {
-      return json(
-        {
-          ok: false,
-          error: "package_not_allowed_for_circle",
-        },
-        403
-      );
-    }
-  }
-
-  const capacity = Number(
-    circle.capacity || 0
-  );
-
-  const count = await enrollmentCount(
-    db,
-    circle.id
-  );
-
-  /* ---------------------------------------------------------
+  /* =======================================================
      Individual
-  --------------------------------------------------------- */
+  ======================================================= */
 
-  if (circleType === "individual") {
+  if (
+    circleType === "individual"
+  ) {
     if (
       capacity > 0 &&
       count >= capacity
@@ -1400,34 +1395,20 @@ async function handlePost(request, env) {
           error: "circle_full",
           circle_status: "full",
           capacity,
-          enrollment_count: count,
+          enrollment_count:
+            count,
         },
         409
       );
     }
 
-    const enrollment = await activateEnrollment(
-      db,
-      studentId,
-      circleId,
-      "direct"
-    );
-
-    const trialDays = Number(
-      data.trial_days ??
-      policy?.trial_days ??
-      3
-    );
-
-    const subscription = packageId
-      ? await createSubscription(
-          db,
-          studentId,
-          packageId,
-          circleId,
-          trialDays
-        )
-      : null;
+    const enrollment =
+      await activateEnrollment(
+        db,
+        studentId,
+        circleId,
+        "direct"
+      );
 
     const requestRow =
       await getPendingRequest(
@@ -1437,14 +1418,13 @@ async function handlePost(request, env) {
       );
 
     if (requestRow) {
-      await db
-        .prepare(`
-          UPDATE enrollment_requests
-          SET status = 'approved'
-          WHERE id = ?1
-        `)
-        .bind(requestRow.id)
-        .run();
+      await db.prepare(`
+        UPDATE enrollment_requests
+        SET status = 'approved'
+        WHERE id = ?1
+      `).bind(
+        requestRow.id
+      ).run();
 
       await createDecision(
         db,
@@ -1453,37 +1433,29 @@ async function handlePost(request, env) {
         circleId,
         "approved",
         "تم قبول التسجيل الفردي.",
-        data.decided_by || null
+        data.decided_by ||
+          data.decidedBy ||
+          null
       );
     }
 
-    const status = await refreshCircleStatus(
-      db,
-      circleId
-    );
+    const status =
+      await refreshCircleStatus(
+        db,
+        circleId
+      );
 
     return json({
       ok: true,
       type: "individual",
       enrollment,
-      subscription,
       circle: status,
     });
   }
 
-  /* ---------------------------------------------------------
+  /* =======================================================
      Group
-  --------------------------------------------------------- */
-
-  if (circleType !== "group") {
-    return json(
-      {
-        ok: false,
-        error: "unsupported_circle_type",
-      },
-      400
-    );
-  }
+  ======================================================= */
 
   if (
     capacity <= 0
@@ -1491,62 +1463,70 @@ async function handlePost(request, env) {
     return json(
       {
         ok: false,
-        error: "circle_capacity_not_configured",
+        error:
+          "circle_capacity_not_configured",
       },
       400
     );
   }
 
-  /* الحلقة ممتلئة */
-  if (count >= capacity) {
-    const requestRow = await getPendingRequest(
-      db,
-      studentId,
-      circleId
-    );
+  /* =======================================================
+     Group Full → Waitlist
+  ======================================================= */
 
-    const waitlist = await addWaitlist(
-      db,
-      studentId,
-      circleId
-    );
+  if (
+    count >= capacity
+  ) {
+    const requestRow =
+      await getPendingRequest(
+        db,
+        studentId,
+        circleId
+      );
+
+    if (!requestRow) {
+      await createRequest(
+        db,
+        studentId,
+        circleId,
+        "group",
+        "pending",
+        "تم وضع الطالب في قائمة الانتظار بسبب اكتمال السعة."
+      );
+    }
+
+    const waitlist =
+      await addWaitlist(
+        db,
+        studentId,
+        circleId
+      );
 
     await refreshCircleStatus(
       db,
       circleId
     );
 
-    /* عند بلوغ عدد المنتظرين سعة المجموعة:
-       أنشئ مجموعة جديدة وانقل الطلاب */
-    const waitingCount = await waitlistCount(
-      db,
-      circleId
-    );
-
-    let newCircle = null;
-    let moved = [];
-
-    if (waitingCount >= capacity) {
-      newCircle = await createNewGroupCircle(
+    const waitingCount =
+      await waitlistCount(
         db,
-        circle,
-        packageId || circle.package_id,
-        "بلوغ قائمة الانتظار سعة الحلقة الأصلية"
+        circleId
       );
 
-      if (newCircle) {
-        moved = await moveWaitlistStudents(
+    let newCircle = null;
+
+    if (
+      waitingCount >= capacity
+    ) {
+      newCircle =
+        await createNewGroupCircle(
           db,
           circle,
-          newCircle,
-          packageId || circle.package_id,
-          Number(
-            data.trial_days ??
-            policy?.trial_days ??
-            3
-          )
+          packageId ||
+            circle.package_id ||
+            null,
+          "بلوغ قائمة الانتظار سعة الحلقة الأصلية"
         );
-      }
     }
 
     return json(
@@ -1555,36 +1535,28 @@ async function handlePost(request, env) {
         queued: true,
         circle_status: "full",
         waitlist,
-        new_circle: newCircle,
-        moved_students: moved,
+        waitlist_count:
+          waitingCount,
+        new_circle:
+          newCircle,
+        students_moved:
+          0,
       },
       202
     );
   }
 
-  /* يوجد مكان */
-  const enrollment = await activateEnrollment(
-    db,
-    studentId,
-    circleId,
-    "direct"
-  );
+  /* =======================================================
+     Group Has Space
+  ======================================================= */
 
-  const trialDays = Number(
-    data.trial_days ??
-    policy?.trial_days ??
-    3
-  );
-
-  const subscription = packageId
-    ? await createSubscription(
-        db,
-        studentId,
-        packageId,
-        circleId,
-        trialDays
-      )
-    : null;
+  const enrollment =
+    await activateEnrollment(
+      db,
+      studentId,
+      circleId,
+      "direct"
+    );
 
   const requestRow =
     await getPendingRequest(
@@ -1594,14 +1566,13 @@ async function handlePost(request, env) {
     );
 
   if (requestRow) {
-    await db
-      .prepare(`
-        UPDATE enrollment_requests
-        SET status = 'approved'
-        WHERE id = ?1
-      `)
-      .bind(requestRow.id)
-      .run();
+    await db.prepare(`
+      UPDATE enrollment_requests
+      SET status = 'approved'
+      WHERE id = ?1
+    `).bind(
+      requestRow.id
+    ).run();
 
     await createDecision(
       db,
@@ -1610,20 +1581,22 @@ async function handlePost(request, env) {
       circleId,
       "approved",
       "تم قبول التسجيل الجماعي لوجود مكان.",
-      data.decided_by || null
+      data.decided_by ||
+        data.decidedBy ||
+        null
     );
   }
 
-  const status = await refreshCircleStatus(
-    db,
-    circleId
-  );
+  const status =
+    await refreshCircleStatus(
+      db,
+      circleId
+    );
 
   return json({
     ok: true,
     type: "group",
     enrollment,
-    subscription,
     circle: status,
   });
 }
@@ -1632,32 +1605,62 @@ async function handlePost(request, env) {
    GET
 ========================================================= */
 
-async function handleGet(request, env) {
+async function handleGet(
+  request,
+  env
+) {
   const db = env.DB;
-  const url = new URL(request.url);
+  const url =
+    new URL(request.url);
+
+  if (!db) {
+    return json(
+      {
+        ok: false,
+        error: "DB_NOT_CONFIGURED",
+      },
+      500
+    );
+  }
 
   const studentId =
-    url.searchParams.get("student_id") ||
-    url.searchParams.get("studentId");
+    url.searchParams.get(
+      "student_id"
+    ) ||
+    url.searchParams.get(
+      "studentId"
+    );
 
   const circleId =
-    url.searchParams.get("circle_id") ||
-    url.searchParams.get("circleId");
+    url.searchParams.get(
+      "circle_id"
+    ) ||
+    url.searchParams.get(
+      "circleId"
+    );
 
   const status =
-    url.searchParams.get("status");
+    url.searchParams.get(
+      "status"
+    );
+
+  /* =======================================================
+     Circle
+  ======================================================= */
 
   if (circleId) {
-    const circle = await getCircle(
-      db,
-      circleId
-    );
+    const circle =
+      await getCircle(
+        db,
+        circleId
+      );
 
     if (!circle) {
       return json(
         {
           ok: false,
-          error: "circle_not_found",
+          error:
+            "circle_not_found",
         },
         404
       );
@@ -1674,22 +1677,31 @@ async function handleGet(request, env) {
       WHERE ce.circle_id = ?1
     `;
 
-    const params = [circleId];
+    const params = [
+      circleId,
+    ];
 
     if (status) {
-      sql += ` AND ce.status = ?2`;
+      sql += `
+        AND ce.status = ?2
+      `;
+
       params.push(status);
     }
 
-    sql += ` ORDER BY ce.id ASC`;
+    sql += `
+      ORDER BY ce.id ASC
+    `;
 
-    const result = await db
-      .prepare(sql)
-      .bind(...params)
-      .all();
+    const enrollments =
+      await db.prepare(
+        sql
+      ).bind(
+        ...params
+      ).all();
 
-    const waiting = await db
-      .prepare(`
+    const waitlist =
+      await db.prepare(`
         SELECT
           cw.*,
           s.name AS student_name,
@@ -1699,35 +1711,52 @@ async function handleGet(request, env) {
           ON s.id = cw.student_id
         WHERE cw.circle_id = ?1
           AND cw.status = 'waiting'
-        ORDER BY cw.position ASC, cw.id ASC
-      `)
-      .bind(circleId)
-      .all();
+        ORDER BY
+          cw.position ASC,
+          cw.id ASC
+      `).bind(
+        circleId
+      ).all();
 
     return json({
       ok: true,
+
       circle,
-      enrollment_count: await enrollmentCount(
-        db,
-        circleId
-      ),
-      capacity: Number(
-        circle.capacity || 0
-      ),
+
+      enrollment_count:
+        await enrollmentCount(
+          db,
+          circleId
+        ),
+
+      capacity:
+        Number(
+          circle.capacity || 0
+        ),
+
       enrollments:
-        result?.results || [],
+        enrollments?.results ||
+        [],
+
       waitlist:
-        waiting?.results || [],
+        waitlist?.results ||
+        [],
+
       waitlist_count:
         Number(
-          waiting?.results?.length || 0
+          waitlist?.results?.length ||
+          0
         ),
     });
   }
 
+  /* =======================================================
+     Student
+  ======================================================= */
+
   if (studentId) {
-    const result = await db
-      .prepare(`
+    const enrollments =
+      await db.prepare(`
         SELECT
           ce.*,
           c.name AS circle_name,
@@ -1743,38 +1772,52 @@ async function handleGet(request, env) {
           ON p.id = c.package_id
         WHERE ce.student_id = ?1
         ORDER BY ce.id DESC
-      `)
-      .bind(studentId)
-      .all();
+      `).bind(
+        studentId
+      ).all();
 
-    const waitlist = await db
-      .prepare(`
+    const waitlist =
+      await db.prepare(`
         SELECT
           cw.*,
           c.name AS circle_name,
-          c.circle_type
+          c.circle_type,
+          c.capacity,
+          c.status AS circle_status
         FROM circle_waitlist cw
         LEFT JOIN circles c
           ON c.id = cw.circle_id
         WHERE cw.student_id = ?1
           AND cw.status = 'waiting'
-        ORDER BY cw.position ASC
-      `)
-      .bind(studentId)
-      .all();
+        ORDER BY
+          cw.position ASC,
+          cw.id ASC
+      `).bind(
+        studentId
+      ).all();
 
     return json({
       ok: true,
-      student_id: studentId,
+
+      student_id:
+        studentId,
+
       enrollments:
-        result?.results || [],
+        enrollments?.results ||
+        [],
+
       waitlist:
-        waitlist?.results || [],
+        waitlist?.results ||
+        [],
     });
   }
 
-  const result = await db
-    .prepare(`
+  /* =======================================================
+     All
+  ======================================================= */
+
+  const result =
+    await db.prepare(`
       SELECT
         ce.*,
         s.name AS student_name,
@@ -1788,23 +1831,41 @@ async function handleGet(request, env) {
       LEFT JOIN circles c
         ON c.id = ce.circle_id
       ORDER BY ce.id DESC
-    `)
-    .all();
+    `).all();
 
   return json({
     ok: true,
+
     enrollments:
-      result?.results || [],
+      result?.results ||
+      [],
   });
 }
 
 /* =========================================================
    PATCH
+   العمليات الإدارية:
+   - تعديل السعة.
+   - ترقية أول منتظر.
+   - إنشاء الحلقة الجديدة عند بلوغ العتبة.
 ========================================================= */
 
-async function handlePatch(request, env) {
+async function handlePatch(
+  request,
+  env
+) {
   const db = env.DB;
   const data = await body(request);
+
+  if (!db) {
+    return json(
+      {
+        ok: false,
+        error: "DB_NOT_CONFIGURED",
+      },
+      500
+    );
+  }
 
   if (!data) {
     return json(
@@ -1820,13 +1881,20 @@ async function handlePatch(request, env) {
     data.user_id ||
     data.userId ||
     data.decided_by ||
+    data.decidedBy ||
     null;
 
-  if (!(await canDecide(db, actorId))) {
+  if (
+    !(await isAdminOrSupervisor(
+      db,
+      actorId
+    ))
+  ) {
     return json(
       {
         ok: false,
-        error: "ADMIN_OR_SUPERVISOR_REQUIRED",
+        error:
+          "ADMIN_OR_SUPERVISOR_REQUIRED",
       },
       403
     );
@@ -1840,170 +1908,426 @@ async function handlePatch(request, env) {
     return json(
       {
         ok: false,
-        error: "circle_id_required",
+        error:
+          "circle_id_required",
       },
       400
     );
   }
 
-  const circle = await getCircle(
-    db,
-    circleId
-  );
+  const circle =
+    await getCircle(
+      db,
+      circleId
+    );
 
   if (!circle) {
     return json(
       {
         ok: false,
-        error: "circle_not_found",
+        error:
+          "circle_not_found",
       },
       404
     );
   }
 
-  const capacityProvided =
-    data.capacity !== undefined;
+  const action =
+    String(
+      data.action ||
+      ""
+    ).trim().toLowerCase();
 
-  if (capacityProvided) {
-    const capacity = positiveInt(
-      data.capacity,
-      -1
-    );
+  /* =======================================================
+     تعديل السعة
+  ======================================================= */
 
-    if (capacity < 0) {
+  if (
+    action === "set_capacity" ||
+    data.capacity !== undefined
+  ) {
+    const newCapacity =
+      toCapacity(
+        data.capacity
+      );
+
+    if (
+      newCapacity === null
+    ) {
       return json(
         {
           ok: false,
-          error: "invalid_capacity",
+          error:
+            "invalid_capacity",
         },
         400
       );
     }
 
-    await db
-      .prepare(`
-        UPDATE circles
-        SET
-          capacity = ?2,
-          updated_at = ?3
-        WHERE id = ?1
-      `)
-      .bind(
-        circleId,
-        capacity,
-        now()
-      )
-      .run();
-  }
-
-  const refreshed = await refreshCircleStatus(
-    db,
-    circleId
-  );
-
-  const capacity = Number(
-    refreshed?.capacity || 0
-  );
-
-  let promoted = [];
-
-  if (capacity > 0) {
-    while (
-      (await enrollmentCount(db, circleId)) <
-        capacity &&
-      (await waitlistCount(db, circleId)) > 0
+    if (
+      normalizeCircleType(
+        circle.circle_type
+      ) === "group" &&
+      newCapacity === 0
     ) {
-      const item = await promoteNextWaiting(
+      return json(
+        {
+          ok: false,
+          error:
+            "group_capacity_must_be_greater_than_zero",
+        },
+        400
+      );
+    }
+
+    await db.prepare(`
+      UPDATE circles
+      SET
+        capacity = ?2,
+        updated_at = ?3
+      WHERE id = ?1
+    `).bind(
+      circleId,
+      newCapacity,
+      now()
+    ).run();
+
+    const refreshed =
+      await refreshCircleStatus(
         db,
-        refreshed,
-        refreshed.package_id || null,
-        3
+        circleId
       );
 
-      if (!item) break;
+    let promoted = [];
 
-      promoted.push(item);
+    /*
+     * عند زيادة السعة:
+     * الترقية تتم تلقائيًا فقط
+     * بعد قرار الإدارة المرسل
+     * approve_waitlist = true.
+     */
+
+    if (
+      data.approve_waitlist === true
+    ) {
+      while (
+        (await enrollmentCount(
+          db,
+          circleId
+        )) < newCapacity &&
+        (await waitlistCount(
+          db,
+          circleId
+        )) > 0
+      ) {
+        const item =
+          await promoteNextWaiting(
+            db,
+            refreshed,
+            actorId,
+            "تمت الترقية بعد زيادة السعة بقرار إداري."
+          );
+
+        if (!item) {
+          break;
+        }
+
+        promoted.push(item);
+      }
     }
+
+    let newCircle = null;
+
+    const waiting =
+      await waitlistCount(
+        db,
+        circleId
+      );
+
+    if (
+      normalizeCircleType(
+        refreshed.circle_type
+      ) === "group" &&
+      newCapacity > 0 &&
+      waiting >= newCapacity &&
+      data.create_new_circle === true
+    ) {
+      newCircle =
+        await createNewGroupCircle(
+          db,
+          refreshed,
+          refreshed.package_id ||
+            null,
+          "بلوغ قائمة الانتظار سعة الحلقة بقرار إداري"
+        );
+    }
+
+    await audit(
+      db,
+      actorId,
+      "circle_capacity_updated",
+      "circle",
+      circleId,
+      {
+        old_capacity:
+          Number(
+            circle.capacity || 0
+          ),
+
+        new_capacity:
+          newCapacity,
+
+        promoted_count:
+          promoted.length,
+
+        new_circle_id:
+          newCircle?.id ||
+          null,
+      }
+    );
+
+    return json({
+      ok: true,
+
+      circle:
+        await refreshCircleStatus(
+          db,
+          circleId
+        ),
+
+      promoted,
+
+      new_circle:
+        newCircle,
+    });
   }
 
-  let newCircle = null;
-  let moved = [];
+  /* =======================================================
+     إنشاء حلقة جديدة يدويًا
+  ======================================================= */
 
   if (
-    normalizeCircleType(
-      refreshed?.circle_type
-    ) === "group" &&
-    capacity > 0
+    action ===
+    "create_new_circle"
   ) {
-    const waiting = await waitlistCount(
+    if (
+      normalizeCircleType(
+        circle.circle_type
+      ) !== "group"
+    ) {
+      return json(
+        {
+          ok: false,
+          error:
+            "new_circle_only_for_group",
+        },
+        400
+      );
+    }
+
+    const capacity =
+      Number(
+        circle.capacity || 0
+      );
+
+    const waiting =
+      await waitlistCount(
+        db,
+        circleId
+      );
+
+    if (
+      capacity <= 0 ||
+      waiting < capacity
+    ) {
+      return json(
+        {
+          ok: false,
+          error:
+            "waitlist_threshold_not_reached",
+
+          capacity,
+
+          waitlist_count:
+            waiting,
+        },
+        409
+      );
+    }
+
+    const newCircle =
+      await createNewGroupCircle(
+        db,
+        circle,
+        circle.package_id ||
+          null,
+        "طلب إداري لإنشاء حلقة جديدة"
+      );
+
+    return json({
+      ok: true,
+
+      new_circle:
+        newCircle,
+
+      students_moved:
+        0,
+    });
+  }
+
+  /* =======================================================
+     ترقية أول منتظر
+  ======================================================= */
+
+  if (
+    action ===
+      "approve_waitlist" ||
+    action ===
+      "promote_waitlist"
+  ) {
+    const refreshed =
+      await refreshCircleStatus(
+        db,
+        circleId
+      );
+
+    const promoted =
+      await promoteNextWaiting(
+        db,
+        refreshed,
+        actorId,
+        data.reason ||
+          "تم اعتماد الترقية من قائمة الانتظار."
+      );
+
+    if (!promoted) {
+      return json(
+        {
+          ok: false,
+          error:
+            "no_waiting_student_or_circle_full",
+        },
+        409
+      );
+    }
+
+    return json({
+      ok: true,
+
+      promoted,
+
+      circle:
+        await refreshCircleStatus(
+          db,
+          circleId
+        ),
+    });
+  }
+
+  /* =======================================================
+     إلغاء انتظار طالب
+  ======================================================= */
+
+  if (
+    action ===
+    "cancel_waitlist"
+  ) {
+    const studentId =
+      data.student_id ||
+      data.studentId;
+
+    if (!studentId) {
+      return json(
+        {
+          ok: false,
+          error:
+            "student_id_required",
+        },
+        400
+      );
+    }
+
+    const item =
+      await getWaitlistEntry(
+        db,
+        studentId,
+        circleId
+      );
+
+    if (!item) {
+      return json(
+        {
+          ok: false,
+          error:
+            "waitlist_entry_not_found",
+        },
+        404
+      );
+    }
+
+    await db.prepare(`
+      UPDATE circle_waitlist
+      SET status = 'cancelled'
+      WHERE id = ?1
+    `).bind(
+      item.id
+    ).run();
+
+    await normalizeWaitlist(
       db,
       circleId
     );
 
-    if (
-      waiting >= capacity
-    ) {
-      newCircle = await createNewGroupCircle(
-        db,
-        refreshed,
-        refreshed.package_id || null,
-        "اكتمال قائمة الانتظار بعد تعديل السعة"
-      );
+    await audit(
+      db,
+      actorId,
+      "waitlist_cancelled",
+      "circle_waitlist",
+      item.id,
+      {
+        student_id:
+          studentId,
 
-      if (newCircle) {
-        moved = await moveWaitlistStudents(
-          db,
-          refreshed,
-          newCircle,
-          refreshed.package_id || null,
-          3
-        );
+        circle_id:
+          circleId,
       }
-    }
+    );
+
+    return json({
+      ok: true,
+
+      cancelled:
+        item,
+    });
   }
 
-  await audit(
-    db,
-    actorId,
-    "circle_enrollment_capacity_updated",
-    "circle",
-    circleId,
+  return json(
     {
-      old_capacity:
-        Number(circle.capacity || 0),
-      new_capacity: capacity,
-      promoted_count:
-        promoted.length,
-      moved_count:
-        moved.length,
-      new_circle_id:
-        newCircle?.id || null,
-    }
+      ok: false,
+      error:
+        "unsupported_patch_action",
+    },
+    400
   );
-
-  return json({
-    ok: true,
-    circle:
-      await refreshCircleStatus(
-        db,
-        circleId
-      ),
-    promoted,
-    new_circle: newCircle,
-    moved_students: moved,
-  });
 }
 
 /* =========================================================
    Router
 ========================================================= */
 
-export async function onRequest(context) {
-  const request = context.request;
-  const env = context.env;
+export async function onRequest(
+  context
+) {
+  const request =
+    context.request;
+
+  const env =
+    context.env;
 
   try {
-    switch (request.method.toUpperCase()) {
+    switch (
+      request.method.toUpperCase()
+    ) {
       case "POST":
         return await handlePost(
           request,
@@ -2026,7 +2350,8 @@ export async function onRequest(context) {
         return json(
           {
             ok: false,
-            error: "METHOD_NOT_ALLOWED",
+            error:
+              "METHOD_NOT_ALLOWED",
           },
           405
         );
@@ -2040,7 +2365,9 @@ export async function onRequest(context) {
     return json(
       {
         ok: false,
-        error: "INTERNAL_SERVER_ERROR",
+        error:
+          "INTERNAL_SERVER_ERROR",
+
         message:
           error?.message ||
           "حدث خطأ غير متوقع.",
