@@ -1,6 +1,6 @@
 // =========================================================
-// functions/api/_auth.js
 // الأوَّابين — Authentication & Authorization
+// functions/api/_auth.js
 // =========================================================
 
 const SESSION_COOKIE = "alawabin_session";
@@ -17,13 +17,15 @@ function json(data, status = 200) {
 }
 
 function getCookie(request, name) {
-  const cookieHeader = request.headers.get("Cookie") || "";
+  const header = request.headers.get("Cookie") || "";
 
-  for (const part of cookieHeader.split(";")) {
-    const [key, ...valueParts] = part.trim().split("=");
+  for (const item of header.split(";")) {
+    const parts = item.trim().split("=");
+
+    const key = parts.shift();
 
     if (key === name) {
-      return decodeURIComponent(valueParts.join("="));
+      return decodeURIComponent(parts.join("="));
     }
   }
 
@@ -33,10 +35,7 @@ function getCookie(request, name) {
 function getClientIp(request) {
   return (
     request.headers.get("CF-Connecting-IP") ||
-    request.headers
-      .get("X-Forwarded-For")
-      ?.split(",")[0]
-      ?.trim() ||
+    request.headers.get("X-Forwarded-For")?.split(",")[0]?.trim() ||
     null
   );
 }
@@ -47,57 +46,56 @@ function getUserAgent(request) {
 
 function createToken() {
   const bytes = new Uint8Array(32);
+
   crypto.getRandomValues(bytes);
 
   return Array.from(bytes)
-    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 }
 
 async function sha256(value) {
   const data = new TextEncoder().encode(value);
+
   const hash = await crypto.subtle.digest(
     "SHA-256",
     data
   );
 
   return Array.from(new Uint8Array(hash))
-    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 }
 
-function addDays(days) {
+function expiresAt() {
   const date = new Date();
 
   date.setUTCDate(
-    date.getUTCDate() + days
+    date.getUTCDate() + SESSION_DAYS
   );
 
   return date.toISOString();
 }
 
-function isExpired(expiresAt) {
+function expired(value) {
   return (
-    !expiresAt ||
-    new Date(expiresAt).getTime() <= Date.now()
+    !value ||
+    new Date(value).getTime() <= Date.now()
   );
 }
 
-function sessionCookie(
-  token,
-  maxAge = SESSION_DAYS * 24 * 60 * 60
-) {
+function sessionCookie(token) {
   return [
     `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
     "Path=/",
-    `Max-Age=${maxAge}`,
+    `Max-Age=${SESSION_DAYS * 86400}`,
     "HttpOnly",
     "Secure",
     "SameSite=Lax",
   ].join("; ");
 }
 
-function clearSessionCookie() {
+function clearCookie() {
   return [
     `${SESSION_COOKIE}=`,
     "Path=/",
@@ -109,12 +107,8 @@ function clearSessionCookie() {
 }
 
 async function getCurrentUser(request, env) {
-  const db = env?.DB;
-
-  if (!db) {
-    throw new Error(
-      "Database binding DB is not configured."
-    );
+  if (!env?.DB) {
+    throw new Error("DB binding is missing.");
   }
 
   const token = getCookie(
@@ -126,71 +120,59 @@ async function getCurrentUser(request, env) {
     return null;
   }
 
-  const tokenHash = await sha256(token);
+  const hash = await sha256(token);
 
-  const result = await db
-    .prepare(
-      `
+  const row = await env.DB
+    .prepare(`
       SELECT
         s.id AS session_id,
         s.user_id,
         s.expires_at,
         s.revoked_at,
-
         u.id,
         u.role,
         u.full_name,
         u.phone,
         u.email,
         u.status
-
       FROM auth_sessions s
-
       INNER JOIN users u
         ON u.id = s.user_id
-
       WHERE s.session_token_hash = ?
-
       LIMIT 1
-      `
-    )
-    .bind(tokenHash)
+    `)
+    .bind(hash)
     .first();
 
-  if (!result) {
+  if (!row) {
     return null;
   }
 
   if (
-    result.revoked_at ||
-    isExpired(result.expires_at)
+    row.revoked_at ||
+    expired(row.expires_at) ||
+    row.status !== "active"
   ) {
     return null;
   }
 
-  if (result.status !== "active") {
-    return null;
-  }
-
-  await db
-    .prepare(
-      `
+  await env.DB
+    .prepare(`
       UPDATE auth_sessions
       SET last_seen_at = CURRENT_TIMESTAMP
       WHERE id = ?
-      `
-    )
-    .bind(result.session_id)
+    `)
+    .bind(row.session_id)
     .run();
 
   return {
-    id: result.id,
-    role: result.role,
-    full_name: result.full_name,
-    phone: result.phone,
-    email: result.email,
-    status: result.status,
-    session_id: result.session_id,
+    id: row.id,
+    role: row.role,
+    full_name: row.full_name,
+    phone: row.phone,
+    email: row.email,
+    status: row.status,
+    session_id: row.session_id,
   };
 }
 
@@ -203,13 +185,11 @@ async function requireAuth(request, env) {
   if (!user) {
     return {
       ok: false,
-
       response: json(
         {
           success: false,
           error: "UNAUTHORIZED",
-          message:
-            "يجب تسجيل الدخول أولًا.",
+          message: "يجب تسجيل الدخول أولًا.",
         },
         401
       ),
@@ -220,63 +200,6 @@ async function requireAuth(request, env) {
     ok: true,
     user,
   };
-}
-
-async function getPermissionState(
-  db,
-  user
-) {
-  const permissions = new Map();
-
-  const roleRows = await db
-    .prepare(
-      `
-      SELECT
-        permission_key,
-        allowed
-
-      FROM role_permissions
-
-      WHERE role = ?
-      `
-    )
-    .bind(user.role)
-    .all();
-
-  for (
-    const row of roleRows.results || []
-  ) {
-    permissions.set(
-      row.permission_key,
-      Number(row.allowed) === 1
-    );
-  }
-
-  const userRows = await db
-    .prepare(
-      `
-      SELECT
-        permission_key,
-        allowed
-
-      FROM user_permissions
-
-      WHERE user_id = ?
-      `
-    )
-    .bind(user.id)
-    .all();
-
-  for (
-    const row of userRows.results || []
-  ) {
-    permissions.set(
-      row.permission_key,
-      Number(row.allowed) === 1
-    );
-  }
-
-  return permissions;
 }
 
 async function hasPermission(
@@ -292,14 +215,41 @@ async function hasPermission(
     return true;
   }
 
-  const permissions =
-    await getPermissionState(
-      db,
-      user
-    );
+  const userPermission = await db
+    .prepare(`
+      SELECT allowed
+      FROM user_permissions
+      WHERE user_id = ?
+        AND permission_key = ?
+      LIMIT 1
+    `)
+    .bind(
+      user.id,
+      permission
+    )
+    .first();
+
+  if (userPermission) {
+    return Number(userPermission.allowed) === 1;
+  }
+
+  const rolePermission = await db
+    .prepare(`
+      SELECT allowed
+      FROM role_permissions
+      WHERE role = ?
+        AND permission_key = ?
+      LIMIT 1
+    `)
+    .bind(
+      user.role,
+      permission
+    )
+    .first();
 
   return (
-    permissions.get(permission) === true
+    !!rolePermission &&
+    Number(rolePermission.allowed) === 1
   );
 }
 
@@ -317,17 +267,15 @@ async function requirePermission(
     return auth;
   }
 
-  const allowed =
-    await hasPermission(
-      env.DB,
-      auth.user,
-      permission
-    );
+  const allowed = await hasPermission(
+    env.DB,
+    auth.user,
+    permission
+  );
 
   if (!allowed) {
     return {
       ok: false,
-
       response: json(
         {
           success: false,
@@ -360,10 +308,9 @@ async function requireRole(
     return auth;
   }
 
-  const allowedRoles =
-    Array.isArray(roles)
-      ? roles
-      : [roles];
+  const allowedRoles = Array.isArray(roles)
+    ? roles
+    : [roles];
 
   if (
     !allowedRoles.includes(
@@ -372,7 +319,6 @@ async function requireRole(
   ) {
     return {
       ok: false,
-
       response: json(
         {
           success: false,
@@ -396,25 +342,16 @@ async function createSession(
   env,
   userId
 ) {
-  const db = env?.DB;
-
-  if (!db) {
-    throw new Error(
-      "Database binding DB is not configured."
-    );
+  if (!env?.DB) {
+    throw new Error("DB binding is missing.");
   }
 
   const token = createToken();
+  const hash = await sha256(token);
+  const expiry = expiresAt();
 
-  const tokenHash =
-    await sha256(token);
-
-  const expiresAt =
-    addDays(SESSION_DAYS);
-
-  await db
-    .prepare(
-      `
+  await env.DB
+    .prepare(`
       INSERT INTO auth_sessions (
         user_id,
         session_token_hash,
@@ -422,14 +359,12 @@ async function createSession(
         ip_address,
         user_agent
       )
-
       VALUES (?, ?, ?, ?, ?)
-      `
-    )
+    `)
     .bind(
       userId,
-      tokenHash,
-      expiresAt,
+      hash,
+      expiry,
       getClientIp(request),
       getUserAgent(request)
     )
@@ -437,7 +372,7 @@ async function createSession(
 
   return {
     token,
-    expiresAt,
+    expiresAt: expiry,
     cookie: sessionCookie(token),
   };
 }
@@ -446,12 +381,8 @@ async function destroySession(
   request,
   env
 ) {
-  const db = env?.DB;
-
-  if (!db) {
-    throw new Error(
-      "Database binding DB is not configured."
-    );
+  if (!env?.DB) {
+    throw new Error("DB binding is missing.");
   }
 
   const token = getCookie(
@@ -460,104 +391,38 @@ async function destroySession(
   );
 
   if (token) {
-    const tokenHash =
-      await sha256(token);
+    const hash = await sha256(token);
 
-    await db
-      .prepare(
-        `
+    await env.DB
+      .prepare(`
         UPDATE auth_sessions
-
-        SET revoked_at =
-          CURRENT_TIMESTAMP
-
+        SET revoked_at = CURRENT_TIMESTAMP
         WHERE session_token_hash = ?
-        `
-      )
-      .bind(tokenHash)
+      `)
+      .bind(hash)
       .run();
   }
 
-  return clearSessionCookie();
+  return clearCookie();
 }
 
 async function writeAudit(
   env,
-  {
-    userId = null,
-    action,
-    entity = null,
-    entityId = null,
-    metadata = null,
-    request = null,
-  }
+  options = {}
 ) {
-  if (!env?.DB || !action) {
+  if (!env?.DB || !options.action) {
     return;
   }
 
-  const metadataJson =
-    metadata === null ||
-    metadata === undefined
+  const metadata =
+    options.metadata == null
       ? null
-      : typeof metadata === "string"
-        ? metadata
-        : JSON.stringify(metadata);
+      : typeof options.metadata === "string"
+        ? options.metadata
+        : JSON.stringify(options.metadata);
 
   await env.DB
-    .prepare(
-      `
-      INSERT INTO audit_logs (
-        user_id,
-        action,
-        entity,
-        entity_id,
-        ip_address,
-        user_agent,
-        metadata
-      )
-
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-      `
-    )
-    .bind(
-      userId,
-      action,
-      entity,
-      entityId,
-      request
-        ? getClientIp(request)
-        : null,
-      request
-        ? getUserAgent(request)
-        : null,
-      metadataJson
-    )
-    .run();
-}
-
-export {
-  SESSION_COOKIE,
-  json,
-  getCookie,
-  getCurrentUser,
-  requireAuth,
-  requirePermission,
-  requireRole,
-  hasPermission,
-  createSession,
-  destroySession,
-  writeAudit,
-};
-metadata === undefined
-  ? null
-  : typeof metadata === "string"
-    ? metadata
-    : JSON.stringify(metadata);
-
-  await env.DB
-    .prepare(
-      `
+    .prepare(`
       INSERT INTO audit_logs (
         user_id,
         action,
@@ -568,20 +433,19 @@ metadata === undefined
         metadata
       )
       VALUES (?, ?, ?, ?, ?, ?, ?)
-      `
-    )
+    `)
     .bind(
-      userId,
-      action,
-      entity,
-      entityId,
-      request
-        ? getClientIp(request)
+      options.userId ?? null,
+      options.action,
+      options.entity ?? null,
+      options.entityId ?? null,
+      options.request
+        ? getClientIp(options.request)
         : null,
-      request
-        ? getUserAgent(request)
+      options.request
+        ? getUserAgent(options.request)
         : null,
-      metadataJson
+      metadata
     )
     .run();
 }
@@ -592,9 +456,9 @@ export {
   getCookie,
   getCurrentUser,
   requireAuth,
+  hasPermission,
   requirePermission,
   requireRole,
-  hasPermission,
   createSession,
   destroySession,
   writeAudit,
