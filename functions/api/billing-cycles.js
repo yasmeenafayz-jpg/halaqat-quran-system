@@ -9,9 +9,14 @@
  * POST   /api/billing-cycles
  * PATCH  /api/billing-cycles
  *
+ * متوافق مع:
+ * - Migration 006 Professional Scheduling & Billing
+ * - Migration 007 Monthly Billing Rules
+ *
  * يدير:
  * - الفاتورة الشهرية للطالب
  * - بداية الدورة من أول الشهر
+ * - بداية الطالب الجديد من الشهر الجديد
  * - الباقة الشهرية
  * - عدد الجلسات المخططة والمجدولة والمنفذة
  * - الجلسات القابلة للمحاسبة
@@ -21,6 +26,7 @@
  * - المدفوع
  * - المتبقي
  * - بنود الفاتورة
+ * - قواعد الفوترة المركزية
  */
 
 const HEADERS = {
@@ -69,15 +75,11 @@ function validId(value) {
 }
 
 function validMonth(value) {
-  return /^\d{4}-(0[1-9]|1[0-2])$/.test(
-    clean(value)
-  );
+  return /^\d{4}-(0[1-9]|1[0-2])$/.test(clean(value));
 }
 
 function validDate(value) {
-  return /^\d{4}-\d{2}-\d{2}$/.test(
-    clean(value)
-  );
+  return /^\d{4}-\d{2}-\d{2}$/.test(clean(value));
 }
 
 function today() {
@@ -97,20 +99,13 @@ function firstDayOfMonth(month) {
 }
 
 function lastDayOfMonth(month) {
-  const [year, monthNumber] =
-    month.split("-").map(Number);
+  const [year, monthNumber] = month.split("-").map(Number);
 
   const date = new Date(
-    Date.UTC(
-      year,
-      monthNumber,
-      0
-    )
+    Date.UTC(year, monthNumber, 0)
   );
 
-  return date
-    .toISOString()
-    .slice(0, 10);
+  return date.toISOString().slice(0, 10);
 }
 
 function money(value) {
@@ -138,10 +133,7 @@ function nonNegativeNumber(value) {
 function nonNegativeInteger(value) {
   const n = Number(value);
 
-  if (
-    !Number.isInteger(n) ||
-    n < 0
-  ) {
+  if (!Number.isInteger(n) || n < 0) {
     return null;
   }
 
@@ -178,9 +170,7 @@ function calculateStatus(
   paidAmount,
   requestedStatus
 ) {
-  if (
-    requestedStatus === "cancelled"
-  ) {
+  if (requestedStatus === "cancelled") {
     return "cancelled";
   }
 
@@ -196,13 +186,234 @@ function calculateStatus(
     return "partially_paid";
   }
 
-  if (
-    requestedStatus === "overdue"
-  ) {
+  if (requestedStatus === "overdue") {
     return "overdue";
   }
 
   return requestedStatus || "open";
+}
+
+/* =========================================================
+   Migration 007
+   قواعد الفوترة
+========================================================= */
+
+async function getBillingSettings(db) {
+  try {
+    const row = await db
+      .prepare(`
+        SELECT
+          id,
+          billing_day,
+          default_due_day,
+          currency,
+          count_scheduled_sessions,
+          count_completed_sessions,
+          count_cancelled_sessions,
+          charge_cancelled_sessions,
+          create_cycle_automatically,
+          calculate_sessions_automatically,
+          issue_invoice_automatically,
+          send_invoice_notification,
+          active
+        FROM billing_settings
+        WHERE id = 1
+        LIMIT 1
+      `)
+      .first();
+
+    return (
+      row || {
+        id: 1,
+        billing_day: 1,
+        default_due_day: 7,
+        currency: "EGP",
+        count_scheduled_sessions: 1,
+        count_completed_sessions: 1,
+        count_cancelled_sessions: 0,
+        charge_cancelled_sessions: 0,
+        create_cycle_automatically: 1,
+        calculate_sessions_automatically: 1,
+        issue_invoice_automatically: 1,
+        send_invoice_notification: 1,
+        active: 1,
+      }
+    );
+  } catch {
+    return {
+      id: 1,
+      billing_day: 1,
+      default_due_day: 7,
+      currency: "EGP",
+      count_scheduled_sessions: 1,
+      count_completed_sessions: 1,
+      count_cancelled_sessions: 0,
+      charge_cancelled_sessions: 0,
+      create_cycle_automatically: 1,
+      calculate_sessions_automatically: 1,
+      issue_invoice_automatically: 1,
+      send_invoice_notification: 1,
+      active: 1,
+    };
+  }
+}
+
+async function getBillingMonthRules(db) {
+  try {
+    const row = await db
+      .prepare(`
+        SELECT
+          id,
+          cycle_anchor,
+          period_type,
+          new_student_starts_next_month,
+          calculate_price_before_start,
+          notify_student_before_cycle,
+          active
+        FROM billing_month_rules
+        WHERE id = 1
+        LIMIT 1
+      `)
+      .first();
+
+    return (
+      row || {
+        id: 1,
+        cycle_anchor: "first_day_of_month",
+        period_type: "calendar_month",
+        new_student_starts_next_month: 1,
+        calculate_price_before_start: 0,
+        notify_student_before_cycle: 1,
+        active: 1,
+      }
+    );
+  } catch {
+    return {
+      id: 1,
+      cycle_anchor: "first_day_of_month",
+      period_type: "calendar_month",
+      new_student_starts_next_month: 1,
+      calculate_price_before_start: 0,
+      notify_student_before_cycle: 1,
+      active: 1,
+    };
+  }
+}
+
+async function getStudentBillingSettings(db, studentId) {
+  try {
+    return await db
+      .prepare(`
+        SELECT
+          id,
+          student_id,
+          billing_start_date,
+          billing_day,
+          due_day,
+          billing_mode,
+          count_from_new_month,
+          active
+        FROM student_billing_settings
+        WHERE student_id = ?1
+        LIMIT 1
+      `)
+      .bind(studentId)
+      .first();
+  } catch {
+    return null;
+  }
+}
+
+async function getStudentBillingStart(
+  db,
+  studentId,
+  subscriptionId,
+  billingMonth
+) {
+  try {
+    let row;
+
+    if (subscriptionId) {
+      row = await db
+        .prepare(`
+          SELECT
+            id,
+            student_id,
+            subscription_id,
+            billing_start_date,
+            first_billing_month,
+            status
+          FROM student_billing_starts
+          WHERE student_id = ?1
+            AND subscription_id = ?2
+            AND status = 'active'
+          ORDER BY id DESC
+          LIMIT 1
+        `)
+        .bind(studentId, subscriptionId)
+        .first();
+    } else {
+      row = await db
+        .prepare(`
+          SELECT
+            id,
+            student_id,
+            subscription_id,
+            billing_start_date,
+            first_billing_month,
+            status
+          FROM student_billing_starts
+          WHERE student_id = ?1
+            AND subscription_id IS NULL
+            AND status = 'active'
+          ORDER BY id DESC
+          LIMIT 1
+        `)
+        .bind(studentId)
+        .first();
+    }
+
+    if (!row) {
+      return null;
+    }
+
+    if (
+      validMonth(row.first_billing_month) &&
+      row.first_billing_month > billingMonth
+    ) {
+      return {
+        ...row,
+        not_started: true,
+      };
+    }
+
+    return row;
+  } catch {
+    return null;
+  }
+}
+
+function isBillingMonthAllowed({
+  billingMonth,
+  startMonth,
+  newStudentStartsNextMonth,
+}) {
+  if (!startMonth) {
+    return true;
+  }
+
+  if (!validMonth(startMonth)) {
+    return true;
+  }
+
+  if (
+    newStudentStartsNextMonth &&
+    billingMonth < startMonth
+  ) {
+    return false;
+  }
+
+  return billingMonth >= startMonth;
 }
 
 /* =========================================================
@@ -262,57 +473,55 @@ async function getBillingCycle(
   db,
   billingCycleId
 ) {
-  const cycle =
-    await db
-      .prepare(`
-        SELECT
-          bc.*,
+  const cycle = await db
+    .prepare(`
+      SELECT
+        bc.*,
 
-          st.full_name AS student_name,
+        st.full_name AS student_name,
 
-          sub.package_id,
-          sub.circle_id,
-          sub.status AS subscription_status
+        sub.package_id,
+        sub.circle_id,
+        sub.status AS subscription_status
 
-        FROM billing_cycles bc
+      FROM billing_cycles bc
 
-        JOIN students st
-          ON st.id = bc.student_id
+      JOIN students st
+        ON st.id = bc.student_id
 
-        LEFT JOIN subscriptions sub
-          ON sub.id = bc.subscription_id
+      LEFT JOIN subscriptions sub
+        ON sub.id = bc.subscription_id
 
-        WHERE bc.id = ?1
+      WHERE bc.id = ?1
 
-        LIMIT 1
-      `)
-      .bind(billingCycleId)
-      .first();
+      LIMIT 1
+    `)
+    .bind(billingCycleId)
+    .first();
 
   if (!cycle) {
     return null;
   }
 
-  const items =
-    await db
-      .prepare(`
-        SELECT
-          id,
-          billing_cycle_id,
-          item_type,
-          description,
-          quantity,
-          unit_price,
-          amount,
-          reference_type,
-          reference_id,
-          created_at
-        FROM billing_cycle_items
-        WHERE billing_cycle_id = ?1
-        ORDER BY id ASC
-      `)
-      .bind(billingCycleId)
-      .all();
+  const items = await db
+    .prepare(`
+      SELECT
+        id,
+        billing_cycle_id,
+        item_type,
+        description,
+        quantity,
+        unit_price,
+        amount,
+        reference_type,
+        reference_id,
+        created_at
+      FROM billing_cycle_items
+      WHERE billing_cycle_id = ?1
+      ORDER BY id ASC
+    `)
+    .bind(billingCycleId)
+    .all();
 
   return {
     ...cycle,
@@ -324,9 +533,7 @@ async function getBillingCycle(
    GET
 ========================================================= */
 
-export async function onRequestGet(
-  context
-) {
+export async function onRequestGet(context) {
   const db = context.env?.DB;
 
   if (!db) {
@@ -343,20 +550,14 @@ export async function onRequestGet(
     url.searchParams.get("id");
 
   const studentId =
-    url.searchParams.get(
-      "student_id"
-    );
+    url.searchParams.get("student_id");
 
   const subscriptionId =
-    url.searchParams.get(
-      "subscription_id"
-    );
+    url.searchParams.get("subscription_id");
 
   const billingMonth =
     clean(
-      url.searchParams.get(
-        "billing_month"
-      )
+      url.searchParams.get("billing_month")
     );
 
   const status =
@@ -499,9 +700,7 @@ export async function onRequestGet(
    POST
 ========================================================= */
 
-export async function onRequestPost(
-  context
-) {
+export async function onRequestPost(context) {
   const db = context.env?.DB;
 
   if (!db) {
@@ -541,25 +740,25 @@ export async function onRequestPost(
     data.subscriptionId;
 
   const subscriptionId =
-    subscriptionValue ===
-      undefined ||
-    subscriptionValue ===
-      null ||
+    subscriptionValue === undefined ||
+    subscriptionValue === null ||
     subscriptionValue === ""
       ? null
-      : Number(
-          subscriptionValue
-        );
+      : Number(subscriptionValue);
 
-  const billingMonth =
+  const requestedBillingMonth =
     clean(
       data.billing_month ??
         data.billingMonth
-    ) || currentMonth();
+    );
+
+  const billingMonth =
+    requestedBillingMonth ||
+    currentMonth();
 
   const currency =
     clean(data.currency)
-      .toUpperCase() || "EGP";
+      .toUpperCase();
 
   const requestedStatus =
     clean(
@@ -588,9 +787,7 @@ export async function onRequestPost(
   }
 
   const statusError =
-    validateStatus(
-      requestedStatus
-    );
+    validateStatus(requestedStatus);
 
   if (statusError) {
     return errorResponse(
@@ -704,7 +901,8 @@ export async function onRequestPost(
     clean(
       data.period_start ??
         data.periodStart
-    ) || firstDayOfMonth(
+    ) ||
+    firstDayOfMonth(
       billingMonth
     );
 
@@ -712,21 +910,18 @@ export async function onRequestPost(
     clean(
       data.period_end ??
         data.periodEnd
-    ) || lastDayOfMonth(
+    ) ||
+    lastDayOfMonth(
       billingMonth
     );
 
-  if (
-    !validDate(periodStart)
-  ) {
+  if (!validDate(periodStart)) {
     return errorResponse(
       "INVALID_PERIOD_START"
     );
   }
 
-  if (
-    !validDate(periodEnd)
-  ) {
+  if (!validDate(periodEnd)) {
     return errorResponse(
       "INVALID_PERIOD_END"
     );
@@ -738,60 +933,13 @@ export async function onRequestPost(
     );
   }
 
-  const totalAmount =
-    calculateTotal({
-      packageAmount,
-      sessionAmount,
-      discountAmount,
-      exemptionAmount,
-      fineAmount,
-    });
-
-  if (paidAmount > totalAmount) {
-    return errorResponse(
-      "PAID_AMOUNT_EXCEEDS_TOTAL",
-      409
-    );
-  }
-
-  const remainingAmount =
-    money(
-      Math.max(
-        0,
-        totalAmount - paidAmount
-      )
-    );
-
-  const finalStatus =
-    calculateStatus(
-      totalAmount,
-      paidAmount,
-      requestedStatus
-    );
-
-  const issuedAt =
-    data.issued_at ??
-    data.issuedAt ??
-    null;
-
-  const dueAt =
-    data.due_at ??
-    data.dueAt ??
-    null;
-
-  const paidAt =
-    paidAmount >= totalAmount &&
-    totalAmount > 0
-      ? now()
-      : nullable(
-          data.paid_at ??
-            data.paidAt
-        );
-
-  const notes =
-    nullable(data.notes);
-
   try {
+    const settings =
+      await getBillingSettings(db);
+
+    const monthRules =
+      await getBillingMonthRules(db);
+
     const student =
       await getStudent(
         db,
@@ -805,10 +953,10 @@ export async function onRequestPost(
       );
     }
 
-    if (
-      subscriptionId !== null
-    ) {
-      const subscription =
+    let subscription = null;
+
+    if (subscriptionId !== null) {
+      subscription =
         await getSubscription(
           db,
           subscriptionId
@@ -832,6 +980,156 @@ export async function onRequestPost(
         );
       }
     }
+
+    const studentSettings =
+      await getStudentBillingSettings(
+        db,
+        studentId
+      );
+
+    const billingStart =
+      await getStudentBillingStart(
+        db,
+        studentId,
+        subscriptionId,
+        billingMonth
+      );
+
+    if (
+      billingStart?.not_started
+    ) {
+      return errorResponse(
+        "BILLING_MONTH_NOT_STARTED_FOR_STUDENT",
+        409,
+        {
+          first_billing_month:
+            billingStart.first_billing_month,
+        }
+      );
+    }
+
+    const configuredStartMonth =
+      billingStart?.first_billing_month ||
+      (
+        studentSettings?.billing_start_date
+          ? String(
+              studentSettings.billing_start_date
+            ).slice(0, 7)
+          : null
+      ) ||
+      (
+        subscription?.start_date
+          ? String(
+              subscription.start_date
+            ).slice(0, 7)
+          : null
+      );
+
+    if (
+      monthRules.new_student_starts_next_month &&
+      configuredStartMonth &&
+      billingMonth < configuredStartMonth
+    ) {
+      return errorResponse(
+        "BILLING_MONTH_BEFORE_STUDENT_START",
+        409,
+        {
+          first_billing_month:
+            configuredStartMonth,
+        }
+      );
+    }
+
+    const finalCurrency =
+      currency ||
+      clean(settings.currency).toUpperCase() ||
+      "EGP";
+
+    const totalAmount =
+      calculateTotal({
+        packageAmount,
+        sessionAmount,
+        discountAmount,
+        exemptionAmount,
+        fineAmount,
+      });
+
+    if (paidAmount > totalAmount) {
+      return errorResponse(
+        "PAID_AMOUNT_EXCEEDS_TOTAL",
+        409
+      );
+    }
+
+    const remainingAmount =
+      money(
+        Math.max(
+          0,
+          totalAmount - paidAmount
+        )
+      );
+
+    const finalStatus =
+      calculateStatus(
+        totalAmount,
+        paidAmount,
+        requestedStatus
+      );
+
+    const defaultDueDay =
+      Number(
+        studentSettings?.due_day ??
+          settings.default_due_day ??
+          7
+      );
+
+    const dueDay =
+      Math.min(
+        28,
+        Math.max(
+          1,
+          Number.isInteger(defaultDueDay)
+            ? defaultDueDay
+            : 7
+        )
+      );
+
+    const defaultIssuedAt =
+      settings.issue_invoice_automatically
+        ? now()
+        : null;
+
+    const issuedAt =
+      data.issued_at !== undefined ||
+      data.issuedAt !== undefined
+        ? nullable(
+            data.issued_at ??
+              data.issuedAt
+          )
+        : defaultIssuedAt;
+
+    const dueAt =
+      data.due_at !== undefined ||
+      data.dueAt !== undefined
+        ? nullable(
+            data.due_at ??
+              data.dueAt
+          )
+        : `${billingMonth}-${String(
+            dueDay
+          ).padStart(2, "0")}T23:59:59.000Z`;
+
+    const paidAt =
+      paidAmount >= totalAmount &&
+      totalAmount > 0
+        ? now()
+        : nullable(
+            data.paid_at ??
+              data.paidAt
+          );
+
+    const notes =
+      nullable(data.notes);
 
     const existing =
       await db
@@ -941,7 +1239,7 @@ export async function onRequestPost(
           billingMonth,
           periodStart,
           periodEnd,
-          currency,
+          finalCurrency,
 
           plannedSessions,
           scheduledSessions,
@@ -974,14 +1272,19 @@ export async function onRequestPost(
     const billingCycleId =
       created.meta?.last_row_id;
 
+    if (!billingCycleId) {
+      return errorResponse(
+        "BILLING_CYCLE_CREATE_FAILED",
+        500
+      );
+    }
+
     const items =
       Array.isArray(data.items)
         ? data.items
         : [];
 
-    for (
-      const item of items
-    ) {
+    for (const item of items) {
       if (
         !item ||
         typeof item !== "object"
@@ -1019,9 +1322,7 @@ export async function onRequestPost(
       }
 
       const description =
-        clean(
-          item.description
-        );
+        clean(item.description);
 
       if (!description) {
         return errorResponse(
@@ -1110,18 +1411,16 @@ export async function onRequestPost(
         .run();
     }
 
-    const row =
-      await getBillingCycle(
-        db,
-        billingCycleId
-      );
-
     return json(
       {
         success: true,
         message:
           "BILLING_CYCLE_CREATED_SUCCESSFULLY",
-        data: row,
+        data:
+          await getBillingCycle(
+            db,
+            billingCycleId
+          ),
       },
       201
     );
@@ -1142,9 +1441,7 @@ export async function onRequestPost(
    PATCH
 ========================================================= */
 
-export async function onRequestPatch(
-  context
-) {
+export async function onRequestPatch(context) {
   const db = context.env?.DB;
 
   if (!db) {
@@ -1195,9 +1492,7 @@ export async function onRequestPatch(
           LIMIT 1
         `)
         .bind(
-          Number(
-            billingCycleId
-          )
+          Number(billingCycleId)
         )
         .first();
 
@@ -1209,10 +1504,8 @@ export async function onRequestPatch(
     }
 
     const packageAmount =
-      data.package_amount !==
-        undefined ||
-      data.packageAmount !==
-        undefined
+      data.package_amount !== undefined ||
+      data.packageAmount !== undefined
         ? nonNegativeNumber(
             data.package_amount ??
               data.packageAmount
@@ -1222,10 +1515,8 @@ export async function onRequestPatch(
           );
 
     const sessionAmount =
-      data.session_amount !==
-        undefined ||
-      data.sessionAmount !==
-        undefined
+      data.session_amount !== undefined ||
+      data.sessionAmount !== undefined
         ? nonNegativeNumber(
             data.session_amount ??
               data.sessionAmount
@@ -1235,10 +1526,8 @@ export async function onRequestPatch(
           );
 
     const discountAmount =
-      data.discount_amount !==
-        undefined ||
-      data.discountAmount !==
-        undefined
+      data.discount_amount !== undefined ||
+      data.discountAmount !== undefined
         ? nonNegativeNumber(
             data.discount_amount ??
               data.discountAmount
@@ -1248,10 +1537,8 @@ export async function onRequestPatch(
           );
 
     const exemptionAmount =
-      data.exemption_amount !==
-        undefined ||
-      data.exemptionAmount !==
-        undefined
+      data.exemption_amount !== undefined ||
+      data.exemptionAmount !== undefined
         ? nonNegativeNumber(
             data.exemption_amount ??
               data.exemptionAmount
@@ -1261,10 +1548,8 @@ export async function onRequestPatch(
           );
 
     const fineAmount =
-      data.fine_amount !==
-        undefined ||
-      data.fineAmount !==
-        undefined
+      data.fine_amount !== undefined ||
+      data.fineAmount !== undefined
         ? nonNegativeNumber(
             data.fine_amount ??
               data.fineAmount
@@ -1274,10 +1559,8 @@ export async function onRequestPatch(
           );
 
     const paidAmount =
-      data.paid_amount !==
-        undefined ||
-      data.paidAmount !==
-        undefined
+      data.paid_amount !== undefined ||
+      data.paidAmount !== undefined
         ? nonNegativeNumber(
             data.paid_amount ??
               data.paidAmount
@@ -1383,10 +1666,8 @@ export async function onRequestPatch(
         .bind(
           Number(billingCycleId),
 
-          data.planned_sessions !==
-            undefined ||
-          data.plannedSessions !==
-            undefined
+          data.planned_sessions !== undefined ||
+          data.plannedSessions !== undefined
             ? nonNegativeInteger(
                 data.planned_sessions ??
                   data.plannedSessions
@@ -1395,10 +1676,8 @@ export async function onRequestPatch(
                 current.planned_sessions
               ),
 
-          data.scheduled_sessions !==
-            undefined ||
-          data.scheduledSessions !==
-            undefined
+          data.scheduled_sessions !== undefined ||
+          data.scheduledSessions !== undefined
             ? nonNegativeInteger(
                 data.scheduled_sessions ??
                   data.scheduledSessions
@@ -1407,10 +1686,8 @@ export async function onRequestPatch(
                 current.scheduled_sessions
               ),
 
-          data.completed_sessions !==
-            undefined ||
-          data.completedSessions !==
-            undefined
+          data.completed_sessions !== undefined ||
+          data.completedSessions !== undefined
             ? nonNegativeInteger(
                 data.completed_sessions ??
                   data.completedSessions
@@ -1419,10 +1696,8 @@ export async function onRequestPatch(
                 current.completed_sessions
               ),
 
-          data.cancelled_sessions !==
-            undefined ||
-          data.cancelledSessions !==
-            undefined
+          data.cancelled_sessions !== undefined ||
+          data.cancelledSessions !== undefined
             ? nonNegativeInteger(
                 data.cancelled_sessions ??
                   data.cancelledSessions
@@ -1431,10 +1706,8 @@ export async function onRequestPatch(
                 current.cancelled_sessions
               ),
 
-          data.chargeable_sessions !==
-            undefined ||
-          data.chargeableSessions !==
-            undefined
+          data.chargeable_sessions !== undefined ||
+          data.chargeableSessions !== undefined
             ? nonNegativeInteger(
                 data.chargeable_sessions ??
                   data.chargeableSessions
@@ -1455,20 +1728,16 @@ export async function onRequestPatch(
 
           finalStatus,
 
-          data.issued_at !==
-              undefined ||
-          data.issuedAt !==
-              undefined
+          data.issued_at !== undefined ||
+          data.issuedAt !== undefined
             ? nullable(
                 data.issued_at ??
                   data.issuedAt
               )
             : current.issued_at,
 
-          data.due_at !==
-              undefined ||
-          data.dueAt !==
-              undefined
+          data.due_at !== undefined ||
+          data.dueAt !== undefined
             ? nullable(
                 data.due_at ??
                   data.dueAt
@@ -1476,21 +1745,18 @@ export async function onRequestPatch(
             : current.due_at,
 
           paidAmount >= totalAmount &&
-            totalAmount > 0
+          totalAmount > 0
             ? current.paid_at ||
               now()
-            : data.paid_at !==
-                undefined ||
-              data.paidAt !==
-                undefined
-            ? nullable(
-                data.paid_at ??
-                  data.paidAt
-              )
-            : current.paid_at,
+            : data.paid_at !== undefined ||
+              data.paidAt !== undefined
+              ? nullable(
+                  data.paid_at ??
+                    data.paidAt
+                )
+              : current.paid_at,
 
-          data.notes !==
-            undefined
+          data.notes !== undefined
             ? nullable(data.notes)
             : current.notes,
 
@@ -1534,9 +1800,7 @@ export async function onRequestPatch(
    Router
 ========================================================= */
 
-export async function onRequest(
-  context
-) {
+export async function onRequest(context) {
   switch (
     context.request.method.toUpperCase()
   ) {
