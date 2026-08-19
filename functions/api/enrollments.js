@@ -36,13 +36,10 @@ const ENROLLMENT_STATUSES = [
 ];
 
 function json(data, status = 200) {
-  return new Response(
-    JSON.stringify(data),
-    {
-      status,
-      headers: HEADERS,
-    }
-  );
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: HEADERS,
+  });
 }
 
 function error(message, status = 400, extra = {}) {
@@ -77,8 +74,7 @@ function text(value) {
 }
 
 function normalizeType(value) {
-  const valueText =
-    text(value).toLowerCase();
+  const valueText = text(value).toLowerCase();
 
   if (
     [
@@ -110,14 +106,24 @@ function isActiveEnrollment(status) {
 }
 
 function getCapacity(circle) {
-  return normalizeType(
+  const circleType = normalizeType(
     circle.circle_type
-  ) === "individual"
-    ? 1
-    : Math.max(
-        1,
-        Number(circle.capacity || 1)
-      );
+  );
+
+  if (circleType === "individual") {
+    return 1;
+  }
+
+  const capacity = Number(circle.capacity);
+
+  if (
+    !Number.isInteger(capacity) ||
+    capacity <= 0
+  ) {
+    return null;
+  }
+
+  return capacity;
 }
 
 /* =========================================================
@@ -232,9 +238,7 @@ async function countEnrollments(
       .bind(circleId)
       .first();
 
-  return Number(
-    row?.count || 0
-  );
+  return Number(row?.count || 0);
 }
 
 async function getWaitlistEntry(
@@ -294,10 +298,13 @@ async function validatePackage(
     };
   }
 
-  if (
+  const packageType =
     normalizeType(
       pkg.package_type
-    ) !== circleType
+    );
+
+  if (
+    packageType !== circleType
   ) {
     return {
       error:
@@ -305,17 +312,38 @@ async function validatePackage(
     };
   }
 
+  /*
+   * سعة الحلقة لا يجوز أن تتجاوز
+   * الحد الأعلى المسموح به في الباقة.
+   */
   if (
+    packageType === "group" &&
     pkg.capacity !== null &&
-    pkg.capacity !== undefined &&
-    Number(pkg.capacity) > 0 &&
-    capacity >
-      Number(pkg.capacity)
+    pkg.capacity !== undefined
   ) {
-    return {
-      error:
-        "CIRCLE_CAPACITY_EXCEEDS_PACKAGE_CAPACITY",
-    };
+    const packageCapacity =
+      Number(pkg.capacity);
+
+    if (
+      !Number.isInteger(
+        packageCapacity
+      ) ||
+      packageCapacity <= 0
+    ) {
+      return {
+        error:
+          "INVALID_PACKAGE_CAPACITY",
+      };
+    }
+
+    if (
+      capacity > packageCapacity
+    ) {
+      return {
+        error:
+          "CIRCLE_CAPACITY_EXCEEDS_PACKAGE_CAPACITY",
+      };
+    }
   }
 
   return {
@@ -490,6 +518,36 @@ async function promoteNextStudent(
     return null;
   }
 
+  const student =
+    await getStudent(
+      db,
+      next.student_id
+    );
+
+  if (
+    !student ||
+    (
+      student.status &&
+      student.status !== "active"
+    )
+  ) {
+    await db
+      .prepare(`
+        UPDATE circle_waitlist
+        SET status = 'rejected'
+        WHERE id = ?1
+      `)
+      .bind(next.id)
+      .run();
+
+    await normalizeWaitlist(
+      db,
+      circleId
+    );
+
+    return null;
+  }
+
   const existing =
     await getEnrollment(
       db,
@@ -499,12 +557,6 @@ async function promoteNextStudent(
 
   let enrollment;
 
-  /*
-   * مهم:
-   * لا ننشئ INSERT جديدًا إذا كان للطالب
-   * سجل سابق في الحلقة، لأن الجدول يحتوي:
-   * UNIQUE(circle_id, student_id)
-   */
   if (existing) {
     enrollment =
       await db
@@ -596,6 +648,18 @@ async function syncCircleStatus(
   const capacity =
     getCapacity(circle);
 
+  if (!capacity) {
+    return {
+      count:
+        await countEnrollments(
+          db,
+          circleId
+        ),
+      capacity: null,
+      status: "invalid_capacity",
+    };
+  }
+
   const count =
     await countEnrollments(
       db,
@@ -640,7 +704,8 @@ async function syncCircleStatus(
 export async function onRequestGet(
   context
 ) {
-  const db = context.env?.DB;
+  const db =
+    context.env?.DB;
 
   if (!db) {
     return error(
@@ -774,7 +839,8 @@ export async function onRequestGet(
       data:
         result.results || [],
       count:
-        result.results?.length || 0,
+        result.results?.length ||
+        0,
     });
   } catch (e) {
     console.error(
@@ -796,7 +862,8 @@ export async function onRequestGet(
 export async function onRequestPost(
   context
 ) {
-  const db = context.env?.DB;
+  const db =
+    context.env?.DB;
 
   if (!db) {
     return error(
@@ -863,6 +930,16 @@ export async function onRequestPost(
       );
     }
 
+    if (
+      student.status &&
+      student.status !== "active"
+    ) {
+      return error(
+        "STUDENT_IS_NOT_ACTIVE",
+        409
+      );
+    }
+
     const circle =
       await getCircle(
         db,
@@ -893,8 +970,27 @@ export async function onRequestPost(
         circle.circle_type
       );
 
+    if (
+      circleType !==
+        "individual" &&
+      circleType !==
+        "group"
+    ) {
+      return error(
+        "INVALID_CIRCLE_TYPE",
+        409
+      );
+    }
+
     const capacity =
       getCapacity(circle);
+
+    if (!capacity) {
+      return error(
+        "INVALID_CIRCLE_CAPACITY",
+        409
+      );
+    }
 
     const packageId =
       id(
@@ -949,7 +1045,7 @@ export async function onRequestPost(
 
     /*
      * الحلقة الفردية:
-     * لا يوجد انتظار؛ طالب واحد فقط.
+     * طالب واحد فقط.
      */
     if (
       circleType ===
@@ -964,8 +1060,8 @@ export async function onRequestPost(
 
     /*
      * الحلقة الجماعية:
-     * عند اكتمال العدد يوضع الطالب في
-     * قائمة الانتظار ولا يتم تسجيله داخل الحلقة.
+     * إذا اكتملت السعة، لا ندخل الطالب
+     * إلى الحلقة. نضعه في الانتظار.
      */
     if (
       circleType === "group" &&
@@ -1023,10 +1119,6 @@ export async function onRequestPost(
 
     let enrollment;
 
-    /*
-     * إذا كان هناك سجل سابق:
-     * نعيد تفعيله بدل إنشاء سجل جديد.
-     */
     if (existing) {
       enrollment =
         await db
@@ -1133,7 +1225,8 @@ export async function onRequestPost(
 export async function onRequestPatch(
   context
 ) {
-  const db = context.env?.DB;
+  const db =
+    context.env?.DB;
 
   if (!db) {
     return error(
@@ -1261,6 +1354,91 @@ export async function onRequestPatch(
       );
     }
 
+    /*
+     * إذا كان التسجيل سيصبح فعالًا،
+     * نتحقق من السعة قبل التحديث.
+     */
+    if (
+      isActiveEnrollment(
+        newStatus
+      ) &&
+      !isActiveEnrollment(
+        current.status
+      )
+    ) {
+      const circle =
+        await getCircle(
+          db,
+          current.circle_id
+        );
+
+      if (!circle) {
+        return error(
+          "CIRCLE_NOT_FOUND",
+          404
+        );
+      }
+
+      if (
+        circle.status ===
+          "inactive" ||
+        circle.status ===
+          "archived"
+      ) {
+        return error(
+          "CIRCLE_NOT_AVAILABLE",
+          409
+        );
+      }
+
+      const capacity =
+        getCapacity(circle);
+
+      if (!capacity) {
+        return error(
+          "INVALID_CIRCLE_CAPACITY",
+          409
+        );
+      }
+
+      const count =
+        await countEnrollments(
+          db,
+          current.circle_id
+        );
+
+      if (count >= capacity) {
+        if (
+          normalizeType(
+            circle.circle_type
+          ) === "group"
+        ) {
+          const waitlist =
+            await addToWaitlist(
+              db,
+              current.student_id,
+              current.circle_id
+            );
+
+          return json(
+            {
+              success: true,
+              waitlisted: true,
+              message:
+                "CIRCLE_IS_FULL_STUDENT_ADDED_TO_WAITLIST",
+              data: waitlist,
+            },
+            201
+          );
+        }
+
+        return error(
+          "CIRCLE_IS_FULL",
+          409
+        );
+      }
+    }
+
     const updated =
       await db
         .prepare(`
@@ -1286,10 +1464,6 @@ export async function onRequestPatch(
         )
         .first();
 
-    /*
-     * عند إلغاء أو إكمال التسجيل:
-     * نبحث عن أول طالب في الانتظار.
-     */
     if (
       newStatus ===
         "cancelled" ||
@@ -1306,30 +1480,20 @@ export async function onRequestPatch(
         const capacity =
           getCapacity(circle);
 
-        /*
-         * أولًا نحاول ترقية الطالب التالي.
-         * promoteNextStudent يتعامل مع وجود
-         * سجل سابق أو عدم وجوده.
-         */
-        await promoteNextStudent(
-          db,
-          current.circle_id,
-          capacity
-        );
+        if (capacity) {
+          await promoteNextStudent(
+            db,
+            current.circle_id,
+            capacity
+          );
+        }
 
-        /*
-         * بعد الترقية نعيد حساب حالة الحلقة.
-         */
         await syncCircleStatus(
           db,
           current.circle_id
         );
       }
     } else {
-      /*
-       * في أي تغيير آخر نضمن أن حالة الحلقة
-       * متوافقة مع عدد المسجلين.
-       */
       await syncCircleStatus(
         db,
         current.circle_id
