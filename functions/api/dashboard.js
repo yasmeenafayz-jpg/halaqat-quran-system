@@ -2,16 +2,6 @@
  * الأوَّابين — Dashboard API
  *
  * GET /api/dashboard
- *
- * يعرض ملخصًا سريعًا للنظام:
- * - الطلاب والمعلمات والحلقات
- * - جلسات اليوم
- * - طلبات التسجيل
- * - قائمة الانتظار
- * - الاشتراكات
- * - المدفوعات
- * - الحضور والغياب
- * - الغرامات
  */
 
 const HEADERS = {
@@ -19,38 +9,25 @@ const HEADERS = {
 };
 
 function json(data, status = 200) {
-  return new Response(
-    JSON.stringify(data),
-    {
-      status,
-      headers: HEADERS,
-    }
-  );
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: HEADERS,
+  });
 }
 
 async function count(db, sql) {
-  const row = await db
-    .prepare(sql)
-    .first();
-
+  const row = await db.prepare(sql).first();
   return Number(row?.count || 0);
 }
 
 async function sum(db, sql) {
-  const row = await db
-    .prepare(sql)
-    .first();
-
+  const row = await db.prepare(sql).first();
   return Number(row?.total || 0);
 }
 
 export async function onRequestGet(context) {
   const db = context.env?.DB;
 
-  /*
-   * إذا لم يتم ربط قاعدة البيانات،
-   * لا نكسر التطبيق.
-   */
   if (!db) {
     return json({
       ok: true,
@@ -67,6 +44,10 @@ export async function onRequestGet(context) {
         trial_subscriptions: 0,
         absent_today: 0,
         pending_fines: 0,
+        full_circles: 0,
+        expired_subscriptions: 0,
+        excused_today: 0,
+        late_today: 0,
       },
 
       financial: {
@@ -78,253 +59,137 @@ export async function onRequestGet(context) {
   }
 
   try {
-    const results =
-      await Promise.all([
+    const results = await Promise.all([
 
-        /* =================================================
-           الطلاب النشطون
-        ================================================= */
+      /* الطلاب النشطون */
+      count(
+        db,
+        `
+          SELECT COUNT(*) AS count
+          FROM students
+          WHERE status = 'active'
+        `
+      ),
 
-        count(
-          db,
-          `
-            SELECT COUNT(*) AS count
-            FROM students
-            WHERE status = 'active'
-          `
-        ),
+      /* المعلمون النشطون */
+      count(
+        db,
+        `
+          SELECT COUNT(*) AS count
+          FROM teachers
+          WHERE status = 'active'
+        `
+      ),
 
-        /* =================================================
-           المعلمات النشطات
-        ================================================= */
+      /* الحلقات النشطة */
+      count(
+        db,
+        `
+          SELECT COUNT(*) AS count
+          FROM circles
+          WHERE status = 'active'
+        `
+      ),
 
-        count(
-          db,
-          `
-            SELECT COUNT(*) AS count
-            FROM teachers
-            WHERE status = 'active'
-          `
-        ),
+      /* جلسات اليوم */
+      count(
+        db,
+        `
+          SELECT COUNT(*) AS count
+          FROM sessions
+          WHERE session_date = date('now')
+            AND status != 'cancelled'
+        `
+      ),
 
-        /* =================================================
-           الحلقات النشطة
-        ================================================= */
+      /* طلبات التسجيل المعلقة */
+      count(
+        db,
+        `
+          SELECT COUNT(*) AS count
+          FROM enrollment_requests
+          WHERE status IN (
+            'pending',
+            'introductory'
+          )
+        `
+      ),
 
-        count(
-          db,
-          `
-            SELECT COUNT(*) AS count
-            FROM circles
-            WHERE status = 'active'
-          `
-        ),
+      /* قائمة الانتظار */
+      count(
+        db,
+        `
+          SELECT COUNT(*) AS count
+          FROM circle_waitlist
+          WHERE status = 'waiting'
+        `
+      ),
 
-        /* =================================================
-           جلسات اليوم
-        ================================================= */
+      /* الاشتراكات النشطة */
+      count(
+        db,
+        `
+          SELECT COUNT(*) AS count
+          FROM subscriptions
+          WHERE status = 'active'
+        `
+      ),
 
-        count(
-          db,
-          `
-            SELECT COUNT(*) AS count
-            FROM sessions
-            WHERE session_date = date('now')
-              AND status != 'cancelled'
-          `
-        ),
+      /* التجارب */
+      count(
+        db,
+        `
+          SELECT COUNT(*) AS count
+          FROM subscriptions
+          WHERE status = 'trial'
+        `
+      ),
 
-        /* =================================================
-           طلبات التسجيل المعلقة
-        ================================================= */
+      /* الغياب اليوم */
+      count(
+        db,
+        `
+          SELECT COUNT(*) AS count
+          FROM attendance a
+          INNER JOIN sessions s
+            ON s.id = a.session_id
+          WHERE s.session_date = date('now')
+            AND a.status = 'absent'
+        `
+      ),
 
-        count(
-          db,
-          `
-            SELECT COUNT(*) AS count
-            FROM enrollment_requests
-            WHERE status IN (
-              'pending',
-              'introductory'
-            )
-          `
-        ),
+      /* الغرامات المعلقة */
+      count(
+        db,
+        `
+          SELECT COUNT(*) AS count
+          FROM fines
+          WHERE status = 'pending'
+        `
+      ),
 
-        /* =================================================
-           قائمة الانتظار
-        ================================================= */
-
-        count(
-          db,
-          `
-            SELECT COUNT(*) AS count
-            FROM circle_waitlist
-            WHERE status = 'waiting'
-          `
-        ),
-
-        /* =================================================
-           الاشتراكات النشطة
-        ================================================= */
-
-        count(
-          db,
-          `
-            SELECT COUNT(*) AS count
-            FROM subscriptions
-            WHERE status = 'active'
-          `
-        ),
-
-        /* =================================================
-           التجارب المجانية
-        ================================================= */
-
-        count(
-          db,
-          `
-            SELECT COUNT(*) AS count
-            FROM subscriptions
-            WHERE status = 'trial'
-          `
-        ),
-
-        /* =================================================
-           غياب اليوم
-        ================================================= */
-
-        count(
-          db,
-          `
-            SELECT COUNT(*) AS count
-            FROM attendance a
-            INNER JOIN sessions s
-              ON s.id = a.session_id
-            WHERE s.session_date = date('now')
-              AND a.status = 'absent'
-          `
-        ),
-
-        /* =================================================
-           الغرامات المعلقة
-        ================================================= */
-
-        count(
-          db,
-          `
-            SELECT COUNT(*) AS count
-            FROM fines
-            WHERE status = 'pending'
-          `
-        ),
-
-        /* =================================================
-           مدفوعات اليوم
-        ================================================= */
-
-        sum(
-          db,
-          `
-            SELECT COALESCE(
-              SUM(amount),
-              0
-            ) AS total
-            FROM payments
-            WHERE paid_at >= date('now')
-              AND paid_at < date(
-                'now',
-                '+1 day'
-              )
-              AND status = 'completed'
-          `
-        ),
-
-        /* =================================================
-           مدفوعات الشهر الحالي
-        ================================================= */
-
-        sum(
-          db,
-          `
-            SELECT COALESCE(
-              SUM(amount),
-              0
-            ) AS total
-            FROM payments
-            WHERE paid_at >= date(
+      /* مدفوعات اليوم */
+      sum(
+        db,
+        `
+          SELECT COALESCE(
+            SUM(amount),
+            0
+          ) AS total
+          FROM payments
+          WHERE paid_at >= date('now')
+            AND paid_at < date(
               'now',
-              'start of month'
+              '+1 day'
             )
-              AND paid_at < date(
-                'now',
-                '+1 day'
-              )
-              AND status = 'completed'
-          `
-        ),
+            AND status = 'completed'
+        `
+      ),
 
-        /* =================================================
-           قيمة الغرامات المعلقة
-        ================================================= */
-
-        sum(
-          db,
-          `
-            SELECT COALESCE(
-              SUM(amount),
-              0
-            ) AS total
-            FROM fines
-            WHERE status = 'pending'
-          `
-        ),
-
-        /* =================================================
-           الحلقات الممتلئة
-        ================================================= */
-
-        count(
-          db,
-          `
-            SELECT COUNT(*) AS count
-            FROM circles
-            WHERE status = 'full'
-          `
-        ),
-
-        /* =================================================
-           الاشتراكات المنتهية
-        ================================================= */
-
-        count(
-          db,
-          `
-            SELECT COUNT(*) AS count
-            FROM subscriptions
-            WHERE status = 'expired'
-          `
-        ),
-
-        /* =================================================
-           الغياب المعذور اليوم
-        ================================================= */
-
-        count(
-          db,
-          `
-            SELECT COUNT(*) AS count
-            FROM attendance a
-            INNER JOIN sessions s
-              ON s.id = a.session_id
-            WHERE s.session_date = date('now')
-              AND a.status = 'excused'
-          `
-        ),
-
-        /* =================================================
-           المتأخرون اليوم
-        ================================================= */
-
-        count(
-          db,
-          `
+      /* مدفوعات الشهر */
+      sum(
+        db,
+        `
+          SELECT COALESCE(
+            SUM(amount),
+           
