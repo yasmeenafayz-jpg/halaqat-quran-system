@@ -1,22 +1,14 @@
 PRAGMA foreign_keys = ON;
 
 -- =========================================================
--- 006 PROFESSIONAL SCHEDULING & BILLING
 -- الأوَّابين
---
--- الهدف:
--- 1) أوقات المعلمة المتاحة للحلقات الفردية.
--- 2) طلب الطالب/ولي الأمر للموعد.
--- 3) قبول/رفض المعلمة للموعد.
--- 4) منع حجز نفس الموعد منطقيًا.
--- 5) دورة مالية مستقلة لكل شهر.
--- 6) حساب الجلسات والمبلغ المستحق.
--- 7) ربط المدفوعات بالدورة المالية.
+-- 006_professional_scheduling_and_billing.sql
+-- نظام المواعيد الفردية + الدورة المالية الشهرية
 -- =========================================================
 
 
 -- =========================================================
--- 1. أوقات المعلمة المتاحة
+-- 1) أوقات المعلمة المتاحة للحجز الفردي
 -- =========================================================
 
 CREATE TABLE IF NOT EXISTS teacher_availability_slots (
@@ -24,7 +16,6 @@ CREATE TABLE IF NOT EXISTS teacher_availability_slots (
 
   teacher_id INTEGER NOT NULL,
 
-  -- 0 = الأحد ... 6 = السبت
   weekday INTEGER NOT NULL
     CHECK (weekday BETWEEN 0 AND 6),
 
@@ -42,7 +33,6 @@ CREATE TABLE IF NOT EXISTS teacher_availability_slots (
       )
     ),
 
-  -- يمكن استخدامه لتحديد فترة صلاحية الجدول
   valid_from TEXT,
   valid_until TEXT,
 
@@ -55,7 +45,13 @@ CREATE TABLE IF NOT EXISTS teacher_availability_slots (
     REFERENCES teachers(id)
     ON DELETE CASCADE,
 
-  CHECK (start_time < end_time)
+  CHECK (start_time < end_time),
+
+  CHECK (
+    valid_from IS NULL
+    OR valid_until IS NULL
+    OR valid_from <= valid_until
+  )
 );
 
 CREATE INDEX IF NOT EXISTS idx_teacher_availability_teacher
@@ -77,7 +73,8 @@ ON teacher_availability_slots(
 
 
 -- =========================================================
--- 2. طلبات حجز المواعيد الفردية
+-- 2) طلبات حجز المواعيد الفردية
+-- الطالب أو ولي الأمر يختار موعدًا ويرسله للمعلمة
 -- =========================================================
 
 CREATE TABLE IF NOT EXISTS individual_schedule_requests (
@@ -88,10 +85,7 @@ CREATE TABLE IF NOT EXISTS individual_schedule_requests (
 
   availability_slot_id INTEGER,
 
-  -- الحلقة الفردية إن وجدت
   circle_id INTEGER,
-
-  -- الاشتراك المرتبط بالطلب إن وجد
   subscription_id INTEGER,
 
   requested_date TEXT NOT NULL,
@@ -165,7 +159,7 @@ ON individual_schedule_requests(status);
 
 
 -- =========================================================
--- 3. منع الطلبات المكررة في نفس الوقت
+-- 3) منع طلبين معلقين لنفس المعلمة ونفس الموعد
 -- =========================================================
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_pending_individual_request
@@ -179,7 +173,7 @@ WHERE status = 'pending';
 
 
 -- =========================================================
--- 4. الحجوزات المؤكدة للمواعيد الفردية
+-- 4) الحجوزات المؤكدة للمواعيد الفردية
 -- =========================================================
 
 CREATE TABLE IF NOT EXISTS individual_schedule_bookings (
@@ -265,12 +259,8 @@ WHERE status IN (
 
 
 -- =========================================================
--- 5. الدورة المالية الشهرية
---
--- مثال:
--- 2026-09
---
--- كل طالب/اشتراك له دورة مستقلة لكل شهر.
+-- 5) الدورة المالية الشهرية
+-- مثال: 2026-09
 -- =========================================================
 
 CREATE TABLE IF NOT EXISTS billing_cycles (
@@ -373,9 +363,7 @@ ON billing_cycles(status);
 
 
 -- =========================================================
--- 6. تفاصيل الدورة المالية
---
--- تسمح لنا بعرض سبب المبلغ للطالب/ولي الأمر.
+-- 6) تفاصيل الفاتورة الشهرية
 -- =========================================================
 
 CREATE TABLE IF NOT EXISTS billing_cycle_items (
@@ -419,10 +407,7 @@ ON billing_cycle_items(billing_cycle_id);
 
 
 -- =========================================================
--- 7. ربط المدفوعات بالدورة المالية
---
--- لا نستبدل payments الحالية.
--- نضيف الربط فقط حتى نحتفظ بتاريخ المدفوعات الحالي.
+-- 7) توزيع المدفوعات على الفواتير الشهرية
 -- =========================================================
 
 CREATE TABLE IF NOT EXISTS payment_allocations (
@@ -431,7 +416,7 @@ CREATE TABLE IF NOT EXISTS payment_allocations (
   payment_id INTEGER NOT NULL,
   billing_cycle_id INTEGER NOT NULL,
 
-  amount REAL NOT NULL DEFAULT 0,
+  amount REAL NOT NULL,
 
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -460,9 +445,7 @@ ON payment_allocations(payment_id);
 
 
 -- =========================================================
--- 8. سجل احتساب الجلسات داخل الشهر
---
--- نستخدمه لتثبيت الجلسات التي دخلت في الحساب المالي.
+-- 8) الجلسات التي دخلت فعليًا في الحساب الشهري
 -- =========================================================
 
 CREATE TABLE IF NOT EXISTS billing_session_items (
@@ -495,7 +478,11 @@ CREATE TABLE IF NOT EXISTS billing_session_items (
     REFERENCES students(id)
     ON DELETE CASCADE,
 
-  UNIQUE(billing_cycle_id, session_id, student_id),
+  UNIQUE(
+    billing_cycle_id,
+    session_id,
+    student_id
+  ),
 
   CHECK (amount >= 0)
 );
@@ -511,20 +498,15 @@ ON billing_session_items(session_date);
 
 
 -- =========================================================
--- 9. فهرس سريع للاشتراكات الفردية النشطة
+-- 9) فهارس الاشتراكات والحلقات
 -- =========================================================
 
-CREATE INDEX IF NOT EXISTS idx_subscriptions_individual_active
+CREATE INDEX IF NOT EXISTS idx_subscriptions_student_circle_status
 ON subscriptions(
   student_id,
   circle_id,
   status
 );
-
-
--- =========================================================
--- 10. فهرس سريع للحلقات الفردية
--- =========================================================
 
 CREATE INDEX IF NOT EXISTS idx_circles_individual_teacher
 ON circles(
@@ -535,5 +517,5 @@ ON circles(
 
 
 -- =========================================================
--- نهاية 006
+-- نهاية Migration 006
 -- =========================================================
