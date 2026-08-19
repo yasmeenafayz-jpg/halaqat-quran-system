@@ -53,7 +53,6 @@ function createToken() {
 
 async function sha256(value) {
   const data = new TextEncoder().encode(value);
-
   const hash = await crypto.subtle.digest("SHA-256", data);
 
   return Array.from(new Uint8Array(hash))
@@ -118,10 +117,10 @@ async function getCurrentUser(request, env) {
         s.revoked_at,
 
         u.id,
-        u.username,
-        u.email,
-        u.full_name,
         u.role,
+        u.full_name,
+        u.phone,
+        u.email,
         u.status
 
       FROM auth_sessions s
@@ -130,6 +129,7 @@ async function getCurrentUser(request, env) {
         ON u.id = s.user_id
 
       WHERE s.session_token_hash = ?
+
       LIMIT 1
       `
     )
@@ -144,7 +144,7 @@ async function getCurrentUser(request, env) {
     return null;
   }
 
-  if (result.status && result.status !== "active") {
+  if (result.status !== "active") {
     return null;
   }
 
@@ -161,10 +161,10 @@ async function getCurrentUser(request, env) {
 
   return {
     id: result.id,
-    username: result.username,
-    email: result.email,
-    full_name: result.full_name,
     role: result.role,
+    full_name: result.full_name,
+    phone: result.phone,
+    email: result.email,
     status: result.status,
     session_id: result.session_id,
   };
@@ -176,6 +176,7 @@ async function requireAuth(request, env) {
   if (!user) {
     return {
       ok: false,
+
       response: json(
         {
           success: false,
@@ -199,8 +200,12 @@ async function getPermissionState(db, user) {
   const roleRows = await db
     .prepare(
       `
-      SELECT permission_key, allowed
+      SELECT
+        permission_key,
+        allowed
+
       FROM role_permissions
+
       WHERE role = ?
       `
     )
@@ -208,14 +213,21 @@ async function getPermissionState(db, user) {
     .all();
 
   for (const row of roleRows.results || []) {
-    permissions.set(row.permission_key, Number(row.allowed) === 1);
+    permissions.set(
+      row.permission_key,
+      Number(row.allowed) === 1
+    );
   }
 
   const userRows = await db
     .prepare(
       `
-      SELECT permission_key, allowed
+      SELECT
+        permission_key,
+        allowed
+
       FROM user_permissions
+
       WHERE user_id = ?
       `
     )
@@ -223,7 +235,10 @@ async function getPermissionState(db, user) {
     .all();
 
   for (const row of userRows.results || []) {
-    permissions.set(row.permission_key, Number(row.allowed) === 1);
+    permissions.set(
+      row.permission_key,
+      Number(row.allowed) === 1
+    );
   }
 
   return permissions;
@@ -234,16 +249,24 @@ async function hasPermission(db, user, permission) {
     return false;
   }
 
+  // المدير لديه جميع الصلاحيات.
   if (user.role === "admin") {
     return true;
   }
 
-  const permissions = await getPermissionState(db, user);
+  const permissions = await getPermissionState(
+    db,
+    user
+  );
 
   return permissions.get(permission) === true;
 }
 
-async function requirePermission(request, env, permission) {
+async function requirePermission(
+  request,
+  env,
+  permission
+) {
   const auth = await requireAuth(request, env);
 
   if (!auth.ok) {
@@ -259,11 +282,13 @@ async function requirePermission(request, env, permission) {
   if (!allowed) {
     return {
       ok: false,
+
       response: json(
         {
           success: false,
           error: "FORBIDDEN",
-          message: "ليس لديك صلاحية لتنفيذ هذه العملية.",
+          message:
+            "ليس لديك صلاحية لتنفيذ هذه العملية.",
         },
         403
       ),
@@ -290,11 +315,13 @@ async function requireRole(request, env, roles) {
   if (!allowedRoles.includes(auth.user.role)) {
     return {
       ok: false,
+
       response: json(
         {
           success: false,
           error: "FORBIDDEN",
-          message: "هذا الإجراء غير مسموح لدور المستخدم الحالي.",
+          message:
+            "هذا الإجراء غير مسموح لدور المستخدم الحالي.",
         },
         403
       ),
@@ -307,19 +334,22 @@ async function requireRole(request, env, roles) {
   };
 }
 
-async function createSession(request, env, userId) {
+async function createSession(
+  request,
+  env,
+  userId
+) {
   const db = env?.DB;
 
   if (!db) {
-    throw new Error("Database binding DB is not configured.");
+    throw new Error(
+      "Database binding DB is not configured."
+    );
   }
 
   const token = createToken();
   const tokenHash = await sha256(token);
   const expiresAt = addDays(SESSION_DAYS);
-
-  const ipAddress = getClientIp(request);
-  const userAgent = getUserAgent(request);
 
   await db
     .prepare(
@@ -331,6 +361,7 @@ async function createSession(request, env, userId) {
         ip_address,
         user_agent
       )
+
       VALUES (?, ?, ?, ?, ?)
       `
     )
@@ -338,8 +369,8 @@ async function createSession(request, env, userId) {
       userId,
       tokenHash,
       expiresAt,
-      ipAddress,
-      userAgent
+      getClientIp(request),
+      getUserAgent(request)
     )
     .run();
 
@@ -350,14 +381,22 @@ async function createSession(request, env, userId) {
   };
 }
 
-async function destroySession(request, env) {
+async function destroySession(
+  request,
+  env
+) {
   const db = env?.DB;
 
   if (!db) {
-    throw new Error("Database binding DB is not configured.");
+    throw new Error(
+      "Database binding DB is not configured."
+    );
   }
 
-  const token = getCookie(request, SESSION_COOKIE);
+  const token = getCookie(
+    request,
+    SESSION_COOKIE
+  );
 
   if (token) {
     const tokenHash = await sha256(token);
@@ -366,7 +405,9 @@ async function destroySession(request, env) {
       .prepare(
         `
         UPDATE auth_sessions
+
         SET revoked_at = CURRENT_TIMESTAMP
+
         WHERE session_token_hash = ?
         `
       )
@@ -392,22 +433,13 @@ async function writeAudit(
     return;
   }
 
-  const ipAddress = request
-    ? getClientIp(request)
-    : null;
-
-  const userAgent = request
-    ? getUserAgent(request)
-    : null;
-
-  let metadataJson = null;
-
-  if (metadata !== null && metadata !== undefined) {
-    metadataJson =
-      typeof metadata === "string"
+  const metadataJson =
+    metadata === null ||
+    metadata === undefined
+      ? null
+      : typeof metadata === "string"
         ? metadata
         : JSON.stringify(metadata);
-  }
 
   await env.DB
     .prepare(
@@ -421,6 +453,7 @@ async function writeAudit(
         user_agent,
         metadata
       )
+
       VALUES (?, ?, ?, ?, ?, ?, ?)
       `
     )
@@ -429,8 +462,12 @@ async function writeAudit(
       action,
       entity,
       entityId,
-      ipAddress,
-      userAgent,
+      request
+        ? getClientIp(request)
+        : null,
+      request
+        ? getUserAgent(request)
+        : null,
       metadataJson
     )
     .run();
