@@ -103,11 +103,13 @@ CREATE TABLE IF NOT EXISTS student_billing_settings (
     CHECK (due_day BETWEEN 1 AND 28),
 
   billing_mode TEXT NOT NULL DEFAULT 'monthly'
-    CHECK (billing_mode IN (
-      'monthly',
-      'per_session',
-      'manual'
-    )),
+    CHECK (
+      billing_mode IN (
+        'monthly',
+        'per_session',
+        'manual'
+      )
+    ),
 
   count_from_new_month INTEGER NOT NULL DEFAULT 1
     CHECK (count_from_new_month IN (0, 1)),
@@ -129,7 +131,7 @@ CREATE INDEX IF NOT EXISTS idx_student_billing_settings_student
 ON student_billing_settings(student_id);
 
 -- =========================================================
--- 3. تسجيل بداية المحاسبة للطالب
+-- 3. تسجيل بداية المحاسبة للطالب والاشتراك
 -- =========================================================
 
 CREATE TABLE IF NOT EXISTS student_billing_starts (
@@ -144,10 +146,12 @@ CREATE TABLE IF NOT EXISTS student_billing_starts (
   first_billing_month TEXT NOT NULL,
 
   status TEXT NOT NULL DEFAULT 'active'
-    CHECK (status IN (
-      'active',
-      'cancelled'
-    )),
+    CHECK (
+      status IN (
+        'active',
+        'cancelled'
+      )
+    ),
 
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -163,21 +167,29 @@ CREATE TABLE IF NOT EXISTS student_billing_starts (
   CHECK (
     first_billing_month GLOB
     '[0-9][0-9][0-9][0-9]-[0-9][0-9]'
+  ),
+
+  CHECK (
+    billing_start_date GLOB
+    '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
   )
 );
 
 CREATE INDEX IF NOT EXISTS idx_student_billing_starts_student
 ON student_billing_starts(student_id);
 
+CREATE INDEX IF NOT EXISTS idx_student_billing_starts_subscription
+ON student_billing_starts(subscription_id);
+
 CREATE INDEX IF NOT EXISTS idx_student_billing_starts_month
 ON student_billing_starts(first_billing_month);
 
-CREATE UNIQUE INDEX IF NOT EXISTS uq_active_student_billing_start
+CREATE UNIQUE INDEX IF NOT EXISTS uq_student_billing_start_subscription_month
 ON student_billing_starts(
   student_id,
-  subscription_id
-)
-WHERE status = 'active';
+  subscription_id,
+  first_billing_month
+);
 
 -- =========================================================
 -- 4. سجل عمليات دورة الفوترة
@@ -189,21 +201,25 @@ CREATE TABLE IF NOT EXISTS billing_cycle_runs (
   billing_month TEXT NOT NULL,
 
   run_type TEXT NOT NULL
-    CHECK (run_type IN (
-      'create_cycles',
-      'calculate_sessions',
-      'issue_invoices',
-      'send_notifications',
-      'close_cycles',
-      'manual'
-    )),
+    CHECK (
+      run_type IN (
+        'create_cycles',
+        'calculate_sessions',
+        'issue_invoices',
+        'send_notifications',
+        'close_cycles',
+        'manual'
+      )
+    ),
 
   status TEXT NOT NULL DEFAULT 'started'
-    CHECK (status IN (
-      'started',
-      'completed',
-      'failed'
-    )),
+    CHECK (
+      status IN (
+        'started',
+        'completed',
+        'failed'
+      )
+    ),
 
   started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -215,7 +231,12 @@ CREATE TABLE IF NOT EXISTS billing_cycle_runs (
 
   error_message TEXT,
 
-  notes TEXT
+  notes TEXT,
+
+  CHECK (
+    billing_month GLOB
+    '[0-9][0-9][0-9][0-9]-[0-9][0-9]'
+  )
 );
 
 CREATE INDEX IF NOT EXISTS idx_billing_cycle_runs_month
@@ -224,15 +245,20 @@ ON billing_cycle_runs(billing_month);
 CREATE INDEX IF NOT EXISTS idx_billing_cycle_runs_status
 ON billing_cycle_runs(status);
 
--- =========================================================
--- 5. ضمان عدم تكرار تشغيل نفس العملية لنفس الشهر
--- =========================================================
+CREATE INDEX IF NOT EXISTS idx_billing_cycle_runs_type
+ON billing_cycle_runs(run_type);
 
-CREATE UNIQUE INDEX IF NOT EXISTS uq_billing_cycle_run_month_type
-ON billing_cycle_runs(
-  billing_month,
-  run_type
-);
+-- =========================================================
+-- 5. السماح بإعادة تشغيل العمليات الفاشلة
+-- =========================================================
+--
+-- لا يوجد UNIQUE على billing_month + run_type.
+--
+-- السبب:
+-- يمكن تشغيل العملية مرة أخرى إذا فشلت.
+-- السجل يحتفظ بتاريخ كل محاولة.
+--
+-- =========================================================
 
 -- =========================================================
 -- 6. تحسين فهارس الدورة المالية
@@ -250,11 +276,23 @@ ON billing_cycles(
   status
 );
 
+CREATE INDEX IF NOT EXISTS idx_billing_cycles_subscription_month
+ON billing_cycles(
+  subscription_id,
+  billing_month
+);
+
 CREATE INDEX IF NOT EXISTS idx_billing_session_items_cycle_student
 ON billing_session_items(
   billing_cycle_id,
   student_id
 );
+
+CREATE INDEX IF NOT EXISTS idx_billing_session_items_session
+ON billing_session_items(session_id);
+
+CREATE INDEX IF NOT EXISTS idx_billing_session_items_date
+ON billing_session_items(session_date);
 
 -- =========================================================
 -- 7. سجل إشعارات الفواتير
@@ -268,29 +306,35 @@ CREATE TABLE IF NOT EXISTS billing_notifications (
   recipient_user_id INTEGER,
 
   notification_type TEXT NOT NULL
-    CHECK (notification_type IN (
-      'invoice_issued',
-      'payment_reminder',
-      'payment_received',
-      'overdue',
-      'invoice_updated'
-    )),
+    CHECK (
+      notification_type IN (
+        'invoice_issued',
+        'payment_reminder',
+        'payment_received',
+        'overdue',
+        'invoice_updated'
+      )
+    ),
 
   channel TEXT NOT NULL
-    CHECK (channel IN (
-      'in_app',
-      'telegram',
-      'email',
-      'sms'
-    )),
+    CHECK (
+      channel IN (
+        'in_app',
+        'telegram',
+        'email',
+        'sms'
+      )
+    ),
 
   status TEXT NOT NULL DEFAULT 'pending'
-    CHECK (status IN (
-      'pending',
-      'sent',
-      'failed',
-      'cancelled'
-    )),
+    CHECK (
+      status IN (
+        'pending',
+        'sent',
+        'failed',
+        'cancelled'
+      )
+    ),
 
   message TEXT,
 
@@ -313,8 +357,11 @@ ON billing_notifications(billing_cycle_id);
 CREATE INDEX IF NOT EXISTS idx_billing_notifications_status
 ON billing_notifications(status);
 
+CREATE INDEX IF NOT EXISTS idx_billing_notifications_recipient
+ON billing_notifications(recipient_user_id);
+
 -- =========================================================
--- 8. View احترافية للدورة المالية الحالية
+-- 8. View للدورة المالية الحالية
 -- =========================================================
 
 DROP VIEW IF EXISTS current_billing_cycles;
@@ -386,7 +433,7 @@ WHERE bsi.session_date >=
       date('now', 'start of month', '+1 month');
 
 -- =========================================================
--- 10. View للرصيد المالي الحالي
+-- 10. View للرصيد المالي الحالي لكل طالب
 -- =========================================================
 
 DROP VIEW IF EXISTS current_student_balances;
@@ -474,5 +521,13 @@ VALUES (
 );
 
 -- =========================================================
--- نهاية Migration 007
+-- 12. حماية من وجود أكثر من إعداد مالي نشط للطالب
+-- =========================================================
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_active_student_billing_settings
+ON student_billing_settings(student_id)
+WHERE active = 1;
+
+-- =========================================================
+-- 13. نهاية Migration 007
 -- =========================================================
