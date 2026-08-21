@@ -1,83 +1,22 @@
-import { get, post } from "./lib/api.js";
+import { get, post, put, remove } from "./lib/api.js";
 
 const NAVIGATION = [
-  {
-    id: "dashboard",
-    title: "الرئيسية",
-    subtitle: "لوحة المؤشرات"
-  },
-  {
-    id: "students",
-    title: "الطلاب",
-    subtitle: "ملفات الطلاب وولي الأمر"
-  },
-  {
-    id: "teachers",
-    title: "المعلمات",
-    subtitle: "الملف المهني والجدول"
-  },
-  {
-    id: "circles",
-    title: "الحلقات",
-    subtitle: "فردية وجماعية والسعة"
-  },
-  {
-    id: "quran",
-    title: "المصحف والورد",
-    subtitle: "الحفظ والمراجعة والتمكين"
-  },
-  {
-    id: "attendance",
-    title: "الحضور",
-    subtitle: "الحضور والغياب والتنبيهات"
-  },
-  {
-    id: "calendar",
-    title: "التقويم",
-    subtitle: "اليومي والأسبوعي والشهري والسنوي"
-  },
-  {
-    id: "subscriptions",
-    title: "الباقات والاشتراكات",
-    subtitle: "الأسعار والسعات والاشتراكات"
-  },
-  {
-    id: "finance",
-    title: "المالية",
-    subtitle: "المدفوعات والمتأخرات"
-  },
-  {
-    id: "tests",
-    title: "الاختبارات",
-    subtitle: "التقييم والنتيجة التراكمية"
-  },
-  {
-    id: "communications",
-    title: "التواصل",
-    subtitle: "WhatsApp وFacebook وTelegram"
-  },
-  {
-    id: "reports",
-    title: "التقارير",
-    subtitle: "التقارير التعليمية والمالية"
-  },
-  {
-    id: "settings",
-    title: "الإعدادات",
-    subtitle: "الصلاحيات والتكاملات والنسخ الاحتياطي"
-  }
+  { id: "dashboard", title: "الرئيسية", subtitle: "لوحة المؤشرات" },
+  { id: "students", title: "الطلاب", subtitle: "ملفات الطلاب وولي الأمر" },
+  { id: "teachers", title: "المعلمات", subtitle: "الملف المهني والجدول" },
+  { id: "circles", title: "الحلقات", subtitle: "فردية وجماعية والسعة" },
+  { id: "quran", title: "المصحف والورد", subtitle: "الحفظ والمراجعة والتمكين" },
+  { id: "attendance", title: "الحضور", subtitle: "الحضور والغياب والتنبيهات" },
+  { id: "calendar", title: "التقويم", subtitle: "اليومي والأسبوعي والشهري والسنوي" },
+  { id: "subscriptions", title: "الباقات والاشتراكات", subtitle: "الأسعار والسعات والاشتراكات" },
+  { id: "finance", title: "المالية", subtitle: "المدفوعات والمتأخرات" },
+  { id: "tests", title: "الاختبارات", subtitle: "التقييم والنتيجة التراكمية" },
+  { id: "communications", title: "التواصل", subtitle: "WhatsApp وFacebook وTelegram" },
+  { id: "reports", title: "التقارير", subtitle: "التقارير التعليمية والمالية" },
+  { id: "settings", title: "الإعدادات", subtitle: "الصلاحيات والتكاملات والنسخ الاحتياطي" }
 ];
 
 const FEATURES = {
-  students: [
-    ["ملف الطالب", "البيانات الشخصية والتعليمية والاشتراك والتقدم."],
-    ["ولي الأمر", "بيانات ولي الأمر ووسائل التواصل والصلاحيات."],
-    ["سجل الطالب", "الحضور والورد والاختبارات والمدفوعات."],
-    ["استيراد البيانات", "إضافة الطلاب جماعيًا من ملفات CSV."],
-    ["حساب الطالب", "بوابة خاصة بالطالب لعرض بياناته."],
-    ["بوابة ولي الأمر", "الحضور والورد والتقارير والتنبيهات."]
-  ],
-
   teachers: [
     ["الملف المهني", "التخصص والخبرة والمؤهلات والمواد التي تدرسها المعلمة."],
     ["جدول المعلمة", "عرض يومي وأسبوعي وشهري وسنوي."],
@@ -183,38 +122,25 @@ const FEATURES = {
 function escapeHtml(value) {
   return String(value ?? "").replace(
     /[&<>"']/g,
-    character =>
+    char =>
       ({
         "&": "&amp;",
         "<": "&lt;",
         ">": "&gt;",
         '"': "&quot;",
         "'": "&#039;"
-      })[character]
+      })[char]
   );
 }
 
 function getStudentName(student) {
-  return (
-    student?.full_name ||
-    student?.name ||
-    "بدون اسم"
-  );
+  return student?.full_name || student?.name || "بدون اسم";
 }
 
 function getStudentsFromResponse(response) {
-  if (Array.isArray(response)) {
-    return response;
-  }
-
-  if (Array.isArray(response?.data)) {
-    return response.data;
-  }
-
-  if (Array.isArray(response?.students)) {
-    return response.students;
-  }
-
+  if (Array.isArray(response)) return response;
+  if (Array.isArray(response?.data)) return response.data;
+  if (Array.isArray(response?.students)) return response.students;
   return [];
 }
 
@@ -230,11 +156,7 @@ export class App {
   }
 
   navigate(page) {
-    if (
-      NAVIGATION.some(
-        item => item.id === page
-      )
-    ) {
+    if (NAVIGATION.some(item => item.id === page)) {
       this.currentPage = page;
     }
 
@@ -243,9 +165,8 @@ export class App {
 
   renderShell() {
     const current =
-      NAVIGATION.find(
-        item => item.id === this.currentPage
-      ) || NAVIGATION[0];
+      NAVIGATION.find(item => item.id === this.currentPage) ||
+      NAVIGATION[0];
 
     this.root.innerHTML = `
       <div class="app-shell">
@@ -253,37 +174,25 @@ export class App {
         <aside class="sidebar" id="sidebar">
 
           <div class="brand">
-            <div class="brand-title">
-              الأوَّابين
-            </div>
-
+            <div class="brand-title">الأوَّابين</div>
             <div class="brand-subtitle">
               أكاديمية القرآن الكريم
             </div>
           </div>
 
           <nav class="main-navigation">
-
             ${NAVIGATION.map(item => `
               <button
                 type="button"
                 class="nav-item ${
-                  item.id === this.currentPage
-                    ? "active"
-                    : ""
+                  item.id === this.currentPage ? "active" : ""
                 }"
                 data-page="${item.id}"
               >
-                <span>
-                  ${escapeHtml(item.title)}
-                </span>
-
-                <small>
-                  ${escapeHtml(item.subtitle)}
-                </small>
+                <span>${escapeHtml(item.title)}</span>
+                <small>${escapeHtml(item.subtitle)}</small>
               </button>
             `).join("")}
-
           </nav>
 
         </aside>
@@ -302,13 +211,8 @@ export class App {
             </button>
 
             <div class="page-heading">
-              <h1>
-                ${escapeHtml(current.title)}
-              </h1>
-
-              <small>
-                ${escapeHtml(current.subtitle)}
-              </small>
+              <h1>${escapeHtml(current.title)}</h1>
+              <small>${escapeHtml(current.subtitle)}</small>
             </div>
 
             <div class="topbar-user">
@@ -317,10 +221,7 @@ export class App {
 
           </header>
 
-          <section
-            id="pageContent"
-            class="page-content"
-          ></section>
+          <section id="pageContent" class="page-content"></section>
 
         </main>
 
@@ -332,77 +233,39 @@ export class App {
   }
 
   bindNavigation() {
-    this.root
-      .querySelectorAll("[data-page]")
-      .forEach(button => {
-        button.addEventListener(
-          "click",
-          () => {
-            this.navigate(
-              button.dataset.page
-            );
-          }
-        );
+    this.root.querySelectorAll("[data-page]").forEach(button => {
+      button.addEventListener("click", () => {
+        this.navigate(button.dataset.page);
       });
+    });
 
-    const mobileMenu =
-      this.root.querySelector(
-        "#mobileMenu"
-      );
+    const mobileMenu = this.root.querySelector("#mobileMenu");
+    const sidebar = this.root.querySelector("#sidebar");
 
-    const sidebar =
-      this.root.querySelector(
-        "#sidebar"
-      );
-
-    mobileMenu?.addEventListener(
-      "click",
-      () => {
-        sidebar?.classList.toggle(
-          "open"
-        );
-      }
-    );
+    mobileMenu?.addEventListener("click", () => {
+      sidebar?.classList.toggle("open");
+    });
   }
 
   async renderPage() {
-    const container =
-      this.root.querySelector(
-        "#pageContent"
-      );
+    const container = this.root.querySelector("#pageContent");
 
-    if (!container) {
+    if (!container) return;
+
+    if (this.currentPage === "dashboard") {
+      await this.renderDashboard(container);
       return;
     }
 
-    if (
-      this.currentPage ===
-      "dashboard"
-    ) {
-      await this.renderDashboard(
-        container
-      );
+    if (this.currentPage === "students") {
+      await this.renderStudents(container);
       return;
     }
 
-    if (
-      this.currentPage ===
-      "students"
-    ) {
-      await this.renderStudents(
-        container
-      );
-      return;
-    }
-
-    this.renderModule(
-      container
-    );
+    this.renderModule(container);
   }
 
-  async renderDashboard(
-    container
-  ) {
+  async renderDashboard(container) {
     container.innerHTML = `
       <section class="dashboard-hero">
 
@@ -422,24 +285,15 @@ export class App {
 
         <div class="hero-actions">
 
-          <button
-            type="button"
-            data-page="students"
-          >
+          <button type="button" data-page="students">
             إضافة طالب
           </button>
 
-          <button
-            type="button"
-            data-page="calendar"
-          >
+          <button type="button" data-page="calendar">
             جدولة جلسة
           </button>
 
-          <button
-            type="button"
-            data-page="quran"
-          >
+          <button type="button" data-page="quran">
             تسجيل ورد
           </button>
 
@@ -454,42 +308,24 @@ export class App {
           "المعلمات",
           "الحلقات المفتوحة",
           "جلسات اليوم"
-        ]
-          .map(
-            (title, index) => `
-              <article class="stat-card">
-
-                <span>
-                  ${title}
-                </span>
-
-                <strong
-                  id="stat-${index}"
-                >
-                  —
-                </strong>
-
-              </article>
-            `
-          )
-          .join("")}
+        ].map((title, index) => `
+          <article class="stat-card">
+            <span>${title}</span>
+            <strong id="stat-${index}">—</strong>
+          </article>
+        `).join("")}
 
       </section>
 
       <section class="content-card">
 
         <div class="section-heading">
-
           <div>
-            <h3>
-              مركز التنبيهات
-            </h3>
-
+            <h3>مركز التنبيهات</h3>
             <p>
               أهم الأحداث التي تحتاج إلى متابعة.
             </p>
           </div>
-
         </div>
 
         <div class="empty-state">
@@ -499,26 +335,14 @@ export class App {
       </section>
     `;
 
-    container
-      .querySelectorAll(
-        "[data-page]"
-      )
-      .forEach(button => {
-        button.addEventListener(
-          "click",
-          () => {
-            this.navigate(
-              button.dataset.page
-            );
-          }
-        );
+    container.querySelectorAll("[data-page]").forEach(button => {
+      button.addEventListener("click", () => {
+        this.navigate(button.dataset.page);
       });
+    });
 
     try {
-      const response =
-        await get(
-          "/dashboard"
-        );
+      const response = await get("/dashboard");
 
       const counts =
         response?.counts ||
@@ -532,39 +356,26 @@ export class App {
         counts.today ?? 0
       ];
 
-      values.forEach(
-        (value, index) => {
-          const element =
-            container.querySelector(
-              `#stat-${index}`
-            );
+      values.forEach((value, index) => {
+        const element = container.querySelector(`#stat-${index}`);
 
-          if (element) {
-            element.textContent =
-              value;
-          }
+        if (element) {
+          element.textContent = value;
         }
-      );
+      });
 
       const status =
-        container.querySelector(
-          "#connectionStatus"
-        );
+        container.querySelector("#connectionStatus");
 
       if (status) {
         status.textContent =
           "النظام متصل بقاعدة البيانات.";
       }
     } catch (error) {
-      console.error(
-        "DASHBOARD_LOAD_FAILED",
-        error
-      );
+      console.error("DASHBOARD_LOAD_FAILED", error);
 
       const status =
-        container.querySelector(
-          "#connectionStatus"
-        );
+        container.querySelector("#connectionStatus");
 
       if (status) {
         status.textContent =
@@ -573,18 +384,14 @@ export class App {
     }
   }
 
-  async renderStudents(
-    container
-  ) {
+  async renderStudents(container) {
     container.innerHTML = `
       <section class="content-card">
 
         <div class="section-heading">
 
           <div>
-            <span class="eyebrow">
-              الطلاب
-            </span>
+            <span class="eyebrow">الطلاب</span>
 
             <h2>
               إدارة ملفات الطلاب
@@ -622,10 +429,7 @@ export class App {
           aria-live="polite"
         ></div>
 
-        <div
-          id="studentsList"
-          class="feature-grid"
-        >
+        <div id="studentsList" class="feature-grid">
           <div class="empty-state">
             جاري تحميل الطلاب...
           </div>
@@ -635,59 +439,28 @@ export class App {
     `;
 
     container
-      .querySelector(
-        "#addStudentButton"
-      )
-      ?.addEventListener(
-        "click",
-        () => {
-          this.renderStudentForm(
-            container
-          );
-        }
-      );
+      .querySelector("#addStudentButton")
+      ?.addEventListener("click", () => {
+        this.renderStudentForm(container);
+      });
 
     container
-      .querySelector(
-        "#studentSearch"
-      )
-      ?.addEventListener(
-        "input",
-        event => {
-          this.filterStudents(
-            container,
-            event.target.value
-          );
-        }
-      );
+      .querySelector("#studentSearch")
+      ?.addEventListener("input", event => {
+        this.filterStudents(container, event.target.value);
+      });
 
     try {
-      const response =
-        await get(
-          "/students"
-        );
+      const response = await get("/students");
 
-      this.students =
-        getStudentsFromResponse(
-          response
-        );
+      this.students = getStudentsFromResponse(response);
 
-      this.renderStudentList(
-        container,
-        this.students
-      );
+      this.renderStudentList(container, this.students);
     } catch (error) {
-      console.error(
-        "STUDENTS_LOAD_FAILED",
-        error
-      );
-
-      this.students = [];
+      console.error("STUDENTS_LOAD_FAILED", error);
 
       const list =
-        container.querySelector(
-          "#studentsList"
-        );
+        container.querySelector("#studentsList");
 
       if (list) {
         list.innerHTML = `
@@ -695,8 +468,7 @@ export class App {
             تعذر تحميل الطلاب حاليًا.
             <br>
             ${escapeHtml(
-              error?.message ||
-                "REQUEST_FAILED"
+              error?.message || "REQUEST_FAILED"
             )}
           </div>
         `;
@@ -704,64 +476,40 @@ export class App {
     }
   }
 
-  filterStudents(
-    container,
-    searchTerm
-  ) {
-    const term =
-      String(
-        searchTerm || ""
-      )
-        .trim()
-        .toLowerCase();
+  filterStudents(container, searchTerm) {
+    const term = String(searchTerm || "")
+      .trim()
+      .toLowerCase();
 
     if (!term) {
-      this.renderStudentList(
-        container,
-        this.students
-      );
+      this.renderStudentList(container, this.students);
       return;
     }
 
-    const filtered =
-      this.students.filter(
-        student => {
-          const searchable = [
-            student?.full_name,
-            student?.student_code,
-            student?.phone,
-            student?.guardian_name,
-            student?.guardian_phone,
-            student?.email
-          ]
-            .filter(Boolean)
-            .join(" ")
-            .toLowerCase();
+    const filtered = this.students.filter(student => {
+      const searchable = [
+        student?.full_name,
+        student?.student_code,
+        student?.phone,
+        student?.guardian_name,
+        student?.guardian_phone,
+        student?.email
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
 
-          return searchable.includes(
-            term
-          );
-        }
-      );
+      return searchable.includes(term);
+    });
 
-    this.renderStudentList(
-      container,
-      filtered
-    );
+    this.renderStudentList(container, filtered);
   }
 
-  renderStudentList(
-    container,
-    students
-  ) {
+  renderStudentList(container, students) {
     const list =
-      container.querySelector(
-        "#studentsList"
-      );
+      container.querySelector("#studentsList");
 
-    if (!list) {
-      return;
-    }
+    if (!list) return;
 
     if (!students.length) {
       list.innerHTML = `
@@ -769,96 +517,61 @@ export class App {
           لا يوجد طلاب مطابقون للبحث.
         </div>
       `;
-
       return;
     }
 
-    list.innerHTML =
-      students
-        .map(
-          student => `
-            <article class="feature-card">
+    list.innerHTML = students.map(student => `
+      <article class="feature-card">
 
-              <div class="feature-icon">
-                👤
-              </div>
+        <div class="feature-icon">
+          👤
+        </div>
 
-              <h3>
-                ${escapeHtml(
-                  getStudentName(
-                    student
-                  )
-                )}
-              </h3>
+        <h3>
+          ${escapeHtml(getStudentName(student))}
+        </h3>
 
-              <p>
-                كود الطالب:
-                ${escapeHtml(
-                  student?.student_code ||
-                    "—"
-                )}
-              </p>
+        <p>
+          كود الطالب:
+          ${escapeHtml(student?.student_code || "—")}
+        </p>
 
-              <p>
-                الهاتف:
-                ${escapeHtml(
-                  student?.phone ||
-                    "—"
-                )}
-              </p>
+        <p>
+          الهاتف:
+          ${escapeHtml(student?.phone || "—")}
+        </p>
 
-              <p>
-                الحالة:
-                ${escapeHtml(
-                  student?.status ||
-                    "—"
-                )}
-              </p>
+        <p>
+          الحالة:
+          ${escapeHtml(student?.status || "—")}
+        </p>
 
-              <button
-                type="button"
-                class="secondary-button"
-                data-student-id="${
-                  student?.id ?? ""
-                }"
-              >
-                فتح الملف
-              </button>
+        <button
+          type="button"
+          class="secondary-button"
+          data-student-id="${escapeHtml(student?.id || "")}"
+        >
+          فتح الملف
+        </button>
 
-            </article>
-          `
-        )
-        .join("");
+      </article>
+    `).join("");
 
-    list
-      .querySelectorAll(
-        "[data-student-id]"
-      )
-      .forEach(button => {
-        button.addEventListener(
-          "click",
-          () => {
-            this.showStudentDetails(
-              container,
-              button.dataset
-                .studentId
-            );
-          }
+    list.querySelectorAll("[data-student-id]").forEach(button => {
+      button.addEventListener("click", () => {
+        this.showStudentDetails(
+          container,
+          button.dataset.studentId
         );
       });
+    });
   }
 
-  renderStudentForm(
-    container
-  ) {
+  renderStudentForm(container) {
     const list =
-      container.querySelector(
-        "#studentsList"
-      );
+      container.querySelector("#studentsList");
 
-    if (!list) {
-      return;
-    }
+    if (!list) return;
 
     list.innerHTML = `
       <article class="feature-card">
@@ -867,10 +580,7 @@ export class App {
           إضافة طالب جديد
         </h3>
 
-        <form
-          id="studentForm"
-          class="student-form"
-        >
+        <form id="studentForm" class="student-form">
 
           <label>
             الاسم الكامل
@@ -901,9 +611,7 @@ export class App {
 
           <label>
             اسم ولي الأمر
-            <input
-              name="guardian_name"
-            />
+            <input name="guardian_name" />
           </label>
 
           <label>
@@ -924,9 +632,7 @@ export class App {
 
           <label>
             المستوى التعليمي
-            <input
-              name="educational_level"
-            />
+            <input name="educational_level" />
           </label>
 
           <label>
@@ -962,124 +668,79 @@ export class App {
     `;
 
     list
-      .querySelector(
-        "#cancelStudent"
-      )
-      ?.addEventListener(
-        "click",
-        () => {
-          this.renderStudents(
-            container
-          );
-        }
-      );
+      .querySelector("#cancelStudent")
+      ?.addEventListener("click", () => {
+        this.renderStudents(container);
+      });
 
     list
-      .querySelector(
-        "#studentForm"
-      )
-      ?.addEventListener(
-        "submit",
-        async event => {
-          event.preventDefault();
+      .querySelector("#studentForm")
+      ?.addEventListener("submit", async event => {
+        event.preventDefault();
 
-          const form =
-            event.currentTarget;
+        const form = event.currentTarget;
+        const submitButton =
+          form.querySelector("[type='submit']");
 
-          const submitButton =
-            form.querySelector(
-              "[type='submit']"
+        const formData = new FormData(form);
+        const payload = Object.fromEntries(
+          formData.entries()
+        );
+
+        payload.full_name =
+          String(payload.full_name || "").trim();
+
+        if (!payload.full_name) {
+          return;
+        }
+
+        if (submitButton) {
+          submitButton.disabled = true;
+          submitButton.textContent = "جاري الحفظ...";
+        }
+
+        try {
+          await post("/students", payload);
+
+          await this.renderStudents(container);
+        } catch (error) {
+          console.error(
+            "STUDENT_CREATE_FAILED",
+            error
+          );
+
+          const message =
+            container.querySelector(
+              "#studentMessage"
             );
 
-          const formData =
-            new FormData(form);
-
-          const payload =
-            Object.fromEntries(
-              formData.entries()
-            );
-
-          payload.full_name =
-            String(
-              payload.full_name ||
-                ""
-            ).trim();
-
-          if (!payload.full_name) {
-            return;
+          if (message) {
+            message.textContent =
+              `تعذر حفظ الطالب: ${
+                error?.message || "REQUEST_FAILED"
+              }`;
           }
 
           if (submitButton) {
-            submitButton.disabled =
-              true;
-
-            submitButton.textContent =
-              "جاري الحفظ...";
-          }
-
-          try {
-            await post(
-              "/students",
-              payload
-            );
-
-            await this.renderStudents(
-              container
-            );
-          } catch (error) {
-            console.error(
-              "STUDENT_CREATE_FAILED",
-              error
-            );
-
-            const message =
-              container.querySelector(
-                "#studentMessage"
-              );
-
-            if (message) {
-              message.textContent =
-                `تعذر حفظ الطالب: ${
-                  error?.message ||
-                  "REQUEST_FAILED"
-                }`;
-            }
-
-            if (submitButton) {
-              submitButton.disabled =
-                false;
-
-              submitButton.textContent =
-                "حفظ الطالب";
-            }
+            submitButton.disabled = false;
+            submitButton.textContent = "حفظ الطالب";
           }
         }
-      );
+      });
   }
 
-  showStudentDetails(
-    container,
-    studentId
-  ) {
-    const student =
-      this.students.find(
-        item =>
-          String(item?.id) ===
-          String(studentId)
-      );
+  showStudentDetails(container, studentId) {
+    const student = this.students.find(
+      item =>
+        String(item?.id) === String(studentId)
+    );
 
-    if (!student) {
-      return;
-    }
+    if (!student) return;
 
     const list =
-      container.querySelector(
-        "#studentsList"
-      );
+      container.querySelector("#studentsList");
 
-    if (!list) {
-      return;
-    }
+    if (!list) return;
 
     list.innerHTML = `
       <article class="feature-card">
@@ -1089,83 +750,54 @@ export class App {
         </span>
 
         <h3>
-          ${escapeHtml(
-            getStudentName(
-              student
-            )
-          )}
+          ${escapeHtml(getStudentName(student))}
         </h3>
 
         <p>
           كود الطالب:
-          ${escapeHtml(
-            student?.student_code ||
-              "—"
-          )}
+          ${escapeHtml(student?.student_code || "—")}
         </p>
 
         <p>
           الهاتف:
-          ${escapeHtml(
-            student?.phone ||
-              "—"
-          )}
+          ${escapeHtml(student?.phone || "—")}
         </p>
 
         <p>
           البريد:
-          ${escapeHtml(
-            student?.email ||
-              "—"
-          )}
+          ${escapeHtml(student?.email || "—")}
         </p>
 
         <p>
           ولي الأمر:
-          ${escapeHtml(
-            student?.guardian_name ||
-              "—"
-          )}
+          ${escapeHtml(student?.guardian_name || "—")}
         </p>
 
         <p>
           هاتف ولي الأمر:
-          ${escapeHtml(
-            student?.guardian_phone ||
-              "—"
-          )}
+          ${escapeHtml(student?.guardian_phone || "—")}
         </p>
 
         <p>
           الدولة:
-          ${escapeHtml(
-            student?.country ||
-              "—"
-          )}
+          ${escapeHtml(student?.country || "—")}
         </p>
 
         <p>
           المستوى:
           ${escapeHtml(
-            student?.educational_level ||
-              "—"
+            student?.educational_level || "—"
           )}
         </p>
 
         <p>
           الحالة:
-          ${escapeHtml(
-            student?.status ||
-              "—"
-          )}
+          ${escapeHtml(student?.status || "—")}
         </p>
 
         <p>
           الملاحظات:
-          ${escapeHtml(
-            student?.notes ||
-              "—"
-          )}
+          ${escapeHtml(student?.notes || "—")}
         </p>
 
         <button
@@ -1180,33 +812,20 @@ export class App {
     `;
 
     list
-      .querySelector(
-        "#backStudents"
-      )
-      ?.addEventListener(
-        "click",
-        () => {
-          this.renderStudents(
-            container
-          );
-        }
-      );
+      .querySelector("#backStudents")
+      ?.addEventListener("click", () => {
+        this.renderStudents(container);
+      });
   }
 
-  renderModule(
-    container
-  ) {
+  renderModule(container) {
     const page =
       NAVIGATION.find(
-        item =>
-          item.id ===
-          this.currentPage
+        item => item.id === this.currentPage
       ) || NAVIGATION[0];
 
     const features =
-      FEATURES[
-        this.currentPage
-      ] || [];
+      FEATURES[this.currentPage] || [];
 
     container.innerHTML = `
       <section class="content-card">
@@ -1215,22 +834,15 @@ export class App {
 
           <div>
             <span class="eyebrow">
-              ${escapeHtml(
-                page.title
-              )}
+              ${escapeHtml(page.title)}
             </span>
 
             <h2>
-              ${escapeHtml(
-                page.subtitle
-              )}
+              ${escapeHtml(page.subtitle)}
             </h2>
 
             <p>
-              إدارة
-              ${escapeHtml(
-                page.title
-              )}
+              إدارة ${escapeHtml(page.title)}
               داخل نظام الأوَّابين.
             </p>
           </div>
@@ -1246,38 +858,32 @@ export class App {
 
         <div class="feature-grid">
 
-          ${features
-            .map(
-              ([title, description]) => `
-                <article class="feature-card">
+          ${features.map(
+            ([title, description]) => `
+              <article class="feature-card">
 
-                  <div class="feature-icon">
-                    ✓
-                  </div>
+                <div class="feature-icon">
+                  ✓
+                </div>
 
-                  <h3>
-                    ${escapeHtml(
-                      title
-                    )}
-                  </h3>
+                <h3>
+                  ${escapeHtml(title)}
+                </h3>
 
-                  <p>
-                    ${escapeHtml(
-                      description
-                    )}
-                  </p>
+                <p>
+                  ${escapeHtml(description)}
+                </p>
 
-                  <button
-                    type="button"
-                    class="secondary-button"
-                  >
-                    فتح الوحدة
-                  </button>
+                <button
+                  type="button"
+                  class="secondary-button"
+                >
+                  فتح الوحدة
+                </button>
 
-                </article>
-              `
-            )
-            .join("")}
+              </article>
+            `
+          ).join("")}
 
         </div>
 
