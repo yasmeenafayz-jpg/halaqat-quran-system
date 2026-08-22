@@ -1,16 +1,35 @@
+// =========================================================
+// الأوَّابين — Quran Progress API
+// functions/api/quran-progress.js
+// =========================================================
+
 import {
   requireAuth,
+  requirePermission,
   json,
-  badRequest,
-  notFound
 } from "./_auth.js";
 
-function getDb(env) {
-  if (!env?.DB) {
-    throw new Error("DATABASE_NOT_CONFIGURED");
-  }
+function badRequest(message) {
+  return json(
+    {
+      success: false,
+      error: "BAD_REQUEST",
+      message,
+    },
+    400
+  );
+}
 
-  return env.DB;
+function serverError(message, details = null) {
+  return json(
+    {
+      success: false,
+      error: "SERVER_ERROR",
+      message,
+      ...(details ? { details } : {}),
+    },
+    500
+  );
 }
 
 function normalizeActivityType(value) {
@@ -19,7 +38,7 @@ function normalizeActivityType(value) {
     "review",
     "memorization_review",
     "tamkeen",
-    "cumulative_recitation"
+    "cumulative_recitation",
   ];
 
   return allowed.includes(value) ? value : null;
@@ -38,369 +57,569 @@ function calculateAyahCount(fromAyah, toAyah) {
   return null;
 }
 
-export async function onRequestGet(context) {
-  try {
-    const auth = await requireAuth(context);
-    const db = getDb(context.env);
+function getStudentId(user, requestedId) {
+  if (
+    requestedId !== undefined &&
+    requestedId !== null &&
+    requestedId !== ""
+  ) {
+    const id = Number(requestedId);
 
-    const url = new URL(context.request.url);
-
-    const studentId =
-      url.searchParams.get("student_id") ||
-      auth.user?.student_id ||
-      auth.user?.studentId;
-
-    if (!studentId) {
-      return badRequest("student_id is required");
+    if (Number.isInteger(id) && id > 0) {
+      return id;
     }
 
+    return null;
+  }
+
+  if (user?.student_id) {
+    return Number(user.student_id);
+  }
+
+  if (user?.studentId) {
+    return Number(user.studentId);
+  }
+
+  return null;
+}
+
+async function canManageProgress(request, env) {
+  const auth = await requireAuth(request, env);
+
+  if (!auth.ok) {
+    return auth;
+  }
+
+  const management = await requirePermission(
+    request,
+    env,
+    "quran.progress.manage"
+  );
+
+  if (management.ok) {
+    return management;
+  }
+
+  /*
+   * السماح للمدير والمعلم بإدارة سجل الورد
+   * حتى لا نعتمد على صلاحية غير موجودة مسبقًا.
+   */
+  if (
+    auth.user.role === "admin" ||
+    auth.user.role === "teacher"
+  ) {
+    return auth;
+  }
+
+  return management;
+}
+
+export async function onRequestGet(context) {
+  const { request, env } = context;
+
+  try {
+    const auth = await requireAuth(request, env);
+
+    if (!auth.ok) {
+      return auth.response;
+    }
+
+    const url = new URL(request.url);
+
+    const requestedStudentId =
+      url.searchParams.get("student_id");
+
+    const studentId = getStudentId(
+      auth.user,
+      requestedStudentId
+    );
+
+    if (!studentId) {
+      return badRequest(
+        "يجب تحديد الطالب."
+      );
+    }
+
+    /*
+     * الطالب يستطيع رؤية سجله فقط.
+     * الإدارة والمعلم يستطيعان الوصول إلى طالب محدد.
+     */
+    if (
+      requestedStudentId &&
+      Number(requestedStudentId) !==
+        Number(auth.user.student_id) &&
+      auth.user.role !== "admin" &&
+      auth.user.role !== "teacher"
+    ) {
+      return json(
+        {
+          success: false,
+          error: "FORBIDDEN",
+          message:
+            "لا يمكنك الوصول إلى سجل طالب آخر.",
+        },
+        403
+      );
+    }
+
+    const limitRaw =
+      Number(url.searchParams.get("limit")) || 50;
+
+    const offsetRaw =
+      Number(url.searchParams.get("offset")) || 0;
+
     const limit = Math.min(
-      Math.max(Number(url.searchParams.get("limit") || 50), 1),
+      Math.max(limitRaw, 1),
       200
     );
 
     const offset = Math.max(
-      Number(url.searchParams.get("offset") || 0),
+      offsetRaw,
       0
     );
 
-    const activityType = url.searchParams.get("activity_type");
+    const activityType =
+      url.searchParams.get(
+        "activity_type"
+      );
 
-    const params = [Number(studentId)];
-    let where = "student_id = ?";
+    const normalizedActivityType =
+      activityType
+        ? normalizeActivityType(activityType)
+        : null;
 
-    if (activityType) {
-      const normalized = normalizeActivityType(activityType);
-
-      if (!normalized) {
-        return badRequest("Invalid activity_type");
-      }
-
-      where += " AND activity_type = ?";
-      params.push(normalized);
-    }
-
-    const result = await db
-      .prepare(
-        `
-        SELECT
-          id,
-          student_id,
-          session_id,
-          level_id,
-          activity_type,
-          surah_number,
-          surah_name,
-          from_ayah,
-          to_ayah,
-          amount_label,
-          amount_value,
-          quality_score,
-          teacher_note,
-          recorded_at
-        FROM quran_progress
-        WHERE ${where}
-        ORDER BY recorded_at DESC, id DESC
-        LIMIT ? OFFSET ?
-        `
-      )
-      .bind(...params, limit, offset)
-      .all();
-
-    const summary = await db
-      .prepare(
-        `
-        SELECT
-          student_id,
-          memorized_juz_count,
-          cumulative_score,
-          current_path_id,
-          current_level_id,
-          updated_at
-        FROM student_progress_summary
-        WHERE student_id = ?
-        LIMIT 1
-        `
-      )
-      .bind(Number(studentId))
-      .first();
-
-    return json({
-      data: result.results || [],
-      summary: summary || {
-        student_id: Number(studentId),
-        memorized_juz_count: 0,
-        cumulative_score: 0,
-        current_path_id: null,
-        current_level_id: null,
-        updated_at: null
-      },
-      pagination: {
-        limit,
-        offset,
-        count: result.results?.length || 0
-      }
-    });
-  } catch (error) {
-    if (error?.status) {
-      return json(
-        {
-          error: error.message || "Unauthorized"
-        },
-        error.status
+    if (
+      activityType &&
+      !normalizedActivityType
+    ) {
+      return badRequest(
+        "نوع النشاط غير صحيح."
       );
     }
 
-    return json(
-      {
-        error: "Failed to load Quran progress",
-        details: error?.message || "Unknown error"
+    let query = `
+      SELECT
+        id,
+        student_id,
+        session_id,
+        level_id,
+        activity_type,
+        surah_number,
+        surah_name,
+        from_ayah,
+        to_ayah,
+        amount_label,
+        amount_value,
+        quality_score,
+        teacher_note,
+        recorded_at
+      FROM quran_progress
+      WHERE student_id = ?
+    `;
+
+    const bindings = [studentId];
+
+    if (normalizedActivityType) {
+      query += `
+        AND activity_type = ?
+      `;
+
+      bindings.push(
+        normalizedActivityType
+      );
+    }
+
+    query += `
+      ORDER BY recorded_at DESC, id DESC
+      LIMIT ? OFFSET ?
+    `;
+
+    bindings.push(
+      limit,
+      offset
+    );
+
+    const progressResult = await env.DB
+      .prepare(query)
+      .bind(...bindings)
+      .all();
+
+    const summary =
+      await env.DB
+        .prepare(`
+          SELECT
+            id,
+            student_id,
+            memorized_juz_count,
+            cumulative_score,
+            current_path_id,
+            current_level_id,
+            updated_at
+          FROM student_progress_summary
+          WHERE student_id = ?
+          LIMIT 1
+        `)
+        .bind(studentId)
+        .first();
+
+    return json({
+      success: true,
+      data:
+        progressResult.results || [],
+      summary:
+        summary || {
+          student_id: studentId,
+          memorized_juz_count: 0,
+          cumulative_score: 0,
+          current_path_id: null,
+          current_level_id: null,
+          updated_at: null,
+        },
+      pagination: {
+        limit,
+        offset,
+        count:
+          progressResult.results?.length ||
+          0,
       },
-      500
+    });
+  } catch (error) {
+    return serverError(
+      "تعذر تحميل سجل الورد.",
+      error?.message
     );
   }
 }
 
 export async function onRequestPost(context) {
+  const { request, env } = context;
+
   try {
-    const auth = await requireAuth(context);
-    const db = getDb(context.env);
+    const management =
+      await canManageProgress(
+        request,
+        env
+      );
 
-    const body = await context.request
-      .json()
-      .catch(() => null);
-
-    if (!body || typeof body !== "object") {
-      return badRequest("Invalid JSON body");
+    if (!management.ok) {
+      return management.response;
     }
 
-    const studentId = Number(
-      body.student_id ||
-        auth.user?.student_id ||
-        auth.user?.studentId
-    );
-
-    if (!Number.isInteger(studentId) || studentId <= 0) {
-      return badRequest("Valid student_id is required");
-    }
-
-    const activityType = normalizeActivityType(
-      body.activity_type
-    );
-
-    if (!activityType) {
-      return badRequest("Invalid activity_type");
-    }
-
-    const surahNumber = Number(body.surah_number);
+    const body =
+      await request
+        .json()
+        .catch(() => null);
 
     if (
-      !Number.isInteger(surahNumber) ||
+      !body ||
+      typeof body !== "object"
+    ) {
+      return badRequest(
+        "بيانات الطلب غير صحيحة."
+      );
+    }
+
+    const studentId =
+      getStudentId(
+        management.user,
+        body.student_id
+      );
+
+    if (!studentId) {
+      return badRequest(
+        "يجب تحديد الطالب."
+      );
+    }
+
+    const activityType =
+      normalizeActivityType(
+        body.activity_type
+      );
+
+    if (!activityType) {
+      return badRequest(
+        "نوع نشاط الورد غير صحيح."
+      );
+    }
+
+    const surahNumber =
+      Number(body.surah_number);
+
+    if (
+      !Number.isInteger(
+        surahNumber
+      ) ||
       surahNumber < 1 ||
       surahNumber > 114
     ) {
-      return badRequest("surah_number must be between 1 and 114");
+      return badRequest(
+        "رقم السورة يجب أن يكون بين 1 و114."
+      );
     }
 
     const fromAyah =
-      body.from_ayah == null
+      body.from_ayah === null ||
+      body.from_ayah === undefined ||
+      body.from_ayah === ""
         ? null
         : Number(body.from_ayah);
 
     const toAyah =
-      body.to_ayah == null
+      body.to_ayah === null ||
+      body.to_ayah === undefined ||
+      body.to_ayah === ""
         ? null
         : Number(body.to_ayah);
 
     if (
       fromAyah !== null &&
-      (!Number.isInteger(fromAyah) || fromAyah <= 0)
+      (
+        !Number.isInteger(
+          fromAyah
+        ) ||
+        fromAyah < 1
+      )
     ) {
-      return badRequest("Invalid from_ayah");
+      return badRequest(
+        "بداية الآيات غير صحيحة."
+      );
     }
 
     if (
       toAyah !== null &&
-      (!Number.isInteger(toAyah) || toAyah < fromAyah)
+      (
+        !Number.isInteger(
+          toAyah
+        ) ||
+        toAyah < 1 ||
+        (
+          fromAyah !== null &&
+          toAyah < fromAyah
+        )
+      )
     ) {
-      return badRequest("Invalid to_ayah");
+      return badRequest(
+        "نهاية الآيات غير صحيحة."
+      );
     }
 
-    const ayahCount = calculateAyahCount(
-      fromAyah,
-      toAyah
-    );
+    const ayahCount =
+      calculateAyahCount(
+        fromAyah,
+        toAyah
+      );
 
-    const amountValue =
-      body.amount_value == null
+    let amountValue =
+      body.amount_value === null ||
+      body.amount_value === undefined ||
+      body.amount_value === ""
         ? ayahCount
-        : Number(body.amount_value);
+        : Number(
+            body.amount_value
+          );
+
+    if (
+      amountValue !== null &&
+      !Number.isFinite(
+        amountValue
+      )
+    ) {
+      return badRequest(
+        "قيمة الورد غير صحيحة."
+      );
+    }
 
     const qualityScore =
-      body.quality_score == null
+      body.quality_score === null ||
+      body.quality_score === undefined ||
+      body.quality_score === ""
         ? null
-        : Number(body.quality_score);
+        : Number(
+            body.quality_score
+          );
 
     if (
       qualityScore !== null &&
-      (!Number.isFinite(qualityScore) ||
+      (
+        !Number.isFinite(
+          qualityScore
+        ) ||
         qualityScore < 0 ||
-        qualityScore > 100)
+        qualityScore > 100
+      )
     ) {
       return badRequest(
-        "quality_score must be between 0 and 100"
+        "درجة الجودة يجب أن تكون بين 0 و100."
       );
     }
 
     const sessionId =
-      body.session_id == null
+      body.session_id === null ||
+      body.session_id === undefined ||
+      body.session_id === ""
         ? null
-        : Number(body.session_id);
+        : Number(
+            body.session_id
+          );
 
     const levelId =
-      body.level_id == null
+      body.level_id === null ||
+      body.level_id === undefined ||
+      body.level_id === ""
         ? null
-        : Number(body.level_id);
+        : Number(
+            body.level_id
+          );
 
-    const result = await db
-      .prepare(
-        `
-        INSERT INTO quran_progress (
-          student_id,
-          session_id,
-          level_id,
-          activity_type,
-          surah_number,
-          surah_name,
-          from_ayah,
-          to_ayah,
-          amount_label,
-          amount_value,
-          quality_score,
-          teacher_note
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `
-      )
-      .bind(
-        studentId,
-        sessionId,
-        levelId,
-        activityType,
-        surahNumber,
-        body.surah_name || null,
-        fromAyah,
-        toAyah,
-        body.amount_label || null,
-        amountValue,
-        qualityScore,
-        body.teacher_note || null
-      )
-      .run();
-
-    const insertedId = result.meta?.last_row_id;
-
-    const progress = insertedId
-      ? await db
-          .prepare(
-            `
-            SELECT *
-            FROM quran_progress
-            WHERE id = ?
-            LIMIT 1
-            `
+    const result =
+      await env.DB
+        .prepare(`
+          INSERT INTO quran_progress (
+            student_id,
+            session_id,
+            level_id,
+            activity_type,
+            surah_number,
+            surah_name,
+            from_ayah,
+            to_ayah,
+            amount_label,
+            amount_value,
+            quality_score,
+            teacher_note
           )
-          .bind(insertedId)
-          .first()
-      : null;
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `)
+        .bind(
+          studentId,
+          sessionId,
+          levelId,
+          activityType,
+          surahNumber,
+          body.surah_name ||
+            null,
+          fromAyah,
+          toAyah,
+          body.amount_label ||
+            null,
+          amountValue,
+          qualityScore,
+          body.teacher_note ||
+            null
+        )
+        .run();
+
+    const insertedId =
+      result?.meta?.last_row_id;
+
+    const progress =
+      insertedId
+        ? await env.DB
+            .prepare(`
+              SELECT *
+              FROM quran_progress
+              WHERE id = ?
+              LIMIT 1
+            `)
+            .bind(
+              insertedId
+            )
+            .first()
+        : null;
 
     return json(
       {
         success: true,
+        message:
+          "تم تسجيل الورد بنجاح.",
         data: progress,
-        ayah_count: ayahCount
+        ayah_count:
+          ayahCount,
       },
       201
     );
   } catch (error) {
-    if (error?.status) {
-      return json(
-        {
-          error: error.message || "Unauthorized"
-        },
-        error.status
-      );
-    }
-
-    return json(
-      {
-        error: "Failed to save Quran progress",
-        details: error?.message || "Unknown error"
-      },
-      500
+    return serverError(
+      "تعذر حفظ الورد.",
+      error?.message
     );
   }
 }
 
 export async function onRequestDelete(context) {
+  const { request, env } = context;
+
   try {
-    await requireAuth(context);
+    const management =
+      await canManageProgress(
+        request,
+        env
+      );
 
-    const db = getDb(context.env);
-    const url = new URL(context.request.url);
-
-    const id = Number(url.searchParams.get("id"));
-
-    if (!Number.isInteger(id) || id <= 0) {
-      return badRequest("Valid id is required");
+    if (!management.ok) {
+      return management.response;
     }
 
-    const existing = await db
-      .prepare(
-        `
-        SELECT id
-        FROM quran_progress
-        WHERE id = ?
-        LIMIT 1
-        `
-      )
-      .bind(id)
-      .first();
+    const url =
+      new URL(request.url);
+
+    const id =
+      Number(
+        url.searchParams.get(
+          "id"
+        )
+      );
+
+    if (
+      !Number.isInteger(id) ||
+      id <= 0
+    ) {
+      return badRequest(
+        "رقم السجل غير صحيح."
+      );
+    }
+
+    const existing =
+      await env.DB
+        .prepare(`
+          SELECT id
+          FROM quran_progress
+          WHERE id = ?
+          LIMIT 1
+        `)
+        .bind(id)
+        .first();
 
     if (!existing) {
-      return notFound("Quran progress record not found");
+      return json(
+        {
+          success: false,
+          error: "NOT_FOUND",
+          message:
+            "سجل الورد غير موجود.",
+        },
+        404
+      );
     }
 
-    await db
-      .prepare(
-        `
+    await env.DB
+      .prepare(`
         DELETE FROM quran_progress
         WHERE id = ?
-        `
-      )
+      `)
       .bind(id)
       .run();
 
     return json({
       success: true,
-      deleted_id: id
+      message:
+        "تم حذف سجل الورد.",
+      deleted_id: id,
     });
   } catch (error) {
-    if (error?.status) {
-      return json(
-        {
-          error: error.message || "Unauthorized"
-        },
-        error.status
-      );
-    }
-
-    return json(
-      {
-        error: "Failed to delete Quran progress",
-        details: error?.message || "Unknown error"
-      },
-      500
+    return serverError(
+      "تعذر حذف سجل الورد.",
+      error?.message
     );
   }
 }
