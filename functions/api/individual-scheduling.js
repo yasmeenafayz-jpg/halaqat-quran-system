@@ -45,20 +45,21 @@ function clean(value) {
   return String(value ?? "").trim();
 }
 
-function nullable(value) {
-  const value = clean(value);
+function nullable(rawValue) {
+  const value = clean(rawValue);
   return value || null;
 }
 
 function id(value) {
   const number = Number(value);
+
   return Number.isInteger(number) && number > 0
     ? number
     : null;
 }
 
-function validDate(value) {
-  const value = clean(value);
+function validDate(rawValue) {
+  const value = clean(rawValue);
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return false;
@@ -69,8 +70,8 @@ function validDate(value) {
   return !Number.isNaN(date.getTime());
 }
 
-function validTime(value) {
-  const value = clean(value);
+function validTime(rawValue) {
+  const value = clean(rawValue);
 
   if (!/^\d{2}:\d{2}$/.test(value)) {
     return false;
@@ -88,11 +89,20 @@ function validTime(value) {
 
 function validWeekday(value) {
   const number = Number(value);
-  return Number.isInteger(number) && number >= 0 && number <= 6;
+
+  return (
+    Number.isInteger(number) &&
+    number >= 0 &&
+    number <= 6
+  );
 }
 
 function validRange(start, end) {
-  return validTime(start) && validTime(end) && start < end;
+  return (
+    validTime(start) &&
+    validTime(end) &&
+    start < end
+  );
 }
 
 function timestamp() {
@@ -215,10 +225,23 @@ async function booking(db, bookingId) {
     .first();
 }
 
-async function conflict(db, teacherId, date, start, end, excludeId = null) {
+async function conflict(
+  db,
+  teacherId,
+  date,
+  start,
+  end,
+  excludeId = null
+) {
   let sql = `
-    SELECT id, student_id, teacher_id,
-           booking_date, start_time, end_time, status
+    SELECT
+      id,
+      student_id,
+      teacher_id,
+      booking_date,
+      start_time,
+      end_time,
+      status
     FROM individual_schedule_bookings
     WHERE teacher_id = ?1
       AND booking_date = ?2
@@ -241,7 +264,10 @@ async function conflict(db, teacherId, date, start, end, excludeId = null) {
 
   sql += " LIMIT 1";
 
-  return db.prepare(sql).bind(...params).first();
+  return db
+    .prepare(sql)
+    .bind(...params)
+    .first();
 }
 
 async function pendingConflict(
@@ -253,11 +279,14 @@ async function pendingConflict(
   excludeId = null
 ) {
   let sql = `
-    SELECT id, student_id, teacher_id,
-           requested_date,
-           requested_start_time,
-           requested_end_time,
-           status
+    SELECT
+      id,
+      student_id,
+      teacher_id,
+      requested_date,
+      requested_start_time,
+      requested_end_time,
+      status
     FROM individual_schedule_requests
     WHERE teacher_id = ?1
       AND requested_date = ?2
@@ -280,7 +309,10 @@ async function pendingConflict(
 
   sql += " LIMIT 1";
 
-  return db.prepare(sql).bind(...params).first();
+  return db
+    .prepare(sql)
+    .bind(...params)
+    .first();
 }
 
 /* =========================================================
@@ -295,11 +327,16 @@ export async function onRequestGet(context) {
   }
 
   const url = new URL(context.request.url);
-  const type = clean(url.searchParams.get("type") || "slots").toLowerCase();
+
+  const type = clean(
+    url.searchParams.get("type") || "slots"
+  ).toLowerCase();
 
   try {
     if (type === "slot") {
-      const slotId = id(url.searchParams.get("id"));
+      const slotId = id(
+        url.searchParams.get("id")
+      );
 
       if (!slotId) {
         return fail("SLOT_ID_REQUIRED");
@@ -318,16 +355,24 @@ export async function onRequestGet(context) {
     }
 
     if (type === "request") {
-      const requestId = id(url.searchParams.get("id"));
+      const requestId = id(
+        url.searchParams.get("id")
+      );
 
       if (!requestId) {
         return fail("REQUEST_ID_REQUIRED");
       }
 
-      const data = await request(db, requestId);
+      const data = await request(
+        db,
+        requestId
+      );
 
       if (!data) {
-        return fail("REQUEST_NOT_FOUND", 404);
+        return fail(
+          "REQUEST_NOT_FOUND",
+          404
+        );
       }
 
       return json({
@@ -337,16 +382,24 @@ export async function onRequestGet(context) {
     }
 
     if (type === "booking") {
-      const bookingId = id(url.searchParams.get("id"));
+      const bookingId = id(
+        url.searchParams.get("id")
+      );
 
       if (!bookingId) {
         return fail("BOOKING_ID_REQUIRED");
       }
 
-      const data = await booking(db, bookingId);
+      const data = await booking(
+        db,
+        bookingId
+      );
 
       if (!data) {
-        return fail("BOOKING_NOT_FOUND", 404);
+        return fail(
+          "BOOKING_NOT_FOUND",
+          404
+        );
       }
 
       return json({
@@ -356,8 +409,12 @@ export async function onRequestGet(context) {
     }
 
     if (type === "slots") {
-      const teacherIdValue = url.searchParams.get("teacher_id");
-      const date = clean(url.searchParams.get("date"));
+      const teacherIdValue =
+        url.searchParams.get("teacher_id");
+
+      const date = clean(
+        url.searchParams.get("date")
+      );
 
       const teacherId = teacherIdValue
         ? id(teacherIdValue)
@@ -396,16 +453,25 @@ export async function onRequestGet(context) {
 
       if (teacherId) {
         params.push(teacherId);
-        sql += ` AND s.teacher_id = ?${params.length}`;
+
+        sql += `
+          AND s.teacher_id = ?${params.length}
+        `;
       }
 
       if (date) {
-        const weekday = new Date(`${date}T00:00:00`).getDay();
+        const weekday = new Date(
+          `${date}T00:00:00`
+        ).getDay();
 
         params.push(weekday);
-        sql += ` AND s.weekday = ?${params.length}`;
+
+        sql += `
+          AND s.weekday = ?${params.length}
+        `;
 
         params.push(date);
+
         sql += `
           AND (
             s.valid_from IS NULL
@@ -465,9 +531,15 @@ export async function onRequestGet(context) {
     }
 
     if (type === "requests") {
-      const teacherIdValue = url.searchParams.get("teacher_id");
-      const studentIdValue = url.searchParams.get("student_id");
-      const status = clean(url.searchParams.get("status")).toLowerCase();
+      const teacherIdValue =
+        url.searchParams.get("teacher_id");
+
+      const studentIdValue =
+        url.searchParams.get("student_id");
+
+      const status = clean(
+        url.searchParams.get("status")
+      ).toLowerCase();
 
       let sql = `
         SELECT
@@ -501,34 +573,51 @@ export async function onRequestGet(context) {
       const params = [];
 
       if (teacherIdValue) {
-        const teacherId = id(teacherIdValue);
+        const teacherId = id(
+          teacherIdValue
+        );
 
         if (!teacherId) {
           return fail("INVALID_TEACHER_ID");
         }
 
         params.push(teacherId);
-        sql += ` AND r.teacher_id = ?${params.length}`;
+
+        sql += `
+          AND r.teacher_id = ?${params.length}
+        `;
       }
 
       if (studentIdValue) {
-        const studentId = id(studentIdValue);
+        const studentId = id(
+          studentIdValue
+        );
 
         if (!studentId) {
           return fail("INVALID_STUDENT_ID");
         }
 
         params.push(studentId);
-        sql += ` AND r.student_id = ?${params.length}`;
+
+        sql += `
+          AND r.student_id = ?${params.length}
+        `;
       }
 
       if (status) {
-        if (!REQUEST_STATUSES.includes(status)) {
-          return fail("INVALID_REQUEST_STATUS");
+        if (
+          !REQUEST_STATUSES.includes(status)
+        ) {
+          return fail(
+            "INVALID_REQUEST_STATUS"
+          );
         }
 
         params.push(status);
-        sql += ` AND r.status = ?${params.length}`;
+
+        sql += `
+          AND r.status = ?${params.length}
+        `;
       }
 
       sql += `
@@ -543,18 +632,29 @@ export async function onRequestGet(context) {
         .bind(...params)
         .all();
 
+      const rows = result.results || [];
+
       return json({
         success: true,
-        data: result.results || [],
-        count: (result.results || []).length,
+        data: rows,
+        count: rows.length,
       });
     }
 
     if (type === "bookings") {
-      const teacherIdValue = url.searchParams.get("teacher_id");
-      const studentIdValue = url.searchParams.get("student_id");
-      const date = clean(url.searchParams.get("date"));
-      const status = clean(url.searchParams.get("status")).toLowerCase();
+      const teacherIdValue =
+        url.searchParams.get("teacher_id");
+
+      const studentIdValue =
+        url.searchParams.get("student_id");
+
+      const date = clean(
+        url.searchParams.get("date")
+      );
+
+      const status = clean(
+        url.searchParams.get("status")
+      ).toLowerCase();
 
       if (date && !validDate(date)) {
         return fail("INVALID_DATE");
@@ -588,39 +688,59 @@ export async function onRequestGet(context) {
       const params = [];
 
       if (teacherIdValue) {
-        const teacherId = id(teacherIdValue);
+        const teacherId = id(
+          teacherIdValue
+        );
 
         if (!teacherId) {
           return fail("INVALID_TEACHER_ID");
         }
 
         params.push(teacherId);
-        sql += ` AND b.teacher_id = ?${params.length}`;
+
+        sql += `
+          AND b.teacher_id = ?${params.length}
+        `;
       }
 
       if (studentIdValue) {
-        const studentId = id(studentIdValue);
+        const studentId = id(
+          studentIdValue
+        );
 
         if (!studentId) {
           return fail("INVALID_STUDENT_ID");
         }
 
         params.push(studentId);
-        sql += ` AND b.student_id = ?${params.length}`;
+
+        sql += `
+          AND b.student_id = ?${params.length}
+        `;
       }
 
       if (date) {
         params.push(date);
-        sql += ` AND b.booking_date = ?${params.length}`;
+
+        sql += `
+          AND b.booking_date = ?${params.length}
+        `;
       }
 
       if (status) {
-        if (!BOOKING_STATUSES.includes(status)) {
-          return fail("INVALID_BOOKING_STATUS");
+        if (
+          !BOOKING_STATUSES.includes(status)
+        ) {
+          return fail(
+            "INVALID_BOOKING_STATUS"
+          );
         }
 
         params.push(status);
-        sql += ` AND b.status = ?${params.length}`;
+
+        sql += `
+          AND b.status = ?${params.length}
+        `;
       }
 
       sql += `
@@ -635,16 +755,23 @@ export async function onRequestGet(context) {
         .bind(...params)
         .all();
 
+      const rows = result.results || [];
+
       return json({
         success: true,
-        data: result.results || [],
-        count: (result.results || []).length,
+        data: rows,
+        count: rows.length,
       });
     }
 
-    return fail("INVALID_SCHEDULING_TYPE");
+    return fail(
+      "INVALID_SCHEDULING_TYPE"
+    );
   } catch (error) {
-    console.error("INDIVIDUAL_SCHEDULING_GET_ERROR", error);
+    console.error(
+      "INDIVIDUAL_SCHEDULING_GET_ERROR",
+      error
+    );
 
     return fail(
       "INDIVIDUAL_SCHEDULING_FETCH_FAILED",
@@ -661,7 +788,10 @@ export async function onRequestPost(context) {
   const db = context.env?.DB;
 
   if (!db) {
-    return fail("DATABASE_NOT_CONFIGURED", 503);
+    return fail(
+      "DATABASE_NOT_CONFIGURED",
+      503
+    );
   }
 
   let body;
@@ -683,17 +813,22 @@ export async function onRequestPost(context) {
       action === "slot"
     ) {
       const teacherId = id(
-        body.teacher_id ?? body.teacherId
+        body.teacher_id ??
+        body.teacherId
       );
 
-      const weekday = Number(body.weekday);
+      const weekday = Number(
+        body.weekday
+      );
 
       const start = clean(
-        body.start_time ?? body.startTime
+        body.start_time ??
+        body.startTime
       );
 
       const end = clean(
-        body.end_time ?? body.endTime
+        body.end_time ??
+        body.endTime
       );
 
       const status = clean(
@@ -701,34 +836,48 @@ export async function onRequestPost(context) {
       ).toLowerCase();
 
       const validFrom = nullable(
-        body.valid_from ?? body.validFrom
+        body.valid_from ??
+        body.validFrom
       );
 
       const validUntil = nullable(
-        body.valid_until ?? body.validUntil
+        body.valid_until ??
+        body.validUntil
       );
 
       if (!teacherId) {
-        return fail("TEACHER_ID_REQUIRED");
+        return fail(
+          "TEACHER_ID_REQUIRED"
+        );
       }
 
       if (!validWeekday(weekday)) {
-        return fail("INVALID_WEEKDAY");
+        return fail(
+          "INVALID_WEEKDAY"
+        );
       }
 
       if (!validRange(start, end)) {
-        return fail("INVALID_TIME_RANGE");
+        return fail(
+          "INVALID_TIME_RANGE"
+        );
       }
 
       if (!SLOT_STATUSES.includes(status)) {
-        return fail("INVALID_SLOT_STATUS");
+        return fail(
+          "INVALID_SLOT_STATUS"
+        );
       }
 
       if (
-        (validFrom && !validDate(validFrom)) ||
-        (validUntil && !validDate(validUntil))
+        (validFrom &&
+          !validDate(validFrom)) ||
+        (validUntil &&
+          !validDate(validUntil))
       ) {
-        return fail("INVALID_VALIDITY_DATE");
+        return fail(
+          "INVALID_VALIDITY_DATE"
+        );
       }
 
       if (
@@ -736,16 +885,22 @@ export async function onRequestPost(context) {
         validUntil &&
         validFrom > validUntil
       ) {
-        return fail("VALID_UNTIL_BEFORE_VALID_FROM");
+        return fail(
+          "VALID_UNTIL_BEFORE_VALID_FROM"
+        );
       }
 
-      const existingTeacher = await teacher(
-        db,
-        teacherId
-      );
+      const existingTeacher =
+        await teacher(
+          db,
+          teacherId
+        );
 
       if (!existingTeacher) {
-        return fail("TEACHER_NOT_FOUND", 404);
+        return fail(
+          "TEACHER_NOT_FOUND",
+          404
+        );
       }
 
       const duplicate = await db
@@ -770,7 +925,9 @@ export async function onRequestPost(context) {
         return fail(
           "AVAILABILITY_SLOT_ALREADY_EXISTS",
           409,
-          { slot_id: duplicate.id }
+          {
+            slot_id: duplicate.id,
+          }
         );
       }
 
@@ -790,9 +947,17 @@ export async function onRequestPost(context) {
             updated_at
           )
           VALUES (
-            ?1, ?2, ?3, ?4, ?5,
-            ?6, ?7, ?8, ?9,
-            ?10, ?10
+            ?1,
+            ?2,
+            ?3,
+            ?4,
+            ?5,
+            ?6,
+            ?7,
+            ?8,
+            ?9,
+            ?10,
+            ?10
           )
         `)
         .bind(
@@ -800,7 +965,8 @@ export async function onRequestPost(context) {
           weekday,
           start,
           end,
-          clean(body.timezone) || "Africa/Cairo",
+          clean(body.timezone) ||
+            "Africa/Cairo",
           status,
           validFrom,
           validUntil,
@@ -817,7 +983,8 @@ export async function onRequestPost(context) {
       return json(
         {
           success: true,
-          message: "AVAILABILITY_SLOT_CREATED",
+          message:
+            "AVAILABILITY_SLOT_CREATED",
           data: created,
         },
         201
@@ -830,11 +997,13 @@ export async function onRequestPost(context) {
       action === "request_slot"
     ) {
       const studentId = id(
-        body.student_id ?? body.studentId
+        body.student_id ??
+        body.studentId
       );
 
       const teacherId = id(
-        body.teacher_id ?? body.teacherId
+        body.teacher_id ??
+        body.teacherId
       );
 
       const slotId = id(
@@ -862,43 +1031,54 @@ export async function onRequestPost(context) {
       );
 
       if (!studentId) {
-        return fail("STUDENT_ID_REQUIRED");
+        return fail(
+          "STUDENT_ID_REQUIRED"
+        );
       }
 
       if (!teacherId) {
-        return fail("TEACHER_ID_REQUIRED");
+        return fail(
+          "TEACHER_ID_REQUIRED"
+        );
       }
 
       if (!validDate(date)) {
-        return fail("INVALID_REQUESTED_DATE");
+        return fail(
+          "INVALID_REQUESTED_DATE"
+        );
       }
 
       if (!validRange(start, end)) {
-        return fail("INVALID_TIME_RANGE");
+        return fail(
+          "INVALID_TIME_RANGE"
+        );
       }
 
-      const existingStudent = await student(
-        db,
-        studentId
-      );
+      const existingStudent =
+        await student(
+          db,
+          studentId
+        );
 
       if (!existingStudent) {
-        return fail("STUDENT_NOT_FOUND", 404);
+        return fail(
+          "STUDENT_NOT_FOUND",
+          404
+        );
       }
 
-      const existingTeacher = await teacher(
-        db,
-        teacherId
-      );
+      const existingTeacher =
+        await teacher(
+          db,
+          teacherId
+        );
 
       if (!existingTeacher) {
-        return fail("TEACHER_NOT_FOUND", 404);
+        return fail(
+          "TEACHER_NOT_FOUND",
+          404
+        );
       }
-
-      /*
-       * التأكد من أن الوقت المطلوب
-       * موجود فعلًا ضمن جدول المعلمة.
-       */
 
       const weekday = new Date(
         `${date}T00:00:00`
@@ -907,7 +1087,10 @@ export async function onRequestPost(context) {
       let selectedSlot = null;
 
       if (slotId) {
-        selectedSlot = await slot(db, slotId);
+        selectedSlot = await slot(
+          db,
+          slotId
+        );
 
         if (!selectedSlot) {
           return fail(
@@ -1025,23 +1208,28 @@ export async function onRequestPost(context) {
         return fail(
           "TIME_ALREADY_BOOKED",
           409,
-          { conflict: booked }
+          {
+            conflict: booked,
+          }
         );
       }
 
-      const pending = await pendingConflict(
-        db,
-        teacherId,
-        date,
-        start,
-        end
-      );
+      const pending =
+        await pendingConflict(
+          db,
+          teacherId,
+          date,
+          start,
+          end
+        );
 
       if (pending) {
         return fail(
           "TIME_ALREADY_REQUESTED",
           409,
-          { conflict: pending }
+          {
+            conflict: pending,
+          }
         );
       }
 
@@ -1081,12 +1269,22 @@ export async function onRequestPost(context) {
             updated_at
           )
           VALUES (
-            ?1, ?2, ?3, ?4, ?5,
-            ?6, ?7, ?8, ?9,
+            ?1,
+            ?2,
+            ?3,
+            ?4,
+            ?5,
+            ?6,
+            ?7,
+            ?8,
+            ?9,
             'pending',
-            NULL, ?10,
-            NULL, NULL,
-            ?11, ?11
+            NULL,
+            ?10,
+            NULL,
+            NULL,
+            ?11,
+            ?11
           )
         `)
         .bind(
@@ -1116,14 +1314,17 @@ export async function onRequestPost(context) {
       return json(
         {
           success: true,
-          message: "SCHEDULE_REQUEST_SENT",
+          message:
+            "SCHEDULE_REQUEST_SENT",
           data: created,
         },
         201
       );
     }
 
-    return fail("INVALID_SCHEDULING_ACTION");
+    return fail(
+      "INVALID_SCHEDULING_ACTION"
+    );
   } catch (error) {
     console.error(
       "INDIVIDUAL_SCHEDULING_POST_ERROR",
@@ -1145,7 +1346,10 @@ export async function onRequestPatch(context) {
   const db = context.env?.DB;
 
   if (!db) {
-    return fail("DATABASE_NOT_CONFIGURED", 503);
+    return fail(
+      "DATABASE_NOT_CONFIGURED",
+      503
+    );
   }
 
   let body;
@@ -1172,7 +1376,9 @@ export async function onRequestPatch(context) {
       );
 
       if (!requestId) {
-        return fail("REQUEST_ID_REQUIRED");
+        return fail(
+          "REQUEST_ID_REQUIRED"
+        );
       }
 
       const current = await request(
@@ -1206,7 +1412,9 @@ export async function onRequestPatch(context) {
         return fail(
           "TIME_ALREADY_BOOKED",
           409,
-          { conflict: booked }
+          {
+            conflict: booked,
+          }
         );
       }
 
@@ -1227,11 +1435,18 @@ export async function onRequestPatch(context) {
             updated_at
           )
           VALUES (
-            ?1, ?2, ?3, ?4, ?5,
-            ?6, ?7, ?8,
+            ?1,
+            ?2,
+            ?3,
+            ?4,
+            ?5,
+            ?6,
+            ?7,
+            ?8,
             NULL,
             'confirmed',
-            ?9, ?9
+            ?9,
+            ?9
           )
         `)
         .bind(
@@ -1257,6 +1472,8 @@ export async function onRequestPatch(context) {
         body.teacherResponseNote
       );
 
+      const decidedAt = timestamp();
+
       await db
         .prepare(`
           UPDATE individual_schedule_requests
@@ -1271,14 +1488,15 @@ export async function onRequestPatch(context) {
         .bind(
           requestId,
           note,
-          timestamp(),
+          decidedAt,
           decidedBy
         )
         .run();
 
       return json({
         success: true,
-        message: "SCHEDULE_REQUEST_ACCEPTED",
+        message:
+          "SCHEDULE_REQUEST_ACCEPTED",
         data: {
           request: await request(
             db,
@@ -1300,7 +1518,9 @@ export async function onRequestPatch(context) {
       );
 
       if (!requestId) {
-        return fail("REQUEST_ID_REQUIRED");
+        return fail(
+          "REQUEST_ID_REQUIRED"
+        );
       }
 
       const current = await request(
@@ -1322,6 +1542,8 @@ export async function onRequestPatch(context) {
         );
       }
 
+      const decidedAt = timestamp();
+
       await db
         .prepare(`
           UPDATE individual_schedule_requests
@@ -1339,7 +1561,7 @@ export async function onRequestPatch(context) {
             body.teacher_response_note ??
             body.teacherResponseNote
           ),
-          timestamp(),
+          decidedAt,
           id(
             body.decided_by ??
             body.decidedBy
@@ -1349,7 +1571,8 @@ export async function onRequestPatch(context) {
 
       return json({
         success: true,
-        message: "SCHEDULE_REQUEST_REJECTED",
+        message:
+          "SCHEDULE_REQUEST_REJECTED",
         data: await request(
           db,
           requestId
@@ -1365,7 +1588,9 @@ export async function onRequestPatch(context) {
       );
 
       if (!requestId) {
-        return fail("REQUEST_ID_REQUIRED");
+        return fail(
+          "REQUEST_ID_REQUIRED"
+        );
       }
 
       const current = await request(
@@ -1415,7 +1640,10 @@ export async function onRequestPatch(context) {
             status = 'cancelled',
             updated_at = ?2
           WHERE request_id = ?1
-            AND status IN ('confirmed', 'rescheduled')
+            AND status IN (
+              'confirmed',
+              'rescheduled'
+            )
         `)
         .bind(
           requestId,
@@ -1425,7 +1653,8 @@ export async function onRequestPatch(context) {
 
       return json({
         success: true,
-        message: "SCHEDULE_REQUEST_CANCELLED",
+        message:
+          "SCHEDULE_REQUEST_CANCELLED",
         data: await request(
           db,
           requestId
@@ -1444,7 +1673,9 @@ export async function onRequestPatch(context) {
       );
 
       if (!bookingId) {
-        return fail("BOOKING_ID_REQUIRED");
+        return fail(
+          "BOOKING_ID_REQUIRED"
+        );
       }
 
       const current = await booking(
@@ -1463,11 +1694,19 @@ export async function onRequestPatch(context) {
         body.status || current.status
       ).toLowerCase();
 
-      if (!BOOKING_STATUSES.includes(status)) {
+      if (
+        !BOOKING_STATUSES.includes(status)
+      ) {
         return fail(
           "INVALID_BOOKING_STATUS"
         );
       }
+
+      const sessionId =
+        id(
+          body.session_id ??
+          body.sessionId
+        ) || current.session_id;
 
       await db
         .prepare(`
@@ -1481,10 +1720,7 @@ export async function onRequestPatch(context) {
         .bind(
           bookingId,
           status,
-          id(
-            body.session_id ??
-            body.sessionId
-          ) || current.session_id,
+          sessionId,
           timestamp()
         )
         .run();
@@ -1499,7 +1735,9 @@ export async function onRequestPatch(context) {
       });
     }
 
-    return fail("INVALID_SCHEDULING_ACTION");
+    return fail(
+      "INVALID_SCHEDULING_ACTION"
+    );
   } catch (error) {
     console.error(
       "INDIVIDUAL_SCHEDULING_PATCH_ERROR",
@@ -1514,7 +1752,9 @@ export async function onRequestPatch(context) {
 }
 
 export async function onRequest(context) {
-  switch (context.request.method.toUpperCase()) {
+  switch (
+    context.request.method.toUpperCase()
+  ) {
     case "GET":
       return onRequestGet(context);
 
