@@ -9,7 +9,6 @@ if (!root) {
 
 const application = new App(root);
 
-application.mount();
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
