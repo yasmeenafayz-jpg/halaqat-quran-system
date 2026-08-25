@@ -224,10 +224,10 @@ async function hasPermission(
 
   const userPermission = await db
     .prepare(`
-      SELECT allowed
+      SELECT enabled
       FROM user_permissions
       WHERE user_id = ?
-        AND permission_key = ?
+        AND permission = ?
       LIMIT 1
     `)
     .bind(
@@ -238,16 +238,16 @@ async function hasPermission(
 
   if (userPermission) {
     return Number(
-      userPermission.allowed
+      userPermission.enabled
     ) === 1;
   }
 
   const rolePermission = await db
     .prepare(`
-      SELECT allowed
+      SELECT enabled
       FROM role_permissions
       WHERE role = ?
-        AND permission_key = ?
+        AND permission = ?
       LIMIT 1
     `)
     .bind(
@@ -259,7 +259,7 @@ async function hasPermission(
   return (
     !!rolePermission &&
     Number(
-      rolePermission.allowed
+      rolePermission.enabled
     ) === 1
   );
 }

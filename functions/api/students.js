@@ -1,3 +1,5 @@
+import { requirePermission } from "./_auth.js";
+
 /**
  * الأوَّابين — Students API
  *
@@ -202,7 +204,17 @@ async function writeAudit(
 export async function onRequestGet(
   context
 ) {
-  const db =
+  const permission = await requirePermission(
+    context.request,
+    context.env,
+    "students.read"
+  );
+
+  if (!permission.ok) {
+    return permission.response;
+  }
+
+    const db =
     context.env?.DB;
 
   if (!db) {
@@ -407,7 +419,17 @@ export async function onRequestGet(
 export async function onRequestPost(
   context
 ) {
-  const db =
+  const permission = await requirePermission(
+    context.request,
+    context.env,
+    "students.write"
+  );
+
+  if (!permission.ok) {
+    return permission.response;
+  }
+
+    const db =
     context.env?.DB;
 
   if (!db) {
@@ -706,7 +728,17 @@ export async function onRequestPost(
 export async function onRequestPatch(
   context
 ) {
-  const db =
+  const permission = await requirePermission(
+    context.request,
+    context.env,
+    "students.write"
+  );
+
+  if (!permission.ok) {
+    return permission.response;
+  }
+
+    const db =
     context.env?.DB;
 
   if (!db) {

@@ -1,3 +1,4 @@
+import { requirePermission } from "./_auth.js";
 /**
  * الأوَّابين — Attendance API
  *
@@ -259,6 +260,16 @@ function normalizeLateMinutes(
 export async function onRequestGet(
   context
 ) {
+  const permission = await requirePermission(
+    context.request,
+    context.env,
+    "attendance.read"
+  );
+
+  if (!permission.ok) {
+    return permission.response;
+  }
+
   const db = context.env?.DB;
 
   if (!db) {
@@ -469,6 +480,16 @@ export async function onRequestGet(
 export async function onRequestPost(
   context
 ) {
+  const permission = await requirePermission(
+    context.request,
+    context.env,
+    "attendance.write"
+  );
+
+  if (!permission.ok) {
+    return permission.response;
+  }
+
   const db = context.env?.DB;
 
   if (!db) {
@@ -701,6 +722,16 @@ export async function onRequestPost(
 export async function onRequestPatch(
   context
 ) {
+  const permission = await requirePermission(
+    context.request,
+    context.env,
+    "attendance.write"
+  );
+
+  if (!permission.ok) {
+    return permission.response;
+  }
+
   const db = context.env?.DB;
 
   if (!db) {

@@ -1,3 +1,4 @@
+import { requirePermission } from "./_auth.js";
 /**
  * الأوَّابين — Teachers API
  *
@@ -205,6 +206,16 @@ async function writeAudit(
 export async function onRequestGet(
   context
 ) {
+  const permission = await requirePermission(
+    context.request,
+    context.env,
+    "teachers.read"
+  );
+
+  if (!permission.ok) {
+    return permission.response;
+  }
+
   const db =
     context.env?.DB;
 
@@ -370,6 +381,16 @@ export async function onRequestGet(
 export async function onRequestPost(
   context
 ) {
+  const permission = await requirePermission(
+    context.request,
+    context.env,
+    "teachers.write"
+  );
+
+  if (!permission.ok) {
+    return permission.response;
+  }
+
   const db =
     context.env?.DB;
 
@@ -632,6 +653,16 @@ export async function onRequestPost(
 export async function onRequestPatch(
   context
 ) {
+  const permission = await requirePermission(
+    context.request,
+    context.env,
+    "teachers.write"
+  );
+
+  if (!permission.ok) {
+    return permission.response;
+  }
+
   const db =
     context.env?.DB;
 
