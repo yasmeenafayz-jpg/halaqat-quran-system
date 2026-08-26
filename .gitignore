@@ -12,3 +12,10 @@ Thumbs.db
 
 *.log
 npm-debug.log*
+
+# Temporary build and local backup files
+_worker.bundle
+backup-auth-20260825-225833/
+backup-ui-20260826/
+functions/api/*.before-auth-fix
+functions/api/*.before-permission
