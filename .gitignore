@@ -17,3 +17,4 @@ backup-ui-20260826/
 functions/api/*.before-auth-fix
 functions/api/*.before-permission
 # Local build artifacts and backups
+# Local temporary files
