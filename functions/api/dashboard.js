@@ -1,3 +1,4 @@
+import { requirePermission } from "./_auth.js";
 const HEADERS = {
   "Content-Type": "application/json; charset=utf-8",
 };
@@ -20,6 +21,16 @@ async function getSum(db, sql) {
 }
 
 export async function onRequestGet(context) {
+  const permission = await requirePermission(
+    context.request,
+    context.env,
+    "reports.read"
+  );
+
+  if (!permission.ok) {
+    return permission.response;
+  }
+
   const db = context.env?.DB;
 
   if (!db) {

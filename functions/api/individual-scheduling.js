@@ -1,3 +1,4 @@
+import { requirePermission } from "./_auth.js";
 const HEADERS = {
   "Content-Type": "application/json; charset=utf-8",
 };
@@ -320,6 +321,8 @@ async function pendingConflict(
 ========================================================= */
 
 export async function onRequestGet(context) {
+  const permission = await requirePermission(context.request, context.env, "individual-scheduling.read");
+  if (!permission.ok) return permission.response;
   const db = context.env?.DB;
 
   if (!db) {
@@ -785,6 +788,8 @@ export async function onRequestGet(context) {
 ========================================================= */
 
 export async function onRequestPost(context) {
+  const permission = await requirePermission(context.request, context.env, "individual-scheduling.write");
+  if (!permission.ok) return permission.response;
   const db = context.env?.DB;
 
   if (!db) {
@@ -1343,6 +1348,8 @@ export async function onRequestPost(context) {
 ========================================================= */
 
 export async function onRequestPatch(context) {
+  const permission = await requirePermission(context.request, context.env, "individual-scheduling.write");
+  if (!permission.ok) return permission.response;
   const db = context.env?.DB;
 
   if (!db) {

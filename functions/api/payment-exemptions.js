@@ -1,3 +1,4 @@
+import { requirePermission } from "./_auth.js";
 /**
  * الأوَّابين — Payment Exemptions API
  *
@@ -196,6 +197,8 @@ function validateStatus(status) {
 export async function onRequestGet(
   context
 ) {
+  const permission = await requirePermission(context.request, context.env, "payment-exemptions.read");
+  if (!permission.ok) return permission.response;
   const db = context.env?.DB;
 
   if (!db) {
@@ -375,6 +378,8 @@ export async function onRequestGet(
 export async function onRequestPost(
   context
 ) {
+  const permission = await requirePermission(context.request, context.env, "payment-exemptions.write");
+  if (!permission.ok) return permission.response;
   const db = context.env?.DB;
 
   if (!db) {
@@ -683,6 +688,8 @@ export async function onRequestPost(
 export async function onRequestPatch(
   context
 ) {
+  const permission = await requirePermission(context.request, context.env, "payment-exemptions.write");
+  if (!permission.ok) return permission.response;
   const db = context.env?.DB;
 
   if (!db) {

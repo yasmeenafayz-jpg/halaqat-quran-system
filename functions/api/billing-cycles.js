@@ -1,3 +1,4 @@
+import { requirePermission } from "./_auth.js";
 /**
  * الأوَّابين — Monthly Billing Cycles API
  *
@@ -638,6 +639,8 @@ function validateItems(rawItems) {
 ========================================================= */
 
 export async function onRequestGet(context) {
+  const permission = await requirePermission(context.request, context.env, "billing-cycles.read");
+  if (!permission.ok) return permission.response;
   const db = context.env?.DB;
 
   if (!db) {
@@ -805,6 +808,8 @@ export async function onRequestGet(context) {
 ========================================================= */
 
 export async function onRequestPost(context) {
+  const permission = await requirePermission(context.request, context.env, "billing-cycles.write");
+  if (!permission.ok) return permission.response;
   const db = context.env?.DB;
 
   if (!db) {
@@ -1504,6 +1509,8 @@ export async function onRequestPost(context) {
 ========================================================= */
 
 export async function onRequestPatch(context) {
+  const permission = await requirePermission(context.request, context.env, "billing-cycles.write");
+  if (!permission.ok) return permission.response;
   const db = context.env?.DB;
 
   if (!db) {
