@@ -239,47 +239,223 @@ export class App {
     `;
   }
 
-  renderModule(page) {
+  async renderModule(page) {
     const titles = {
-      today: ["جدول اليوم","الجلسات والمواعيد وفق الصلاحيات"],
-      students: ["الطلاب","إدارة ملفات الطلاب والمتابعة"],
-      teachers: ["المعلمون","إدارة فريق الأكاديمية"],
-      circles: ["الحلقات","الحلقات الفردية والجماعية"],
-      quran: ["القرآن والورد","الحفظ والمراجعة والسرد اليومي"],
-      attendance: ["الحضور","الحضور والمتابعة والتنبيهات"],
-      achievements: ["الإنجازات","النقاط والشارات والمكافآت"],
-      competitions: ["المسابقات","الألعاب والتحديات والتحفيز"],
-      community: ["المجتمع","قنوات التواصل الداخلية بين الرفقاء"],
-      board: ["السبورة","التعليم التفاعلي داخل الجلسات"],
-      payments: ["المالية","المدفوعات والاشتراكات والفواتير"],
-      reports: ["التقارير","الإحصائيات والتحليلات"],
-      notifications: ["الإشعارات","التنبيهات والرسائل"],
-      settings: ["الإعدادات","إدارة إعدادات الأكاديمية"]
+      dashboard: ["لوحة التحكم", "نظرة عامة على الأكاديمية"],
+      today: ["جدول اليوم", "الجلسات والمواعيد وفق الصلاحيات"],
+      students: ["الطلاب", "إدارة ملفات الطلاب والمتابعة"],
+      teachers: ["المعلمون", "إدارة فريق الأكاديمية"],
+      circles: ["الحلقات", "الحلقات الفردية والجماعية"],
+      quran: ["القرآن والورد", "الحفظ والمراجعة والسرد اليومي"],
+      attendance: ["الحضور", "الحضور والمتابعة والتنبيهات"],
+      payments: ["المالية", "المدفوعات والاشتراكات والفواتير"],
+      subscriptions: ["الاشتراكات", "الباقات والاشتراكات"],
+      achievements: ["الإنجازات", "النقاط والشارات والمكافآت"],
+      competitions: ["المسابقات", "الألعاب والتحديات والتحفيز"],
+      community: ["المجتمع", "قنوات التواصل الداخلية"],
+      board: ["السبورة", "التعليم التفاعلي داخل الجلسات"],
+      reports: ["التقارير", "الإحصائيات والتحليلات"],
+      notifications: ["الإشعارات", "التنبيهات والرسائل"],
+      settings: ["الإعدادات", "إدارة إعدادات الأكاديمية"]
     };
 
-    const info = titles[page] || ["الأوَّابين","قسم الأكاديمية"];
-
+    const info = titles[page] || ["الأوَّابين", "قسم الأكاديمية"];
     this.setHeading(info[0], info[1]);
 
     const content = this.root.querySelector("#app-content");
+    if (!content) return;
+
     content.innerHTML = `
       <section class="module-hero">
         <span class="eyebrow">منصة الأوَّابين</span>
-        <h2>${info[0]}</h2>
-        <p>${info[1]}</p>
+        <h2>${this.escape(info[0])}</h2>
+        <p>${this.escape(info[1])}</p>
       </section>
 
-      <section class="content-card">
-        <div class="empty-state premium-empty">
-          <div class="empty-icon">✦</div>
-          <h3>${info[0]}</h3>
-          <p>هذا القسم مرتبط بمنظومة الصلاحيات وقاعدة البيانات، وسيعرض البيانات الفعلية للمستخدم المصرح له.</p>
-          <span class="status-pill">واجهة جاهزة للربط</span>
+      <section class="content-card" id="module-live-content">
+        <div class="loading-state">
+          <div class="loading-spinner"></div>
+          <h3>جاري تحميل البيانات الفعلية...</h3>
         </div>
       </section>
     `;
 
+    try {
+      const endpoints = {
+        students: "/api/students",
+        teachers: "/api/teachers",
+        circles: "/api/circles",
+        quran: "/api/quran-progress",
+        attendance: "/api/attendance",
+        payments: "/api/payments",
+        subscriptions: "/api/subscriptions",
+        today: "/api/sessions"
+      };
+
+      const fields = {
+        students: ["full_name", "student_code", "phone", "gender", "status"],
+        teachers: ["full_name", "phone", "email", "status"],
+        circles: ["name", "type", "status"],
+        quran: ["student_name", "surah_name", "progress_type", "amount"],
+        attendance: ["student_name", "session_id", "status", "created_at"],
+        payments: ["student_name", "amount", "status", "payment_date"],
+        subscriptions: ["student_name", "package_name", "status", "start_date"],
+        today: ["student_name", "teacher_name", "session_type", "start_time", "status"]
+      };
+
+      if (endpoints[page]) {
+        await this.renderSimpleListModule(
+          info[0],
+          endpoints[page],
+          fields[page],
+          page
+        );
+        return;
+      }
+
+      content.innerHTML = `
+        <div class="empty-state premium-empty">
+          <div class="empty-icon">✦</div>
+          <h3>${this.escape(info[0])}</h3>
+          <p>الواجهة الأساسية جاهزة، وسيتم توصيل هذا القسم بالـ API في المرحلة التالية.</p>
+          <span class="status-pill">قيد البناء</span>
+        </div>
+      `;
+    } catch (error) {
+      content.innerHTML = `
+        <div class="empty-state premium-empty">
+          <div class="empty-icon">!</div>
+          <h3>تعذر تحميل البيانات</h3>
+          <p>${this.escape(error?.message || "حدث خطأ غير متوقع")}</p>
+          <button class="secondary-button" id="module-retry" type="button">
+            إعادة المحاولة
+          </button>
+        </div>
+      `;
+
+      content.querySelector("#module-retry")?.addEventListener(
+        "click",
+        () => this.renderModule(page)
+      );
+    }
+
     this.bindNavigation();
+  }
+
+  async apiGet(url) {
+    const response = await fetch(url, {
+      credentials: "include",
+      headers: {
+        Accept: "application/json"
+      }
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(
+        data?.error ||
+        data?.message ||
+        `HTTP ${response.status}`
+      );
+    }
+
+    return data;
+  }
+
+  async renderSimpleListModule(title, endpoint, fields, page) {
+    const data = await this.apiGet(endpoint);
+
+    let rows = Array.isArray(data?.data)
+      ? data.data
+      : Array.isArray(data?.results)
+        ? data.results
+        : [];
+
+    const content = this.root.querySelector("#module-live-content");
+    if (!content) return;
+
+    const labels = {
+      full_name: "الاسم",
+      student_code: "كود الطالب",
+      phone: "الهاتف",
+      email: "البريد",
+      gender: "النوع",
+      status: "الحالة",
+      student_name: "الطالب",
+      teacher_name: "المعلم",
+      session_type: "نوع الجلسة",
+      start_time: "وقت البداية",
+      payment_date: "تاريخ الدفع",
+      amount: "المبلغ",
+      package_name: "الباقة",
+      start_date: "تاريخ البداية",
+      surah_name: "السورة",
+      progress_type: "نوع المتابعة",
+      session_id: "الجلسة",
+      created_at: "تاريخ الإنشاء",
+      type: "النوع",
+      name: "الاسم"
+    };
+
+    content.innerHTML = `
+      <div class="section-heading">
+        <div>
+          <span class="eyebrow">بيانات فعلية</span>
+          <h3>${this.escape(title)}</h3>
+          <p>عدد السجلات: <strong>${rows.length}</strong></p>
+        </div>
+
+        <button class="secondary-button" id="refresh-module" type="button">
+          تحديث
+        </button>
+      </div>
+
+      <div class="table-wrap">
+        ${
+          rows.length
+            ? `
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    ${fields.map((field) => `
+                      <th>${this.escape(labels[field] || field)}</th>
+                    `).join("")}
+                  </tr>
+                </thead>
+
+                <tbody>
+                  ${rows.map((row) => `
+                    <tr>
+                      ${fields.map((field) => `
+                        <td>${this.escape(
+                          row?.[field] === null ||
+                          row?.[field] === undefined ||
+                          row?.[field] === ""
+                            ? "—"
+                            : String(row[field])
+                        )}</td>
+                      `).join("")}
+                    </tr>
+                  `).join("")}
+                </tbody>
+              </table>
+            `
+            : `
+              <div class="empty-state">
+                <div class="empty-icon">✦</div>
+                <h3>لا توجد بيانات</h3>
+                <p>تم الاتصال بالـ API بنجاح، ولا توجد سجلات لعرضها حاليًا.</p>
+              </div>
+            `
+        }
+      </div>
+    `;
+
+    content.querySelector("#refresh-module")?.addEventListener(
+      "click",
+      () => this.renderModule(page)
+    );
   }
 
   setHeading(title, subtitle) {
