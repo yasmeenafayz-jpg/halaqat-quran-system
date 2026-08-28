@@ -1289,21 +1289,32 @@ export async function onRequestPatch(
       }
     }
 
-    const conflict =
-      await hasTeacherConflict(
-        db,
-        teacherId,
-        sessionDate,
-        startTime,
-        endTime,
-        Number(sessionId)
-      );
+    /*
+     * عند تعديل الجلسة:
+     * إذا لم يُرسل teacher_id نستخدم معلم الحلقة.
+     */
+    const finalTeacherId =
+      teacherId ??
+      circle?.teacher_id ??
+      null;
 
-    if (conflict) {
-      return errorResponse(
-        "TEACHER_HAS_SCHEDULE_CONFLICT",
-        409
-      );
+    if (finalTeacherId) {
+      const conflict =
+        await hasTeacherConflict(
+          db,
+          finalTeacherId,
+          sessionDate,
+          startTime,
+          endTime,
+          Number(sessionId)
+        );
+
+      if (conflict) {
+        return errorResponse(
+          "TEACHER_HAS_SCHEDULE_CONFLICT",
+          409
+        );
+      }
     }
 
     const updated =
@@ -1328,7 +1339,7 @@ export async function onRequestPatch(
         .bind(
           Number(sessionId),
           circleId,
-          teacherId,
+          finalTeacherId,
           sessionType,
           sessionDate,
           startTime,
