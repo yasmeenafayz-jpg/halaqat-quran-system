@@ -137,12 +137,20 @@ async function getCurrentUser(request, env) {
         u.full_name,
         u.phone,
         u.email,
-        u.status
+        u.status,
+        st.id AS student_id,
+        t.id AS teacher_id
 
       FROM auth_sessions s
 
       INNER JOIN users u
         ON u.id = s.user_id
+
+      LEFT JOIN students st
+        ON st.user_id = u.id
+
+      LEFT JOIN teachers t
+        ON t.user_id = u.id
 
       WHERE s.session_token_hash = ?
 
@@ -179,6 +187,8 @@ async function getCurrentUser(request, env) {
     phone: row.phone,
     email: row.email,
     status: row.status,
+    student_id: row.student_id ?? null,
+    teacher_id: row.teacher_id ?? null,
     session_id: row.session_id,
   };
 }

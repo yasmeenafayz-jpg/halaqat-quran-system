@@ -1566,7 +1566,7 @@ export async function onRequestPatch(context) {
 
       const decidedAt = timestamp();
 
-      await db
+      const result = await db
         .prepare(`
           UPDATE individual_schedule_requests
           SET
@@ -1576,6 +1576,7 @@ export async function onRequestPatch(context) {
             decided_by = ?4,
             updated_at = ?3
           WHERE id = ?1
+            AND status = 'pending'
         `)
         .bind(
           requestId,
@@ -1584,12 +1585,16 @@ export async function onRequestPatch(context) {
             body.teacherResponseNote
           ),
           decidedAt,
-          id(
-            body.decided_by ??
-            body.decidedBy
-          )
+          permission.user?.id ?? null
         )
         .run();
+
+      if (!result?.meta?.changes) {
+        return fail(
+          "REQUEST_IS_NOT_PENDING",
+          409
+        );
+      }
 
       return json({
         success: true,
