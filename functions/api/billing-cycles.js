@@ -212,6 +212,91 @@ function calculateStatus(
    قواعد الفوترة
 ========================================================= */
 
+
+function calculateSessionChargeability({
+  attendanceStatus,
+  excuseSubmittedAt,
+  sessionStartTime,
+  academyCancelled = false
+}) {
+  if (academyCancelled) {
+    return {
+      chargeable: false,
+      reason: "cancelled_by_academy"
+    };
+  }
+
+  const status =
+    String(attendanceStatus || "")
+      .trim()
+      .toLowerCase();
+
+  if (status === "present" || status === "late") {
+    return {
+      chargeable: true,
+      reason: status
+    };
+  }
+
+  if (status === "excused") {
+    return {
+      chargeable: false,
+      reason: "excused_absence"
+    };
+  }
+
+  if (
+    status === "absent" ||
+    status === "no_show"
+  ) {
+    if (!excuseSubmittedAt || !sessionStartTime) {
+      return {
+        chargeable: true,
+        reason: "absence_without_excuse"
+      };
+    }
+
+    const submitted =
+      new Date(excuseSubmittedAt);
+
+    const start =
+      new Date(sessionStartTime);
+
+    if (
+      Number.isNaN(submitted.getTime()) ||
+      Number.isNaN(start.getTime())
+    ) {
+      return {
+        chargeable: true,
+        reason: "absence_without_valid_excuse_time"
+      };
+    }
+
+    const deadline =
+      new Date(
+        start.getTime() -
+        4 * 60 * 60 * 1000
+      );
+
+    if (submitted > deadline) {
+      return {
+        chargeable: true,
+        reason: "late_excuse"
+      };
+    }
+
+    return {
+      chargeable: false,
+      reason: "valid_excuse"
+    };
+  }
+
+  return {
+    chargeable: false,
+    reason: "not_chargeable"
+  };
+}
+
 async function getBillingSettings(db) {
   try {
     const row = await db
@@ -1368,7 +1453,7 @@ export async function onRequestPost(context) {
 
             ?24,
             ?25,
-            ?25
+            ?26
           )
         `)
         .bind(
