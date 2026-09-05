@@ -5,6 +5,7 @@ import {
   destroySession,
   writeAudit,
   requireAuth,
+  attachRoleContext,
 } from "./_auth.js";
 
 import {
@@ -142,6 +143,11 @@ async function handleLogin(request, env) {
     });
   }
 
+  const roleAwareUser = await attachRoleContext(
+    env.DB,
+    user
+  );
+
   const session = await createSession(
     request,
     env,
@@ -161,12 +167,17 @@ async function handleLogin(request, env) {
       success: true,
       authenticated: true,
       user: {
-        id: user.id,
-        role: user.role,
-        full_name: user.full_name,
-        phone: user.phone,
-        email: user.email,
-        status: user.status,
+        id: roleAwareUser.id,
+        role: roleAwareUser.role,
+        roles:
+          roleAwareUser.roles || [roleAwareUser.role],
+        active_role:
+          roleAwareUser.active_role ||
+          roleAwareUser.role,
+        full_name: roleAwareUser.full_name,
+        phone: roleAwareUser.phone,
+        email: roleAwareUser.email,
+        status: roleAwareUser.status,
       },
     },
     200,

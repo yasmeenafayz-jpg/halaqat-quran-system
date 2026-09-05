@@ -184,7 +184,7 @@ async function getCurrentUser(request, env) {
     .bind(row.session_id)
     .run();
 
-  return {
+  const baseUser = {
     id: row.id,
     role: row.role,
     full_name: row.full_name,
@@ -194,6 +194,80 @@ async function getCurrentUser(request, env) {
     student_id: row.student_id ?? null,
     teacher_id: row.teacher_id ?? null,
     session_id: row.session_id,
+  };
+
+  return await attachRoleContext(env.DB, baseUser);
+}
+
+
+async function getUserRoles(db, userId, legacyRole = null) {
+  const result = await db
+    .prepare(`
+      SELECT role
+      FROM user_roles
+      WHERE user_id = ?
+        AND enabled = 1
+      ORDER BY
+        CASE role
+          WHEN 'admin' THEN 1
+          WHEN 'supervisor' THEN 2
+          WHEN 'teacher' THEN 3
+          WHEN 'student' THEN 4
+          WHEN 'guardian' THEN 5
+          ELSE 99
+        END,
+        role
+    `)
+    .bind(userId)
+    .all();
+
+  const roles = Array.isArray(result?.results)
+    ? result.results
+        .map((row) => row?.role)
+        .filter(
+          (role) =>
+            typeof role === "string" &&
+            role.trim() !== ""
+        )
+        .map((role) => role.trim())
+    : [];
+
+  if (roles.length > 0) {
+    return [...new Set(roles)];
+  }
+
+  if (
+    typeof legacyRole === "string" &&
+    legacyRole.trim() !== ""
+  ) {
+    return [legacyRole.trim()];
+  }
+
+  return [];
+}
+
+async function attachRoleContext(db, user) {
+  if (!user || !user.id) {
+    return user;
+  }
+
+  const roles = await getUserRoles(
+    db,
+    user.id,
+    user.role
+  );
+
+  const activeRole =
+    roles.includes(user.role)
+      ? user.role
+      : roles[0] || user.role || null;
+
+  return {
+    ...user,
+    roles,
+    active_role: activeRole,
+    // Backward compatibility for existing APIs.
+    role: activeRole,
   };
 }
 
@@ -233,7 +307,14 @@ async function hasPermission(
     return false;
   }
 
-  if (user.role === "admin") {
+  const userRoles =
+    Array.isArray(user?.roles)
+      ? user.roles
+      : user?.role
+        ? [user.role]
+        : [];
+
+  if (userRoles.includes("admin")) {
     return true;
   }
 
@@ -321,6 +402,32 @@ async function requirePermission(
   };
 }
 
+function userHasRole(user, role) {
+  if (!user || typeof role !== "string" || !role.trim()) {
+    return false;
+  }
+
+  const roles =
+    Array.isArray(user.roles)
+      ? user.roles
+      : user.role
+        ? [user.role]
+        : [];
+
+  return roles.includes(role.trim());
+}
+
+function userHasAnyRole(user, roles) {
+  const allowedRoles =
+    Array.isArray(roles)
+      ? roles
+      : [roles];
+
+  return allowedRoles.some((role) =>
+    userHasRole(user, role)
+  );
+}
+
 async function requireRole(
   request,
   env,
@@ -341,8 +448,9 @@ async function requireRole(
       : [roles];
 
   if (
-    !allowedRoles.includes(
-      auth.user.role
+    !userHasAnyRole(
+      auth.user,
+      allowedRoles
     )
   ) {
     return {
@@ -495,6 +603,10 @@ export {
   error,
   getCookie,
   getCurrentUser,
+  getUserRoles,
+  attachRoleContext,
+  userHasRole,
+  userHasAnyRole,
   requireAuth,
   hasPermission,
   requirePermission,

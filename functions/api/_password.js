@@ -81,11 +81,23 @@ async function derivePassword(
 }
 
 function safeEqual(a, b) {
-  if (a.length !== b.length) {
+  if (
+    !(a instanceof Uint8Array) ||
+    !(b instanceof Uint8Array) ||
+    a.length !== b.length
+  ) {
     return false;
   }
 
-  return crypto.subtle.timingSafeEqual(a, b);
+  // Constant-time byte comparison.
+  // Do not depend on Node-only timingSafeEqual APIs.
+  let difference = 0;
+
+  for (let i = 0; i < a.length; i += 1) {
+    difference |= a[i] ^ b[i];
+  }
+
+  return difference === 0;
 }
 
 async function hashPassword(password) {
