@@ -403,7 +403,8 @@ async function handleLogout(request, env) {
 }
 
 export async function onRequest(context) {
-  
+  const { request, env } = context;
+
   // Temporary production diagnostic — remove after authentication is fixed.
   if (
     new URL(request.url).searchParams.get("action") ===
