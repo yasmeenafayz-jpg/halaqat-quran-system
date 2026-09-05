@@ -14,6 +14,36 @@ import {
 } from "./_password.js";
 
 async function handleLoginDiagnostic(request, env) {
+  let body;
+
+  try {
+    body = await request.json();
+  } catch {
+    return json({
+      success: false,
+      diagnostic: "production-password-check",
+      error: "INVALID_JSON"
+    }, 400);
+  }
+
+  const identifier =
+    typeof body?.identifier === "string"
+      ? body.identifier.trim()
+      : "";
+
+  const password =
+    typeof body?.password === "string"
+      ? body.password
+      : "";
+
+  if (!identifier || !password) {
+    return json({
+      success: false,
+      diagnostic: "production-password-check",
+      error: "MISSING_CREDENTIALS"
+    }, 400);
+  }
+
   const user = await env.DB
     .prepare(`
       SELECT
@@ -29,8 +59,13 @@ async function handleLoginDiagnostic(request, env) {
         OR phone = ?
       LIMIT 1
     `)
-    .bind("admin@alawabin.app", "01000000000")
+    .bind(identifier, identifier)
     .first();
+
+  const passwordCheck = await verifyPassword(
+    password,
+    user?.password_hash
+  );
 
   return json({
     success: true,
@@ -47,7 +82,15 @@ async function handleLoginDiagnostic(request, env) {
       typeof user?.password_hash === "string"
         ? user.password_hash.length
         : 0,
-    note: "user lookup only"
+    password_check:
+      typeof passwordCheck === "object"
+        ? Boolean(passwordCheck?.valid)
+        : Boolean(passwordCheck),
+    password_check_type: typeof passwordCheck,
+    password_check_keys:
+      passwordCheck && typeof passwordCheck === "object"
+        ? Object.keys(passwordCheck)
+        : []
   });
 }
 
@@ -536,10 +579,21 @@ export async function onRequest(context) {
   const action =
     url.searchParams.get("action") || "me";
 
-  if (
-    action === "login-diagnostic" &&
-    request.method === "GET"
-  ) {
+  if (action === "login-diagnostic") {
+    if (request.method !== "POST") {
+      return json(
+        {
+          success: false,
+          error: "METHOD_NOT_ALLOWED",
+          message: "طريقة الطلب غير مسموحة.",
+        },
+        405,
+        {
+          Allow: "POST",
+        }
+      );
+    }
+
     return handleLoginDiagnostic(request, env);
   }
 
