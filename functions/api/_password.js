@@ -236,3 +236,5 @@ export {
   PASSWORD_SCHEME,
   PASSWORD_ITERATIONS,
 };
+
+// Production auth refresh marker — 2026-09-05
