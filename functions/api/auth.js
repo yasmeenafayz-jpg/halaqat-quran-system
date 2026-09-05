@@ -93,6 +93,29 @@ async function handleLogin(request, env) {
     );
 
   if (
+    new URL(request.url).searchParams.get("action") ===
+    "login-diagnostic"
+  ) {
+    return json({
+      success: true,
+      diagnostic: "production-password-check",
+      user_found: Boolean(user),
+      user_id: user?.id ?? null,
+      status: user?.status ?? null,
+      hash_present: Boolean(user?.password_hash),
+      hash_scheme:
+        typeof user?.password_hash === "string"
+          ? user.password_hash.split("$")[0]
+          : null,
+      hash_length:
+        typeof user?.password_hash === "string"
+          ? user.password_hash.length
+          : 0,
+      password_check: Boolean(passwordCheck)
+    });
+  }
+
+  if (
     !user ||
     !passwordCheck.valid
   ) {
