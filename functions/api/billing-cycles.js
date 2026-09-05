@@ -216,6 +216,8 @@ function calculateStatus(
 function calculateSessionChargeability({
   attendanceStatus,
   excuseSubmittedAt,
+  excuseStatus,
+  excuseDeadlineHours = 4,
   sessionStartTime,
   academyCancelled = false
 }) {
@@ -226,14 +228,11 @@ function calculateSessionChargeability({
     };
   }
 
-  const status =
-    String(attendanceStatus || "")
-      .trim()
-      .toLowerCase();
+  const status = String(attendanceStatus || "").trim().toLowerCase();
 
   if (status === "present" || status === "late") {
     return {
-      chargeable: true,
+      chargeable: false,
       reason: status
     };
   }
@@ -245,56 +244,676 @@ function calculateSessionChargeability({
     };
   }
 
-  if (
-    status === "absent" ||
-    status === "no_show"
-  ) {
-    if (!excuseSubmittedAt || !sessionStartTime) {
-      return {
-        chargeable: true,
-        reason: "absence_without_excuse"
-      };
-    }
-
-    const submitted =
-      new Date(excuseSubmittedAt);
-
-    const start =
-      new Date(sessionStartTime);
-
-    if (
-      Number.isNaN(submitted.getTime()) ||
-      Number.isNaN(start.getTime())
-    ) {
-      return {
-        chargeable: true,
-        reason: "absence_without_valid_excuse_time"
-      };
-    }
-
-    const deadline =
-      new Date(
-        start.getTime() -
-        4 * 60 * 60 * 1000
-      );
-
-    if (submitted > deadline) {
-      return {
-        chargeable: true,
-        reason: "late_excuse"
-      };
-    }
-
+  if (status !== "absent" && status !== "no_show" && status !== "") {
     return {
       chargeable: false,
-      reason: "valid_excuse"
+      reason: "not_chargeable"
+    };
+  }
+
+  if (!excuseSubmittedAt || !sessionStartTime) {
+    return {
+      chargeable: true,
+      reason: "absence_without_excuse"
+    };
+  }
+
+  const submitted = new Date(excuseSubmittedAt);
+  const start = new Date(sessionStartTime);
+
+  if (
+    Number.isNaN(submitted.getTime()) ||
+    Number.isNaN(start.getTime())
+  ) {
+    return {
+      chargeable: true,
+      reason: "absence_without_valid_excuse_time"
+    };
+  }
+
+  const deadline = new Date(
+    start.getTime() - excuseDeadlineHours * 60 * 60 * 1000
+  );
+
+  if (submitted.getTime() > deadline.getTime()) {
+    return {
+      chargeable: true,
+      reason: "late_excuse"
     };
   }
 
   return {
     chargeable: false,
-    reason: "not_chargeable"
+    reason: "valid_excuse"
   };
+}
+
+function cairoDateTimeToDate(
+  sessionDate,
+  startTime
+) {
+  if (!sessionDate || !startTime) {
+    return null;
+  }
+
+  const match = String(startTime).match(
+    /^(\d{2}):(\d{2})(?::(\d{2}))?$/
+  );
+
+  if (!match) {
+    return null;
+  }
+
+  const yearMonthDay =
+    String(sessionDate).slice(0, 10);
+
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  const second = Number(match[3] || 0);
+
+  if (
+    !Number.isInteger(hour) ||
+    !Number.isInteger(minute) ||
+    !Number.isInteger(second) ||
+    hour > 23 ||
+    minute > 59 ||
+    second > 59
+  ) {
+    return null;
+  }
+
+  /*
+   * Convert Cairo wall-clock time to an absolute Date
+   * using the real Africa/Cairo timezone rules.
+   *
+   * لا نستخدم +02:00 أو +03:00 ثابتة، لأن القاهرة
+   * قد تنتقل بين التوقيت الشتوي والصيفي.
+   */
+  const localAsUtc = new Date(
+    `${yearMonthDay}T` +
+    `${String(hour).padStart(2, "0")}:` +
+    `${String(minute).padStart(2, "0")}:` +
+    `${String(second).padStart(2, "0")}Z`
+  );
+
+  if (Number.isNaN(localAsUtc.getTime())) {
+    return null;
+  }
+
+  const parts =
+    new Intl.DateTimeFormat(
+      "en-GB",
+      {
+        timeZone: "Africa/Cairo",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hourCycle: "h23"
+      }
+    ).formatToParts(localAsUtc);
+
+  const values = {};
+
+  for (const part of parts) {
+    if (part.type !== "literal") {
+      values[part.type] = part.value;
+    }
+  }
+
+  const cairoAsUtc = new Date(
+    `${values.year}-${values.month}-${values.day}T` +
+    `${values.hour}:${values.minute}:${values.second}Z`
+  );
+
+  if (Number.isNaN(cairoAsUtc.getTime())) {
+    return null;
+  }
+
+  const offset =
+    cairoAsUtc.getTime() -
+    localAsUtc.getTime();
+
+  const result =
+    new Date(
+      localAsUtc.getTime() -
+      offset
+    );
+
+  return Number.isNaN(result.getTime())
+    ? null
+    : result;
+}
+
+function calculateSessionChargeabilityCairo({
+  attendanceStatus,
+  excuseSubmittedAt,
+  excuseStatus,
+  excuseDeadlineHours = 4,
+  lateExcuseIsChargeable = true,
+  absentWithoutExcuseIsChargeable = true,
+  excusedAbsenceIsChargeable = false,
+  cancelledByAcademyIsChargeable = false,
+  sessionDate,
+  sessionStartTime,
+  academyCancelled = false
+}) {
+  if (academyCancelled) {
+    return {
+      chargeable: Boolean(cancelledByAcademyIsChargeable),
+      reason: cancelledByAcademyIsChargeable
+        ? "cancelled_by_academy"
+        : "cancelled_by_academy"
+    };
+  }
+
+  const status =
+    String(attendanceStatus || "")
+      .trim()
+      .toLowerCase();
+
+  const excuse =
+    String(excuseStatus || "")
+      .trim()
+      .toLowerCase();
+
+  if (
+    status === "present" ||
+    status === "late"
+  ) {
+    return {
+      chargeable: false,
+      reason: status
+    };
+  }
+
+  if (
+    status !== "absent" &&
+    status !== "no_show" &&
+    status !== "" &&
+    status !== "excused"
+  ) {
+    return {
+      chargeable: false,
+      reason: "not_chargeable"
+    };
+  }
+
+  /*
+   * الاعتذار المرفوض = الغياب قابل للفوترة.
+   * الرفض يتغلب على كون الاعتذار قد قُدم مبكرًا.
+   */
+  if (excuse === "rejected") {
+    return {
+      chargeable: true,
+      reason: "rejected_excuse"
+    };
+  }
+
+  /*
+   * الاعتذار المقبول لا يصبح معفيًا من الفوترة إلا
+   * إذا كان قد قُدم في الموعد.
+   *
+   * لذلك نؤجل الحكم على approved إلى ما بعد حساب
+   * موعد المهلة، حتى لا يؤدي اعتماد اعتذار متأخر
+   * إلى إلغاء رسوم الجلسة تلقائيًا.
+   */
+
+  /*
+   * حالة attendance = excused القديمة/اليدوية.
+   * لا نكسر السجلات القديمة التي لا تحتوي على attendance_excuses.
+   */
+  if (
+    status === "excused" &&
+    !excuse
+  ) {
+    return {
+      chargeable: Boolean(excusedAbsenceIsChargeable),
+      reason: "excused_absence"
+    };
+  }
+
+  const sessionStart =
+    cairoDateTimeToDate(
+      sessionDate,
+      sessionStartTime
+    );
+
+  /*
+   * إذا تعذر تحديد بداية الجلسة،
+   * لا يمكن إثبات أن الاعتذار قُدم في الموعد.
+   */
+  if (!sessionStart) {
+    return {
+      chargeable: Boolean(absentWithoutExcuseIsChargeable),
+      reason: "absence_without_valid_session_time"
+    };
+  }
+
+  const deadline =
+    new Date(
+      sessionStart.getTime() -
+      Number(excuseDeadlineHours) * 60 * 60 * 1000
+    );
+
+  /*
+   * الاعتذار موجود لكنه ما زال قيد المراجعة.
+   * إذا كان في الموعد فهو غير قابل للفوترة مؤقتًا.
+   */
+  if (
+    excuse === "pending" &&
+    excuseSubmittedAt
+  ) {
+    const submitted =
+      new Date(excuseSubmittedAt);
+
+    if (
+      !Number.isNaN(submitted.getTime())
+    ) {
+      if (
+        submitted.getTime() <=
+        deadline.getTime()
+      ) {
+        return {
+          chargeable: false,
+          reason: "pending_valid_excuse"
+        };
+      }
+
+      return {
+        chargeable: Boolean(lateExcuseIsChargeable),
+        reason: "late_excuse"
+      };
+    }
+  }
+
+  /*
+   * قبل انتهاء المهلة:
+   * عدم وجود اعتذار حتى الآن لا يجعل الغياب مدفوعًا.
+   */
+  if (
+    new Date().getTime() <=
+    deadline.getTime()
+  ) {
+    return {
+      chargeable: false,
+      reason: "excuse_deadline_not_reached"
+    };
+  }
+
+  /*
+   * انتهت المهلة ولم يقدم الطالب اعتذارًا.
+   */
+  if (!excuseSubmittedAt) {
+    return {
+      chargeable: Boolean(absentWithoutExcuseIsChargeable),
+      reason: "absence_without_excuse"
+    };
+  }
+
+  const submitted =
+    new Date(excuseSubmittedAt);
+
+  if (
+    Number.isNaN(
+      submitted.getTime()
+    )
+  ) {
+    return {
+      chargeable: Boolean(absentWithoutExcuseIsChargeable),
+      reason: "absence_without_valid_excuse_time"
+    };
+  }
+
+  /*
+   * الاعتذار قُدم بعد الموعد.
+   */
+  if (
+    submitted.getTime() >
+    deadline.getTime()
+  ) {
+    return {
+      chargeable: Boolean(lateExcuseIsChargeable),
+      reason: "late_excuse"
+    };
+  }
+
+  /*
+   * اعتذار في الموعد ولم تتم مراجعته بعد.
+   */
+  return {
+    chargeable: false,
+    reason: "valid_excuse"
+  };
+}
+
+async function getAutomaticSessionBilling(
+  db,
+  {
+    studentId,
+    subscriptionId,
+    periodStart,
+    periodEnd
+  }
+) {
+  if (
+    !studentId ||
+    !subscriptionId
+  ) {
+    return {
+      plannedSessions: 0,
+      scheduledSessions: 0,
+      completedSessions: 0,
+      cancelledSessions: 0,
+      chargeableSessions: 0,
+      sessionAmount: 0,
+      sessionUnitPrice: 0,
+      items: []
+    };
+  }
+
+  const subscription =
+    await getSubscription(
+      db,
+      Number(subscriptionId)
+    );
+
+  if (!subscription) {
+    return {
+      plannedSessions: 0,
+      scheduledSessions: 0,
+      completedSessions: 0,
+      cancelledSessions: 0,
+      chargeableSessions: 0,
+      sessionAmount: 0,
+      sessionUnitPrice: 0,
+      items: []
+    };
+  }
+
+  const excuseRules =
+    await db
+      .prepare(`
+        SELECT
+          excuse_deadline_hours,
+          late_excuse_is_chargeable,
+          absent_without_excuse_is_chargeable,
+          excused_absence_is_chargeable,
+          cancelled_by_academy_is_chargeable
+        FROM attendance_excuse_rules
+        WHERE id = 1
+          AND active = 1
+        LIMIT 1
+      `)
+      .first();
+
+  const excuseDeadlineHours =
+    Number(
+      excuseRules?.excuse_deadline_hours ?? 4
+    );
+
+  const lateExcuseIsChargeable =
+    Number(
+      excuseRules?.late_excuse_is_chargeable ?? 1
+    ) === 1;
+
+  const absentWithoutExcuseIsChargeable =
+    Number(
+      excuseRules?.absent_without_excuse_is_chargeable ?? 1
+    ) === 1;
+
+  const excusedAbsenceIsChargeable =
+    Number(
+      excuseRules?.excused_absence_is_chargeable ?? 0
+    ) === 1;
+
+  const cancelledByAcademyIsChargeable =
+    Number(
+      excuseRules?.cancelled_by_academy_is_chargeable ?? 0
+    ) === 1;
+
+  const result =
+    await db
+      .prepare(`
+        SELECT
+          a.id AS attendance_id,
+          ?1 AS student_id,
+          s.id AS session_id,
+          a.status AS attendance_status,
+
+          s.session_date,
+          s.start_time,
+          s.status AS session_status,
+          s.circle_id,
+
+          ae.submitted_at AS excuse_submitted_at,
+          ae.status AS excuse_status
+
+        FROM sessions s
+
+        LEFT JOIN attendance a
+          ON a.session_id = s.id
+         AND a.student_id = ?1
+
+        LEFT JOIN attendance_excuses ae
+          ON ae.attendance_id = a.id
+
+        WHERE s.session_date >= ?2
+          AND s.session_date <= ?3
+
+          AND s.session_date >=
+              COALESCE(
+                ?6,
+                s.session_date
+              )
+
+          AND (
+            s.session_date <=
+              COALESCE(
+                ?7,
+                s.session_date
+              )
+          )
+
+          AND (
+            (
+              ?4 != -1
+              AND s.circle_id = ?4
+            )
+            OR EXISTS (
+              SELECT 1
+              FROM individual_schedule_bookings isb
+              WHERE isb.session_id = s.id
+                AND isb.student_id = ?1
+                AND isb.subscription_id = ?5
+            )
+          )
+
+        ORDER BY
+          s.session_date ASC,
+          s.start_time ASC,
+          s.id ASC
+      `)
+      .bind(
+        Number(studentId),
+        periodStart,
+        periodEnd,
+        subscription.circle_id === null
+          ? -1
+          : Number(subscription.circle_id),
+        Number(subscriptionId),
+        subscription.start_date || null,
+        subscription.end_date || null
+      )
+      .all();
+
+  const rows =
+    result.results || [];
+
+  let scheduledSessions = 0;
+  let completedSessions = 0;
+  let cancelledSessions = 0;
+  let chargeableSessions = 0;
+
+  const items = [];
+
+  for (const row of rows) {
+    const sessionStatus =
+      String(
+        row.session_status || ""
+      )
+        .trim()
+        .toLowerCase();
+
+    if (sessionStatus === "scheduled") {
+      scheduledSessions += 1;
+    } else if (
+      sessionStatus === "completed"
+    ) {
+      completedSessions += 1;
+    } else if (
+      sessionStatus === "cancelled"
+    ) {
+      cancelledSessions += 1;
+    }
+
+    const decision =
+      calculateSessionChargeabilityCairo({
+        attendanceStatus:
+          row.attendance_status,
+        excuseSubmittedAt:
+          row.excuse_submitted_at,
+        excuseStatus:
+          row.excuse_status,
+        sessionDate:
+          row.session_date,
+        sessionStartTime:
+          row.start_time,
+        excuseDeadlineHours,
+        lateExcuseIsChargeable,
+        absentWithoutExcuseIsChargeable,
+        excusedAbsenceIsChargeable,
+        cancelledByAcademyIsChargeable,
+        academyCancelled:
+          sessionStatus === "cancelled"
+      });
+
+    if (decision.chargeable) {
+      chargeableSessions += 1;
+    }
+
+    items.push({
+      sessionId:
+        Number(row.session_id),
+      attendanceId:
+        Number(row.attendance_id),
+      sessionDate:
+        row.session_date,
+      chargeable:
+        decision.chargeable ? 1 : 0,
+      reason:
+        decision.reason
+    });
+  }
+
+  const sessionsPerMonth =
+    Number(
+      subscription.sessions_per_month || 0
+    );
+
+  const packagePrice =
+    Number(
+      subscription.package_price || 0
+    );
+
+  const sessionUnitPrice =
+    sessionsPerMonth > 0
+      ? money(
+          packagePrice /
+          sessionsPerMonth
+        )
+      : 0;
+
+  const sessionAmount =
+    money(
+      chargeableSessions *
+      sessionUnitPrice
+    );
+
+  return {
+    plannedSessions:
+      rows.length,
+    scheduledSessions,
+    completedSessions,
+    cancelledSessions,
+    chargeableSessions,
+    sessionAmount,
+    sessionUnitPrice,
+    items
+  };
+}
+
+async function replaceBillingSessionItems(
+  db,
+  billingCycleId,
+  studentId,
+  automaticBilling
+) {
+  await db
+    .prepare(`
+      DELETE FROM billing_session_items
+      WHERE billing_cycle_id = ?1
+    `)
+    .bind(
+      Number(billingCycleId)
+    )
+    .run();
+
+  for (
+    const item of automaticBilling.items
+  ) {
+    const amount =
+      item.chargeable
+        ? automaticBilling.sessionUnitPrice
+        : 0;
+
+    await db
+      .prepare(`
+        INSERT INTO billing_session_items (
+          billing_cycle_id,
+          session_id,
+          student_id,
+          session_date,
+          chargeable,
+          amount,
+          reason,
+          created_at
+        )
+        VALUES (
+          ?1,
+          ?2,
+          ?3,
+          ?4,
+          ?5,
+          ?6,
+          ?7,
+          ?8
+        )
+      `)
+      .bind(
+        Number(billingCycleId),
+        Number(item.sessionId),
+        Number(studentId),
+        item.sessionDate,
+        Number(item.chargeable),
+        amount,
+        item.reason,
+        now()
+      )
+      .run();
+  }
 }
 
 async function getBillingSettings(db) {
@@ -523,15 +1142,26 @@ async function getSubscription(db, subscriptionId) {
   return db
     .prepare(`
       SELECT
-        id,
-        student_id,
-        package_id,
-        circle_id,
-        start_date,
-        end_date,
-        status
-      FROM subscriptions
-      WHERE id = ?1
+        sub.id,
+        sub.student_id,
+        sub.package_id,
+        sub.circle_id,
+        sub.start_date,
+        sub.end_date,
+        sub.status,
+
+        p.name AS package_name,
+        p.price AS package_price,
+        p.currency AS package_currency,
+        p.sessions_per_month,
+        p.duration_minutes
+
+      FROM subscriptions sub
+
+      JOIN packages p
+        ON p.id = sub.package_id
+
+      WHERE sub.id = ?1
       LIMIT 1
     `)
     .bind(subscriptionId)
@@ -1255,6 +1885,53 @@ export async function onRequestPost(context) {
       );
     }
 
+    const automaticBilling =
+      subscriptionId !== null &&
+      studentSettings?.billing_mode !== "manual" &&
+      Number(
+        settings.calculate_sessions_automatically ?? 1
+      ) === 1
+        ? await getAutomaticSessionBilling(
+            db,
+            {
+              studentId,
+              subscriptionId,
+              periodStart,
+              periodEnd
+            }
+          )
+        : null;
+
+    const finalPlannedSessions =
+      automaticBilling
+        ? automaticBilling.plannedSessions
+        : plannedSessions;
+
+    const finalScheduledSessions =
+      automaticBilling
+        ? automaticBilling.scheduledSessions
+        : scheduledSessions;
+
+    const finalCompletedSessions =
+      automaticBilling
+        ? automaticBilling.completedSessions
+        : completedSessions;
+
+    const finalCancelledSessions =
+      automaticBilling
+        ? automaticBilling.cancelledSessions
+        : cancelledSessions;
+
+    const finalChargeableSessions =
+      automaticBilling
+        ? automaticBilling.chargeableSessions
+        : chargeableSessions;
+
+    const finalSessionAmount =
+      automaticBilling
+        ? automaticBilling.sessionAmount
+        : sessionAmount;
+
     const finalCurrency =
       currency ||
       clean(settings.currency).toUpperCase() ||
@@ -1263,7 +1940,7 @@ export async function onRequestPost(context) {
     const totalAmount =
       calculateTotal({
         packageAmount,
-        sessionAmount,
+        sessionAmount: finalSessionAmount,
         discountAmount,
         exemptionAmount,
         fineAmount,
@@ -1464,14 +2141,14 @@ export async function onRequestPost(context) {
           periodEnd,
           finalCurrency,
 
-          plannedSessions,
-          scheduledSessions,
-          completedSessions,
-          cancelledSessions,
-          chargeableSessions,
+          finalPlannedSessions,
+          finalScheduledSessions,
+          finalCompletedSessions,
+          finalCancelledSessions,
+          finalChargeableSessions,
 
           packageAmount,
-          sessionAmount,
+          finalSessionAmount,
 
           discountAmount,
           exemptionAmount,
@@ -1544,6 +2221,15 @@ export async function onRequestPost(context) {
           now()
         )
         .run();
+    }
+
+    if (automaticBilling) {
+      await replaceBillingSessionItems(
+        db,
+        billingCycleId,
+        studentId,
+        automaticBilling
+      );
     }
 
     return json(
@@ -1658,6 +2344,36 @@ export async function onRequestPatch(context) {
       );
     }
 
+    const patchSettings =
+      await getBillingSettings(db);
+
+    const patchStudentSettings =
+      await getStudentBillingSettings(
+        db,
+        Number(current.student_id)
+      );
+
+    const automaticBilling =
+      current.subscription_id &&
+      patchStudentSettings?.billing_mode !== "manual" &&
+      Number(
+        patchSettings.calculate_sessions_automatically ?? 1
+      ) === 1
+        ? await getAutomaticSessionBilling(
+            db,
+            {
+              studentId:
+                Number(current.student_id),
+              subscriptionId:
+                Number(current.subscription_id),
+              periodStart:
+                current.period_start,
+              periodEnd:
+                current.period_end
+            }
+          )
+        : null;
+
     const packageAmount =
       data.package_amount !== undefined ||
       data.packageAmount !== undefined
@@ -1670,14 +2386,18 @@ export async function onRequestPatch(context) {
           );
 
     const sessionAmount =
-      data.session_amount !== undefined ||
-      data.sessionAmount !== undefined
-        ? nonNegativeNumber(
-            data.session_amount ??
-              data.sessionAmount
-          )
-        : Number(
-            current.session_amount
+      automaticBilling
+        ? automaticBilling.sessionAmount
+        : (
+            data.session_amount !== undefined ||
+            data.sessionAmount !== undefined
+              ? nonNegativeNumber(
+                  data.session_amount ??
+                    data.sessionAmount
+                )
+              : Number(
+                  current.session_amount
+                )
           );
 
     const discountAmount =
@@ -1830,14 +2550,18 @@ export async function onRequestPatch(context) {
           );
 
     const chargeableSessions =
-      data.chargeable_sessions !== undefined ||
-      data.chargeableSessions !== undefined
-        ? nonNegativeInteger(
-            data.chargeable_sessions ??
-              data.chargeableSessions
-          )
-        : Number(
-            current.chargeable_sessions
+      automaticBilling
+        ? automaticBilling.chargeableSessions
+        : (
+            data.chargeable_sessions !== undefined ||
+            data.chargeableSessions !== undefined
+              ? nonNegativeInteger(
+                  data.chargeable_sessions ??
+                    data.chargeableSessions
+                )
+              : Number(
+                  current.chargeable_sessions
+                )
           );
 
     if (
@@ -1931,11 +2655,21 @@ export async function onRequestPatch(context) {
         .bind(
           Number(billingCycleId),
 
-          plannedSessions,
-          scheduledSessions,
-          completedSessions,
-          cancelledSessions,
-          chargeableSessions,
+          automaticBilling
+            ? automaticBilling.plannedSessions
+            : plannedSessions,
+          automaticBilling
+            ? automaticBilling.scheduledSessions
+            : scheduledSessions,
+          automaticBilling
+            ? automaticBilling.completedSessions
+            : completedSessions,
+          automaticBilling
+            ? automaticBilling.cancelledSessions
+            : cancelledSessions,
+          automaticBilling
+            ? automaticBilling.chargeableSessions
+            : chargeableSessions,
 
           packageAmount,
           sessionAmount,
@@ -1963,6 +2697,15 @@ export async function onRequestPatch(context) {
       return errorResponse(
         "BILLING_CYCLE_UPDATE_FAILED",
         500
+      );
+    }
+
+    if (automaticBilling) {
+      await replaceBillingSessionItems(
+        db,
+        Number(billingCycleId),
+        Number(current.student_id),
+        automaticBilling
       );
     }
 

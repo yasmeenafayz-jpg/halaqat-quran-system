@@ -99,6 +99,76 @@ function activeStatus(status) {
 }
 
 /* =========================================================
+   Entity Scope
+========================================================= */
+
+function isPrivilegedUser(user) {
+  return (
+    user?.role === "admin" ||
+    user?.role === "supervisor"
+  );
+}
+
+async function canTeacherAccessCircle(
+  db,
+  user,
+  circleId
+) {
+  if (isPrivilegedUser(user)) {
+    return true;
+  }
+
+  if (
+    user?.role !== "teacher" ||
+    !user?.teacher_id
+  ) {
+    return false;
+  }
+
+  const circle = await db
+    .prepare(`
+      SELECT
+        id
+      FROM circles
+      WHERE id = ?
+        AND teacher_id = ?
+        AND status = 'active'
+      LIMIT 1
+    `)
+    .bind(
+      circleId,
+      Number(user.teacher_id)
+    )
+    .first();
+
+  return Boolean(circle);
+}
+
+async function canTeacherAccessEnrollment(
+  db,
+  user,
+  enrollment
+) {
+  if (isPrivilegedUser(user)) {
+    return true;
+  }
+
+  if (
+    !enrollment ||
+    user?.role !== "teacher" ||
+    !user?.teacher_id
+  ) {
+    return false;
+  }
+
+  return canTeacherAccessCircle(
+    db,
+    user,
+    enrollment.circle_id
+  );
+}
+
+/* =========================================================
    Queries
 ========================================================= */
 
@@ -684,6 +754,20 @@ export async function onRequestGet(
         );
       }
 
+      const allowed =
+        await canTeacherAccessEnrollment(
+          db,
+          permission.user,
+          row
+        );
+
+      if (!allowed) {
+        return error(
+          "ENROLLMENT_OUT_OF_SCOPE",
+          403
+        );
+      }
+
       return json({
         success: true,
         data: row,
@@ -713,6 +797,28 @@ export async function onRequestGet(
     `;
 
     const params = [];
+
+    if (
+      permission.user?.role === "teacher" &&
+      permission.user?.teacher_id
+    ) {
+      params.push(
+        Number(permission.user.teacher_id)
+      );
+
+      sql += `
+        AND c.teacher_id = ?${params.length}
+      `;
+    } else if (
+      !isPrivilegedUser(
+        permission.user
+      )
+    ) {
+      return error(
+        "ENROLLMENT_SCOPE_DENIED",
+        403
+      );
+    }
 
     if (studentId) {
       params.push(studentId);
@@ -868,6 +974,20 @@ export async function onRequestPost(
       return error(
         "CIRCLE_NOT_FOUND",
         404
+      );
+    }
+
+    const circleAllowed =
+      await canTeacherAccessCircle(
+        db,
+        permission.user,
+        circleId
+      );
+
+    if (!circleAllowed) {
+      return error(
+        "CIRCLE_OUT_OF_SCOPE",
+        403
       );
     }
 
@@ -1200,6 +1320,20 @@ export async function onRequestPatch(
       return error(
         "ENROLLMENT_NOT_FOUND",
         404
+      );
+    }
+
+    const enrollmentAllowed =
+      await canTeacherAccessEnrollment(
+        db,
+        permission.user,
+        current
+      );
+
+    if (!enrollmentAllowed) {
+      return error(
+        "ENROLLMENT_OUT_OF_SCOPE",
+        403
       );
     }
 

@@ -175,6 +175,50 @@ async function getEnrollmentCount(
 }
 
 /* =========================================================
+   Entity Scope
+========================================================= */
+
+function isPrivilegedCircleUser(user) {
+  return (
+    user?.role === "admin" ||
+    user?.role === "supervisor"
+  );
+}
+
+function canTeacherUseCircleTeacherId(
+  user,
+  teacherId
+) {
+  if (isPrivilegedCircleUser(user)) {
+    return true;
+  }
+
+  return (
+    user?.role === "teacher" &&
+    user?.teacher_id &&
+    Number(teacherId) ===
+      Number(user.teacher_id)
+  );
+}
+
+function canTeacherAccessCircle(
+  user,
+  circle
+) {
+  if (isPrivilegedCircleUser(user)) {
+    return true;
+  }
+
+  return (
+    user?.role === "teacher" &&
+    user?.teacher_id &&
+    circle &&
+    Number(circle.teacher_id) ===
+      Number(user.teacher_id)
+  );
+}
+
+/* =========================================================
    Teacher Validation
 ========================================================= */
 
@@ -386,6 +430,18 @@ export async function onRequestGet(
         );
       }
 
+      if (
+        !canTeacherAccessCircle(
+          permission.user,
+          circle
+        )
+      ) {
+        return errorResponse(
+          "CIRCLE_OUT_OF_SCOPE",
+          403
+        );
+      }
+
       return json({
         success: true,
         data: circle,
@@ -431,6 +487,19 @@ export async function onRequestGet(
     `;
 
     const params = [];
+
+    if (
+      permission.user?.role === "teacher" &&
+      permission.user?.teacher_id
+    ) {
+      params.push(
+        Number(permission.user.teacher_id)
+      );
+
+      sql += `
+        AND c.teacher_id = ?${params.length}
+      `;
+    }
 
     if (circleType) {
       const normalized =
@@ -729,6 +798,18 @@ export async function onRequestPost(
     );
 
   try {
+    if (
+      !canTeacherUseCircleTeacherId(
+        permission.user,
+        teacherId
+      )
+    ) {
+      return errorResponse(
+        "TEACHER_OUT_OF_SCOPE",
+        403
+      );
+    }
+
     const teacher =
       await validateTeacher(
         db,
@@ -924,6 +1005,18 @@ export async function onRequestPatch(
       );
     }
 
+    if (
+      !canTeacherAccessCircle(
+        permission.user,
+        current
+      )
+    ) {
+      return errorResponse(
+        "CIRCLE_OUT_OF_SCOPE",
+        403
+      );
+    }
+
     const circleType =
       normalizeType(
         data.circle_type ??
@@ -1052,6 +1145,18 @@ export async function onRequestPatch(
     if (!packageId) {
       return errorResponse(
         "PACKAGE_ID_REQUIRED"
+      );
+    }
+
+    if (
+      !canTeacherUseCircleTeacherId(
+        permission.user,
+        teacherId
+      )
+    ) {
+      return errorResponse(
+        "TEACHER_OUT_OF_SCOPE",
+        403
       );
     }
 

@@ -12,8 +12,82 @@ function clean(value) {
 }
 
 function parseDate(value) {
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? null : d;
+  if (!value) return null;
+
+  const text = String(value).trim();
+
+  if (!text) return null;
+
+  // Session date/time are stored as Cairo wall-clock time.
+  // Convert that wall-clock time to the correct UTC instant.
+  const match = text.match(
+    /^(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2})(?::(\\d{2}))?$/
+  );
+
+  if (!match) {
+    const fallback = new Date(text);
+    return Number.isNaN(fallback.getTime())
+      ? null
+      : fallback;
+  }
+
+  const [
+    ,
+    year,
+    month,
+    day,
+    hour,
+    minute,
+    second = "0",
+  ] = match;
+
+  const utcGuess = new Date(
+    Date.UTC(
+      Number(year),
+      Number(month) - 1,
+      Number(day),
+      Number(hour),
+      Number(minute),
+      Number(second)
+    )
+  );
+
+  const formatter = new Intl.DateTimeFormat(
+    "en-GB",
+    {
+      timeZone: "Africa/Cairo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hourCycle: "h23",
+    }
+  );
+
+  const parts = Object.fromEntries(
+    formatter
+      .formatToParts(utcGuess)
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value])
+  );
+
+  const localAsUtc = Date.UTC(
+    Number(parts.year),
+    Number(parts.month) - 1,
+    Number(parts.day),
+    Number(parts.hour),
+    Number(parts.minute),
+    Number(parts.second)
+  );
+
+  const offset =
+    localAsUtc - utcGuess.getTime();
+
+  return new Date(
+    utcGuess.getTime() - offset
+  );
 }
 
 export async function onRequestGet(context) {
@@ -53,9 +127,42 @@ export async function onRequestGet(context) {
       params.push(Number(sessionId));
     }
 
-    if (user?.role === "student" && user?.student_id) {
+    if (user?.role === "teacher") {
+      const teacherId = Number(user?.teacher_id ?? 0);
+      if (!Number.isInteger(teacherId) || teacherId <= 0) {
+        return error("FORBIDDEN", 403);
+      }
+      query += `
+        AND EXISTS (
+          SELECT 1
+          FROM sessions s
+          WHERE s.id = ae.session_id
+            AND s.teacher_id = ?
+        )
+      `;
+      params.push(teacherId);
+    } else if (user?.role === "student") {
+      const ownStudentId = Number(user?.student_id ?? 0);
+      if (!Number.isInteger(ownStudentId) || ownStudentId <= 0) {
+        return error("FORBIDDEN", 403);
+      }
       query += ` AND ae.student_id = ?`;
-      params.push(Number(user.student_id));
+      params.push(ownStudentId);
+    } else if (user?.role === "guardian") {
+      const guardianUserId = Number(user?.id ?? 0);
+      if (!Number.isInteger(guardianUserId) || guardianUserId <= 0) {
+        return error("FORBIDDEN", 403);
+      }
+      query += `
+        AND EXISTS (
+          SELECT 1
+          FROM student_guardians sg
+          INNER JOIN guardians g ON g.id = sg.guardian_id
+          WHERE sg.student_id = ae.student_id
+            AND g.user_id = ?
+        )
+      `;
+      params.push(guardianUserId);
     }
 
     query += ` ORDER BY ae.submitted_at DESC LIMIT 200`;
@@ -83,6 +190,15 @@ export async function onRequestPost(context) {
 
   try {
     const user = await requireAuth(request, env);
+
+    if (
+      !["student", "admin", "supervisor"].includes(
+        user?.role
+      )
+    ) {
+      return error("FORBIDDEN", 403);
+    }
+
     const data = await request.json();
 
     const attendanceId = Number(
@@ -114,6 +230,14 @@ export async function onRequestPost(context) {
       user?.role === "student" &&
       user?.student_id &&
       Number(user.student_id) !== studentId
+    ) {
+      return error("FORBIDDEN", 403);
+    }
+
+    if (
+      user?.role === "student" &&
+      (!user?.student_id ||
+       Number(user.student_id) !== studentId)
     ) {
       return error("FORBIDDEN", 403);
     }
@@ -161,12 +285,33 @@ export async function onRequestPost(context) {
 
     let deadlineExceeded = false;
 
+    const excuseRules =
+      await env.DB
+        .prepare(`
+          SELECT
+            excuse_deadline_hours
+          FROM attendance_excuse_rules
+          WHERE id = 1
+            AND active = 1
+          LIMIT 1
+        `)
+        .first();
+
+    const excuseDeadlineHours =
+      Number(
+        excuseRules?.excuse_deadline_hours ?? 4
+      );
+
     if (sessionStart) {
       const deadline =
-        new Date(sessionStart.getTime() - 4 * 60 * 60 * 1000);
+        new Date(
+          sessionStart.getTime() -
+          excuseDeadlineHours * 60 * 60 * 1000
+        );
 
       deadlineExceeded =
-        new Date(submittedAt).getTime() > deadline.getTime();
+        new Date(submittedAt).getTime() >
+        deadline.getTime();
     }
 
     const result = await env.DB.prepare(`
@@ -241,6 +386,39 @@ export async function onRequestPatch(context) {
 
     if (!existing) {
       return error("EXCUSE_NOT_FOUND", 404);
+    }
+
+    /*
+     * Teachers may review excuses only for their own sessions.
+     * Admins remain unrestricted by this teacher-specific scope.
+     */
+    if (user?.role === "teacher") {
+      const teacherId = Number(user?.teacher_id ?? 0);
+
+      if (!Number.isInteger(teacherId) || teacherId <= 0) {
+        return error("FORBIDDEN", 403);
+      }
+
+      const teacherOwnsSession =
+        await env.DB
+          .prepare(`
+            SELECT 1
+            FROM attendance_excuses ae
+            INNER JOIN sessions s
+              ON s.id = ae.session_id
+            WHERE ae.id = ?
+              AND s.teacher_id = ?
+            LIMIT 1
+          `)
+          .bind(
+            excuseId,
+            teacherId
+          )
+          .first();
+
+      if (!teacherOwnsSession) {
+        return error("FORBIDDEN", 403);
+      }
     }
 
     const reviewedAt = new Date().toISOString();

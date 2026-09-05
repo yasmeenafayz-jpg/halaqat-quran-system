@@ -31,13 +31,17 @@ const SESSION_TYPES = [
   "tafsir",
   "fiqh",
   "hadith",
-  "sirah",
+  "sirah", "group", "individual", "trial", "test", "independent_recitation", "scientific", "admin_meeting", "teacher_leave", "closed_slot",
 ];
 
 const SESSION_STATUSES = [
   "scheduled",
+  "started",
   "completed",
   "cancelled",
+  "postponed",
+  "no_show",
+  "substitute",
   "rescheduled",
 ];
 
@@ -262,7 +266,9 @@ async function hasTeacherConflict(
       AND session_date = ?2
       AND status IN (
         'scheduled',
-        'rescheduled'
+        'started',
+        'rescheduled',
+        'substitute'
       )
   `;
 
@@ -335,6 +341,8 @@ async function getSessionById(
         s.id,
         s.circle_id,
         s.teacher_id,
+        s.student_id,
+
         s.session_type,
         s.session_date,
         s.start_time,
@@ -725,6 +733,14 @@ export async function onRequestPost(
       ? Number(data.teacher_id)
       : null;
 
+    const studentId =
+      data.student_id !==
+        undefined &&
+      data.student_id !== null &&
+      data.student_id !== ""
+        ? Number(data.student_id)
+        : null;
+
   const sessionType =
     clean(
       data.session_type ??
@@ -815,6 +831,15 @@ export async function onRequestPost(
   ) {
     return errorResponse(
       "INVALID_TEACHER_ID"
+    );
+  }
+
+  if (
+    studentId !== null &&
+    !validId(studentId)
+  ) {
+    return errorResponse(
+      "INVALID_STUDENT_ID"
     );
   }
 
@@ -934,6 +959,7 @@ export async function onRequestPost(
           INSERT INTO sessions (
             circle_id,
             teacher_id,
+            student_id,
             session_type,
             session_date,
             start_time,
@@ -957,21 +983,23 @@ export async function onRequestPost(
             ?9,
             ?10,
             ?11,
-            ?11
+            ?12,
+            ?12
           )
         `)
         .bind(
-          circleId,
-          finalTeacherId,
-          sessionType,
-          sessionDate,
-          startTime,
-          endTime,
-          provider,
-          meetingUrl,
-          status,
-          notes,
-          createdAt
+              circleId,
+              finalTeacherId,
+              studentId,
+              sessionType,
+              sessionDate,
+              startTime,
+              endTime,
+              provider,
+              meetingUrl,
+              status,
+              notes,
+              createdAt
         )
         .run();
 
@@ -1112,6 +1140,21 @@ export async function onRequestPatch(
             )
         : current.teacher_id;
 
+    const studentId =
+      data.student_id !==
+        undefined
+      ? (
+          data.student_id
+        ) === null ||
+        (
+          data.student_id
+        ) === ""
+        ? null
+        : Number(
+            data.student_id
+          )
+      : current.student_id;
+
     const sessionType =
       data.session_type !==
         undefined
@@ -1228,6 +1271,15 @@ export async function onRequestPatch(
     }
 
     if (
+      studentId !== null &&
+      !validId(studentId)
+    ) {
+      return errorResponse(
+        "INVALID_STUDENT_ID"
+      );
+    }
+
+    if (
       provider &&
       !MEETING_PROVIDERS.includes(
         provider
@@ -1324,31 +1376,33 @@ export async function onRequestPatch(
           SET
             circle_id = ?2,
             teacher_id = ?3,
-            session_type = ?4,
-            session_date = ?5,
-            start_time = ?6,
-            end_time = ?7,
-            meeting_provider = ?8,
-            meeting_url = ?9,
-            status = ?10,
-            notes = ?11,
-            updated_at = ?12
+            student_id = ?4,
+            session_type = ?5,
+            session_date = ?6,
+            start_time = ?7,
+            end_time = ?8,
+            meeting_provider = ?9,
+            meeting_url = ?10,
+            status = ?11,
+            notes = ?12,
+            updated_at = ?13
           WHERE id = ?1
           RETURNING *
         `)
         .bind(
-          Number(sessionId),
-          circleId,
-          finalTeacherId,
-          sessionType,
-          sessionDate,
-          startTime,
-          endTime,
-          provider,
-          meetingUrl,
-          status,
-          notes,
-          now()
+            Number(sessionId),
+            circleId,
+            finalTeacherId,
+            studentId,
+            sessionType,
+            sessionDate,
+            startTime,
+            endTime,
+            provider,
+            meetingUrl,
+            status,
+            notes,
+            now()
         )
         .first();
 

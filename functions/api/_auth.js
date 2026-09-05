@@ -6,6 +6,10 @@
 const SESSION_COOKIE = "alawabin_session";
 const SESSION_DAYS = 7;
 
+function error(code, status = 400) {
+  return json({ success: false, error: code }, status);
+}
+
 function json(data, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(data), {
     status,
@@ -488,6 +492,7 @@ async function writeAudit(
 export {
   SESSION_COOKIE,
   json,
+  error,
   getCookie,
   getCurrentUser,
   requireAuth,

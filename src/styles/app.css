@@ -539,3 +539,254 @@ button {
     align-items: flex-start;
   }
 }
+
+/* =========================================================
+   AL-AWABIN — SCHEDULE CENTER
+   ========================================================= */
+
+.schedule-center {
+  display: grid;
+  gap: 18px;
+}
+
+.schedule-toolbar {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border-radius: 18px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e5e7eb);
+}
+
+.schedule-toolbar-group {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.schedule-toolbar label {
+  display: grid;
+  gap: 7px;
+}
+
+.schedule-toolbar label span {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.schedule-toolbar input,
+.schedule-toolbar select {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: var(--surface, #fff);
+  font: inherit;
+}
+
+.schedule-toolbar .button {
+  min-height: 42px;
+  border: 0;
+  border-radius: 10px;
+  padding: 8px 16px;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+.schedule-view-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.schedule-view-buttons button {
+  border: 1px solid var(--border, #e5e7eb);
+  background: transparent;
+  border-radius: 10px;
+  padding: 9px 15px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.schedule-view-buttons button.active {
+  font-weight: 800;
+}
+
+.schedule-summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.schedule-summary > div {
+  display: grid;
+  gap: 6px;
+  padding: 15px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 14px;
+  background: var(--surface, #fff);
+}
+
+.schedule-summary span {
+  font-size: 12px;
+  opacity: .7;
+}
+
+.schedule-summary strong {
+  font-size: 18px;
+}
+
+.schedule-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.schedule-day {
+  display: grid;
+  gap: 10px;
+}
+
+.schedule-day-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 15px;
+  border-radius: 12px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e5e7eb);
+}
+
+.schedule-session {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding: 15px;
+  border-radius: 14px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e5e7eb);
+}
+
+.schedule-time {
+  display: grid;
+  gap: 4px;
+}
+
+.schedule-time span {
+  font-size: 12px;
+  opacity: .65;
+}
+
+.schedule-session-main {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.schedule-session-main span,
+.schedule-session-main small {
+  opacity: .72;
+}
+
+.schedule-status {
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.schedule-leave {
+  display: grid;
+  gap: 5px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px dashed var(--border, #e5e7eb);
+  background: var(--surface, #fff);
+}
+
+.schedule-leave small {
+  opacity: .7;
+}
+
+@media (max-width: 900px) {
+  .schedule-toolbar-group {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .schedule-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .schedule-toolbar-group,
+  .schedule-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .schedule-session {
+    grid-template-columns: 1fr;
+  }
+
+  .schedule-status {
+    justify-self: start;
+  }
+}
+
+
+
+/* Live academy module tables */
+.table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.data-table {
+  width: 100%;
+  min-width: 680px;
+  border-collapse: collapse;
+  text-align: right;
+}
+.data-table th,
+.data-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.data-table th {
+  font-weight: 700;
+}
+.data-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.data-table .secondary-button {
+  margin-inline-start: 6px;
+  margin-bottom: 4px;
+}
+@media (max-width: 700px) {
+  .data-table {
+    min-width: 680px;
+  }
+  .data-table th,
+  .data-table td {
+    padding: 10px 11px;
+    font-size: 0.9rem;
+  }
+}
