@@ -13,6 +13,49 @@ import {
   verifyPassword,
 } from "./_password.js";
 
+async function handleLoginDiagnostic(request, env) {
+  const body = {
+    identifier: "admin@alawabin.app",
+    password: ""
+  };
+
+  const user = await env.DB
+    .prepare(`
+      SELECT
+        id,
+        role,
+        status,
+        email,
+        phone,
+        password_hash
+      FROM users
+      WHERE
+        LOWER(COALESCE(email, '')) = LOWER(?)
+        OR phone = ?
+      LIMIT 1
+    `)
+    .bind("admin@alawabin.app", "01000000000")
+    .first();
+
+  return json({
+    success: true,
+    diagnostic: "production-password-check",
+    user_found: Boolean(user),
+    user_id: user?.id ?? null,
+    status: user?.status ?? null,
+    hash_present: Boolean(user?.password_hash),
+    hash_scheme:
+      typeof user?.password_hash === "string"
+        ? user.password_hash.split("$")[0]
+        : null,
+    hash_length:
+      typeof user?.password_hash === "string"
+        ? user.password_hash.length
+        : 0,
+    note: "password verification requires the normal login request"
+  });
+}
+
 async function handleLogin(request, env) {
 
 
@@ -489,6 +532,13 @@ export async function onRequest(context) {
 
   const action =
     url.searchParams.get("action") || "me";
+
+  if (
+    action === "login-diagnostic" &&
+    request.method === "GET"
+  ) {
+    return handleLoginDiagnostic(request, env);
+  }
 
   if (action === "login") {
     if (request.method !== "POST") {
