@@ -14,6 +14,60 @@ import {
 } from "./_password.js";
 
 async function handleLogin(request, env) {
+  if (
+    new URL(request.url).searchParams.get("action") ===
+    "production-check"
+  ) {
+    try {
+      const row = await env.DB
+        .prepare(`
+          SELECT
+            id,
+            role,
+            status,
+            email,
+            phone,
+            password_hash
+          FROM users
+          WHERE
+            LOWER(COALESCE(email, '')) = LOWER(?)
+            OR phone = ?
+          LIMIT 1
+        `)
+        .bind("admin@alawabin.app", "01000000000")
+        .first();
+
+      return json({
+        success: true,
+        diagnostic: "production-user-check",
+        found: Boolean(row),
+        id: row?.id ?? null,
+        role: row?.role ?? null,
+        status: row?.status ?? null,
+        email_match: row?.email
+          ? row.email.toLowerCase() === "admin@alawabin.app"
+          : false,
+        phone_match: row?.phone === "01000000000",
+        hash_present: Boolean(row?.password_hash),
+        hash_scheme:
+          typeof row?.password_hash === "string"
+            ? row.password_hash.split("$")[0]
+            : null,
+        hash_length:
+          typeof row?.password_hash === "string"
+            ? row.password_hash.length
+            : 0
+      });
+    } catch (err) {
+      return json({
+        success: false,
+        diagnostic: "production-user-check",
+        error: "DIAGNOSTIC_DB_ERROR",
+        message: err?.message || "unknown"
+      }, 500);
+    }
+  }
+
   if (!env?.DB) {
     return json(
       {
