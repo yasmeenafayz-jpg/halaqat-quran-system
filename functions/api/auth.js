@@ -14,11 +14,6 @@ import {
 } from "./_password.js";
 
 async function handleLoginDiagnostic(request, env) {
-  const body = {
-    identifier: "admin@alawabin.app",
-    password: ""
-  };
-
   const user = await env.DB
     .prepare(`
       SELECT
@@ -52,7 +47,7 @@ async function handleLoginDiagnostic(request, env) {
       typeof user?.password_hash === "string"
         ? user.password_hash.length
         : 0,
-    note: "password verification requires the normal login request"
+    note: "user lookup only"
   });
 }
 
@@ -154,7 +149,15 @@ async function handleLogin(request, env) {
         typeof user?.password_hash === "string"
           ? user.password_hash.length
           : 0,
-      password_check: Boolean(passwordCheck)
+      password_check:
+        typeof passwordCheck === "object"
+          ? Boolean(passwordCheck?.valid)
+          : Boolean(passwordCheck),
+      password_check_type: typeof passwordCheck,
+      password_check_keys:
+        passwordCheck && typeof passwordCheck === "object"
+          ? Object.keys(passwordCheck)
+          : []
     });
   }
 
