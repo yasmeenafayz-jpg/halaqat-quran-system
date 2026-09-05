@@ -141,6 +141,106 @@ async function verifyPassword(
     return {
       valid: false,
       needsUpgrade: false,
+      debug: "invalid-input",
+    };
+  }
+
+  const parts = storedHash.split("$");
+
+  if (
+    parts.length === 4 &&
+    parts[0] === PASSWORD_SCHEME
+  ) {
+    const iterations = Number(parts[1]);
+
+    if (
+      !Number.isInteger(iterations) ||
+      iterations < 100000 ||
+      iterations > 1000000
+    ) {
+      return {
+        valid: false,
+        needsUpgrade: false,
+        debug: "invalid-iterations",
+      };
+    }
+
+    try {
+      const salt = base64UrlToBytes(parts[2]);
+      const expected = base64UrlToBytes(parts[3]);
+
+      const actual = await derivePassword(
+        password,
+        salt,
+        iterations
+      );
+
+      const valid = safeEqual(actual, expected);
+
+      return {
+        valid,
+        needsUpgrade:
+          valid &&
+          iterations < PASSWORD_ITERATIONS,
+        debug: {
+          scheme: parts[0],
+          iterations,
+          salt_length: salt.length,
+          expected_length: expected.length,
+          actual_length: actual.length,
+          password_length: password.length,
+          valid,
+        },
+      };
+    } catch (error) {
+      return {
+        valid: false,
+        needsUpgrade: false,
+        debug: {
+          error: error?.name || "runtime-error",
+          message: error?.message || "unknown",
+        },
+      };
+    }
+  }
+
+  if (/^[a-f0-9]{64}$/i.test(storedHash)) {
+    const legacy = await legacySha256(password);
+
+    const actual = new TextEncoder().encode(
+      legacy.toLowerCase()
+    );
+
+    const expected = new TextEncoder().encode(
+      storedHash.toLowerCase()
+    );
+
+    const valid = safeEqual(actual, expected);
+
+    return {
+      valid,
+      needsUpgrade: valid,
+      debug: {
+        scheme: "legacy-sha256",
+        valid,
+      },
+    };
+  }
+
+  return {
+    valid: false,
+    needsUpgrade: false,
+    debug: "unknown-hash-format",
+  };
+}
+  if (
+    typeof password !== "string" ||
+    typeof storedHash !== "string" ||
+    !storedHash
+  ) {
+    return {
+      valid: false,
+      needsUpgrade: false,
     };
   }
 
