@@ -403,7 +403,10 @@ async function handleLogout(request, env) {
 }
 
 export async function onRequest(context) {
-  const { request, env } = context;
+  const {
+    request,
+    env,
+  } = context;
 
   // Temporary production diagnostic — remove after authentication is fixed.
   if (
@@ -459,12 +462,6 @@ export async function onRequest(context) {
       }, 500);
     }
   }
-
-  const {
-    request,
-    env,
-  } = context;
-
   const url = new URL(request.url);
 
   const action =
