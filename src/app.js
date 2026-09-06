@@ -744,6 +744,11 @@ export class App {
         return;
       }
 
+      if (page === "quran") {
+        await this.renderQuranModule(info[0]);
+        return;
+      }
+
       if (page === "reports") {
         await this.renderReportsModule(
           info[0],
@@ -819,6 +824,239 @@ export class App {
     }
 
     this.bindNavigation();
+  }
+
+  async renderQuranModule(title) {
+    const content = this.root.querySelector("#module-live-content");
+    if (!content) return;
+
+    content.innerHTML = `
+      <div class="section-heading">
+        <div>
+          <span class="eyebrow">المتابعة القرآنية</span>
+          <h3>${this.escape(title)}</h3>
+          <p>اختر الطالب لعرض الحفظ والمراجعة والورد والنتيجة التراكمية.</p>
+        </div>
+        <button class="secondary-button" id="quran-refresh" type="button">تحديث</button>
+      </div>
+
+      <section class="content-card">
+        <label style="display:block;margin-bottom:16px">
+          <span>الطالب</span>
+          <select id="quran-student" style="width:100%;padding:12px">
+            <option value="">جاري تحميل الطلاب...</option>
+          </select>
+        </label>
+
+        <div id="quran-student-content">
+          <div class="loading-state">
+            <div class="loading-spinner"></div>
+            <h3>جاري تحميل الطلاب...</h3>
+          </div>
+        </div>
+      </section>
+    `;
+
+    const select = content.querySelector("#quran-student");
+    const area = content.querySelector("#quran-student-content");
+
+    try {
+      const result = await this.apiGet("/api/students");
+      const students = Array.isArray(result?.data)
+        ? result.data
+        : Array.isArray(result?.results)
+          ? result.results
+          : [];
+
+      const active = students.filter(
+        (s) => !s?.status || s.status === "active"
+      );
+
+      select.innerHTML =
+        '<option value="">اختر الطالب</option>' +
+        active.map((s) => `
+          <option value="${this.escape(String(s.id))}">
+            ${this.escape(s.full_name || s.name || `طالب #${s.id}`)}
+          </option>
+        `).join("");
+
+      const loadStudent = async () => {
+        const id = Number(select.value || 0);
+
+        if (!id) {
+          area.innerHTML = `
+            <div class="empty-state">
+              <div class="empty-icon">☾</div>
+              <h3>اختر طالبًا</h3>
+              <p>سيتم عرض سجل الحفظ والمراجعة والورد.</p>
+            </div>
+          `;
+          return;
+        }
+
+        area.innerHTML = `
+          <div class="loading-state">
+            <div class="loading-spinner"></div>
+            <h3>جاري تحميل بيانات الطالب...</h3>
+          </div>
+        `;
+
+        try {
+          const data = await this.apiGet(
+            "/api/quran-progress?student_id=" +
+            encodeURIComponent(id)
+          );
+
+          const rows = Array.isArray(data?.data) ? data.data : [];
+          const summary = data?.summary || {};
+          const student = active.find((s) => Number(s.id) === id);
+
+          const labels = {
+            new_memorization: "حفظ جديد",
+            review: "مراجعة",
+            memorization_review: "حفظ + مراجعة",
+            tamkeen: "تمكين وتثبيت",
+            cumulative_recitation: "سرد تراكمي"
+          };
+
+          area.innerHTML = `
+            <div class="reports-grid">
+              <article class="report-card">
+                <div class="report-card-icon">📖</div>
+                <div class="report-card-body">
+                  <span class="report-card-label">الطالب</span>
+                  <strong class="report-card-value">
+                    ${this.escape(student?.full_name || student?.name || `طالب #${id}`)}
+                  </strong>
+                </div>
+              </article>
+
+              <article class="report-card">
+                <div class="report-card-icon">📚</div>
+                <div class="report-card-body">
+                  <span class="report-card-label">الأجزاء المحفوظة</span>
+                  <strong class="report-card-value">
+                    ${this.escape(String(summary.memorized_juz_count ?? 0))}
+                  </strong>
+                </div>
+              </article>
+
+              <article class="report-card">
+                <div class="report-card-icon">⭐</div>
+                <div class="report-card-body">
+                  <span class="report-card-label">النتيجة التراكمية</span>
+                  <strong class="report-card-value">
+                    ${this.escape(String(summary.cumulative_score ?? 0))}
+                  </strong>
+                </div>
+              </article>
+
+              <article class="report-card">
+                <div class="report-card-icon">📝</div>
+                <div class="report-card-body">
+                  <span class="report-card-label">سجلات المتابعة</span>
+                  <strong class="report-card-value">${rows.length}</strong>
+                </div>
+              </article>
+            </div>
+
+            <div class="section-heading" style="margin-top:24px">
+              <div>
+                <span class="eyebrow">سجل المتابعة</span>
+                <h3>الحفظ والمراجعة والسرد</h3>
+              </div>
+            </div>
+
+            ${
+              rows.length
+                ? `
+                  <div class="table-wrap">
+                    <table class="data-table">
+                      <thead>
+                        <tr>
+                          <th>النشاط</th>
+                          <th>السورة</th>
+                          <th>الآيات</th>
+                          <th>المقدار</th>
+                          <th>الجودة</th>
+                          <th>التاريخ</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        ${rows.map((row) => `
+                          <tr>
+                            <td>${this.escape(labels[row.activity_type] || row.activity_type || "—")}</td>
+                            <td>${this.escape(row.surah_name || "—")}</td>
+                            <td>${this.escape(
+                              row.from_ayah || row.to_ayah
+                                ? `${row.from_ayah || "—"} → ${row.to_ayah || "—"}`
+                                : "—"
+                            )}</td>
+                            <td>${this.escape(
+                              row.amount_label || String(row.amount_value ?? "—")
+                            )}</td>
+                            <td>${this.escape(
+                              row.quality_score == null ? "—" : `${row.quality_score}%`
+                            )}</td>
+                            <td>${this.escape(row.recorded_at || "—")}</td>
+                          </tr>
+                        `).join("")}
+                      </tbody>
+                    </table>
+                  </div>
+                `
+                : `
+                  <div class="empty-state">
+                    <div class="empty-icon">✦</div>
+                    <h3>لا توجد متابعة مسجلة</h3>
+                    <p>لم يُسجل للطالب نشاط قرآني حتى الآن.</p>
+                  </div>
+                `
+            }
+          `;
+        } catch (error) {
+          area.innerHTML = `
+            <div class="empty-state premium-empty">
+              <div class="empty-icon">!</div>
+              <h3>تعذر تحميل بيانات الطالب</h3>
+              <p>${this.escape(error?.message || "حدث خطأ غير متوقع")}</p>
+              <button class="secondary-button" id="quran-retry" type="button">
+                إعادة المحاولة
+              </button>
+            </div>
+          `;
+          area.querySelector("#quran-retry")?.addEventListener(
+            "click",
+            loadStudent
+          );
+        }
+      };
+
+      select.addEventListener("change", loadStudent);
+
+      content.querySelector("#quran-refresh")?.addEventListener(
+        "click",
+        () => this.renderQuranModule(title)
+      );
+
+      if (!active.length) {
+        area.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon">☾</div>
+            <h3>لا يوجد طلاب نشطون</h3>
+            <p>أضف طالبًا أولًا ثم ارجع إلى القرآن والورد.</p>
+          </div>
+        `;
+      }
+    } catch (error) {
+      area.innerHTML = `
+        <div class="empty-state premium-empty">
+          <div class="empty-icon">!</div>
+          <h3>تعذر تحميل الطلاب</h3>
+          <p>${this.escape(error?.message || "حدث خطأ غير متوقع")}</p>
+        </div>
+      `;
+    }
   }
 
   async renderReportsModule(title, endpoint) {
