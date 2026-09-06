@@ -23,3 +23,5 @@ functions/api/*.before-permission
 *.bak
 .admin-password-temp
 .git-status-before-cleanup-*.txt
+.auth-backup-*.js
+.auth-before-*.js
