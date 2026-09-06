@@ -19,3 +19,7 @@ functions/api/*.before-permission
 # Local build artifacts and backups
 # Local temporary files
 .local-*.js
+.local-upgrade-snapshots/
+*.bak
+.admin-password-temp
+.git-status-before-cleanup-*.txt
