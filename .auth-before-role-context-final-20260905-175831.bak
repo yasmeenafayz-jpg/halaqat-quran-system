@@ -5,7 +5,6 @@ import {
   destroySession,
   writeAudit,
   requireAuth,
-  attachRoleContext,
 } from "./_auth.js";
 
 import {
@@ -14,8 +13,6 @@ import {
 } from "./_password.js";
 
 async function handleLogin(request, env) {
-
-
   if (!env?.DB) {
     return json(
       {
@@ -101,8 +98,10 @@ async function handleLogin(request, env) {
         success: false,
         authenticated: false,
         error: "INVALID_CREDENTIALS",
-        message:
-          "بيانات تسجيل الدخول غير صحيحة.",
+        message: "بيانات تسجيل الدخول غير صحيحة.",
+        ...(passwordCheck.diagnostic
+          ? { diagnostic: passwordCheck.diagnostic }
+          : {}),
       },
       401
     );
@@ -114,18 +113,37 @@ async function handleLogin(request, env) {
         success: false,
         authenticated: false,
         error: "ACCOUNT_NOT_ACTIVE",
-        message:
-          "الحساب غير نشط.",
+        message: "هذا الحساب غير نشط حاليًا.",
       },
       403
     );
   }
 
-  const roleAwareUser =
-    await attachRoleContext(
-      env.DB,
-      user
-    );
+  if (passwordCheck.needsUpgrade) {
+    const upgradedHash =
+      await hashPassword(password);
+
+    await env.DB
+      .prepare(`
+        UPDATE users
+        SET password_hash = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `)
+      .bind(
+        upgradedHash,
+        user.id
+      )
+      .run();
+
+    await writeAudit(env, {
+      userId: user.id,
+      action: "password_hash_upgraded",
+      entityType: "user",
+      entityId: user.id,
+      request,
+    });
+  }
 
   const session = await createSession(
     request,
@@ -146,17 +164,15 @@ async function handleLogin(request, env) {
       success: true,
       authenticated: true,
       user: {
-        id: roleAwareUser.id,
-        role: roleAwareUser.role,
-        roles:
-          roleAwareUser.roles || [roleAwareUser.role],
+        id: user.id,
+        role: auth.user.role,
+        roles: auth.user.roles || [auth.user.role],
         active_role:
-          roleAwareUser.active_role ||
-          roleAwareUser.role,
-        full_name: roleAwareUser.full_name,
-        phone: roleAwareUser.phone,
-        email: roleAwareUser.email,
-        status: roleAwareUser.status,
+          auth.user.active_role || auth.user.role,
+        full_name: auth.user.full_name,
+        phone: auth.user.phone,
+        email: auth.user.email,
+        status: auth.user.status,
       },
     },
     200,
@@ -385,12 +401,10 @@ export async function onRequest(context) {
     env,
   } = context;
 
-
   const url = new URL(request.url);
 
   const action =
     url.searchParams.get("action") || "me";
-
 
   if (action === "login") {
     if (request.method !== "POST") {

@@ -92,40 +92,6 @@ async function handleLogin(request, env) {
       user?.password_hash
     );
 
-  if (
-    !user ||
-    !passwordCheck.valid
-  ) {
-    return json(
-      {
-        success: false,
-        authenticated: false,
-        error: "INVALID_CREDENTIALS",
-        message:
-          "بيانات تسجيل الدخول غير صحيحة.",
-      },
-      401
-    );
-  }
-
-  if (user.status !== "active") {
-    return json(
-      {
-        success: false,
-        authenticated: false,
-        error: "ACCOUNT_NOT_ACTIVE",
-        message:
-          "الحساب غير نشط.",
-      },
-      403
-    );
-  }
-
-  const roleAwareUser =
-    await attachRoleContext(
-      env.DB,
-      user
-    );
 
   const session = await createSession(
     request,

@@ -5,7 +5,8 @@ import {
   destroySession,
   writeAudit,
   requireAuth,
-  attachRoleContext,
+  getCookie,
+  SESSION_COOKIE,
 } from "./_auth.js";
 
 import {
@@ -14,8 +15,6 @@ import {
 } from "./_password.js";
 
 async function handleLogin(request, env) {
-
-
   if (!env?.DB) {
     return json(
       {
@@ -101,8 +100,7 @@ async function handleLogin(request, env) {
         success: false,
         authenticated: false,
         error: "INVALID_CREDENTIALS",
-        message:
-          "بيانات تسجيل الدخول غير صحيحة.",
+        message: "بيانات تسجيل الدخول غير صحيحة.",
       },
       401
     );
@@ -114,18 +112,37 @@ async function handleLogin(request, env) {
         success: false,
         authenticated: false,
         error: "ACCOUNT_NOT_ACTIVE",
-        message:
-          "الحساب غير نشط.",
+        message: "هذا الحساب غير نشط حاليًا.",
       },
       403
     );
   }
 
-  const roleAwareUser =
-    await attachRoleContext(
-      env.DB,
-      user
-    );
+  if (passwordCheck.needsUpgrade) {
+    const upgradedHash =
+      await hashPassword(password);
+
+    await env.DB
+      .prepare(`
+        UPDATE users
+        SET password_hash = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `)
+      .bind(
+        upgradedHash,
+        user.id
+      )
+      .run();
+
+    await writeAudit(env, {
+      userId: user.id,
+      action: "password_hash_upgraded",
+      entityType: "user",
+      entityId: user.id,
+      request,
+    });
+  }
 
   const session = await createSession(
     request,
@@ -146,17 +163,12 @@ async function handleLogin(request, env) {
       success: true,
       authenticated: true,
       user: {
-        id: roleAwareUser.id,
-        role: roleAwareUser.role,
-        roles:
-          roleAwareUser.roles || [roleAwareUser.role],
-        active_role:
-          roleAwareUser.active_role ||
-          roleAwareUser.role,
-        full_name: roleAwareUser.full_name,
-        phone: roleAwareUser.phone,
-        email: roleAwareUser.email,
-        status: roleAwareUser.status,
+        id: user.id,
+        role: user.role,
+        full_name: user.full_name,
+        phone: user.phone,
+        email: user.email,
+        status: user.status,
       },
     },
     200,
@@ -316,19 +328,47 @@ async function handleChangePassword(
     )
     .run();
 
-  await env.DB
-    .prepare(`
-      UPDATE auth_sessions
-      SET revoked_at = CURRENT_TIMESTAMP
-      WHERE user_id = ?
-        AND id <> ?
-        AND revoked_at IS NULL
-    `)
-    .bind(
-      auth.user.id,
-      auth.user.session_id
-    )
-    .run();
+  const currentToken =
+    getCookie(
+      request,
+      SESSION_COOKIE
+    );
+
+  if (currentToken) {
+    const currentSession =
+      await env.DB
+        .prepare(`
+          SELECT id
+          FROM auth_sessions
+          WHERE user_id = ?
+            AND session_token_hash = (
+              SELECT session_token_hash
+              FROM auth_sessions
+              WHERE id = ?
+              LIMIT 1
+            )
+        `)
+        .bind(
+          auth.user.id,
+          auth.user.session_id
+        )
+        .first();
+
+    await env.DB
+      .prepare(`
+        UPDATE auth_sessions
+        SET revoked_at = CURRENT_TIMESTAMP
+        WHERE user_id = ?
+          AND id <> ?
+          AND revoked_at IS NULL
+      `)
+      .bind(
+        auth.user.id,
+        currentSession?.id ??
+          auth.user.session_id
+      )
+      .run();
+  }
 
   await writeAudit(env, {
     userId: auth.user.id,
@@ -385,12 +425,10 @@ export async function onRequest(context) {
     env,
   } = context;
 
-
   const url = new URL(request.url);
 
   const action =
     url.searchParams.get("action") || "me";
-
 
   if (action === "login") {
     if (request.method !== "POST") {

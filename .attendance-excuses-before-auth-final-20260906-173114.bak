@@ -94,13 +94,7 @@ export async function onRequestGet(context) {
   const { env, request } = context;
 
   try {
-    const auth = await requireAuth(request, env);
-
-    if (!auth.ok) {
-      return auth.response;
-    }
-
-    const user = auth.user;
+    const user = await requireAuth(request, env);
     const url = new URL(request.url);
 
     const studentId = url.searchParams.get("student_id");
@@ -195,13 +189,7 @@ export async function onRequestPost(context) {
   const { env, request } = context;
 
   try {
-    const auth = await requireAuth(request, env);
-
-    if (!auth.ok) {
-      return auth.response;
-    }
-
-    const user = auth.user;
+    const user = await requireAuth(request, env);
 
     if (
       !["student", "admin", "supervisor"].includes(

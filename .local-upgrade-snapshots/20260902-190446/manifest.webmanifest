@@ -1,0 +1,17 @@
+{
+  "name": "الأوَّابين — أكاديمية القرآن الكريم",
+  "short_name": "الأوَّابين",
+  "description": "نظام إدارة أكاديمية الأوَّابين للقرآن الكريم",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "dir": "rtl",
+  "lang": "ar",
+  "theme_color": "#155e4b",
+  "background_color": "#f7faf8",
+  "categories": [
+    "education",
+    "productivity"
+  ]
+}

@@ -1,0 +1,1283 @@
+==================================================
+ الأوَّابين — FINAL RELEASE AUDIT
+ Sun Sep  6 17:21:32 EEST 2026
+==================================================
+
+===== 1. GIT =====
+main
+20dc673 Fix duplicated password verification block
+--- status ---
+?? .016_settings_documents.before-api-permissions-20260902-215555.bak
+?? .016_settings_documents.before-repair-20260902-213320.bak
+?? .016_settings_documents.failed-20260902-213545.bak
+?? .016_settings_documents.pre-final-fix-20260902-214520.bak
+?? .admin-password-temp
+?? .auth-backup-20260905-150245.js
+?? .auth-before-diagnostic-context-20260905-213328.bak
+?? .auth-before-final-login-diagnostic-20260905-165333.bak
+?? .auth-before-fix-duplicate-20260905-213741.bak
+?? .auth-before-inline-diagnostic-20260905-170741.bak
+?? .auth-before-login-diagnostic-router-fix-20260905-214733.bak
+?? .auth-before-multi-role-20260905-174655.bak
+?? .auth-before-password-check-20260905-214122.bak
+?? .auth-before-password-runtime-diagnostic-20260905-163059.bak
+?? .auth-before-production-user-check-20260905-212857.bak
+?? .auth-before-real-password-diagnostic-20260905-215114.bak
+?? .auth-before-real-post-diagnostic-20260905-215652.bak
+?? .auth-before-remove-diagnostic-20260905-181522.bak
+?? .auth-before-role-context-20260905-175520.bak
+?? .auth-before-role-context-final-20260905-175831.bak
+?? .auth-before-role-context-final-20260905-175838.bak
+?? .auth-before-role-context-final-20260905-175956.bak
+?? .auth-before-role-context-final-20260905-180344.bak
+?? .auth-before-router-diagnostic-20260905-213245.bak
+?? .auth-before-session-fix-20260905-151546.js
+?? .auth-before-step10-20260905-180949.bak
+?? .auth-before-step6-20260905-180612.bak
+?? .auth-before-step8-20260905-180744.bak
+?? .auth-helper-before-multi-role-20260905-174655.bak
+?? .auth-helper-before-role-context-20260905-175520.bak
+?? .auth-helper-before-role-context-final-20260905-175831.bak
+?? .auth-helper-before-role-context-final-20260905-175838.bak
+?? .auth-helper-before-role-context-final-20260905-175956.bak
+?? .auth-helper-before-role-context-final-20260905-180344.bak
+?? .auth-helper-before-step10-20260905-180949.bak
+?? .auth-helper-before-step12-20260905-181121.bak
+?? .auth-helper-before-step6-20260905-180612.bak
+?? .auth.before-settings-documents-api-20260902-220949.bak
+?? .auth.before-settings-documents-api-20260902-221358.bak
+?? .billing-cycles.before-final-rules-20260903-014300.bak
+?? .billing-cycles.before-final-rules-20260903-014311.bak
+?? .billing-cycles.safe-before-rules-20260903-014722.bak
+?? .billing-cycles.safe-before-rules-20260903-014728.bak
+?? .billing-cycles.safe-before-rules-20260903-014737.bak
+?? .billing-cycles.safe-before-rules-20260903-014742.bak
+?? .circles.before-teacher-scope-20260902-212133.bak
+?? .enrollments.before-teacher-scope-20260902-211933.bak
+?? .final-audit-20260906-172132.txt
+?? .local-upgrade-snapshots/
+?? .password-before-duplicate-return-fix-20260905-181927.bak
+?? .password-before-final-runtime-check-20260905-220031.bak
+?? .password-before-inline-diagnostic-20260905-170741.bak
+?? .password-before-pbkdf2-runtime-diagnostic-20260905-170140.bak
+?? .password-before-production-refresh-20260905-212503.bak
+?? .password-before-remove-diagnostic-20260905-181522.bak
+?? .password-before-remove-duplicate-20260905-230909.bak
+?? .password-before-runtime-debug-20260905-163145.bak
+?? .password-before-syntax-fix-20260905-230807.bak
+?? .password-before-syntax-repair-20260905-181725.bak
+?? .schedule-series.before-reference-scope-20260902-211739.bak
+?? .schedule-series.before-scope-fix-20260902-211544.bak
+?? .schedule-series.pre-scope-20260902-210155.bak
+?? .sessions.pre-scope-20260902-210154.bak
+?? functions/api/.attendance-excuses.before-timezone-20260905-132216.bak
+?? functions/api/.test-engine.before-final-grading-safety-20260905-132630.bak
+?? functions/api/.test-engine.before-pending-error-fix-20260905-132827.bak
+?? functions/api/.test-engine.before-recalculate-fix-20260905-140815.bak
+?? functions/api/.test-engine.before-recalculate-fix-20260905-141200.bak
+?? functions/api/.test-engine.before-smart-selection-v2-20260905-142534.bak
+?? functions/api/.test-engine.before-studentid-call-fix-20260905-144136.bak
+?? functions/api/.test-engine.before-submit-validation-20260905-132216.bak
+?? functions/api/.test-engine.before-submit-validation-v2-20260905-132446.bak
+?? functions/api/.test-engine.js.before-answer-grading-20260904-201908.bak
+?? functions/api/.test-engine.js.before-error-schema-fix-20260904-202455.bak
+?? functions/api/.test-engine.js.before-runtime-safety-fix-20260904-202753.bak
+?? functions/api/.test-engine.js.before-smart-selection-20260904-201350.bak
+?? functions/api/.test-engine.js.before-submission-lock-20260904-202049.bak
+?? functions/api/.test-engine.js.before-teacher-grading-20260904-202314.bak
+?? functions/api/.test-engine.js.final-audit-20260904-202658.bak
+?? functions/api/.tests.js.before-test-engine-20260904-201125.bak
+?? functions/api/_auth.backup-20260904-210303.js
+?? functions/api/_password.before-timing-fix-20260905-161346.bak
+?? functions/api/attendance-excuses.js.before-final-excuse-fix-20260903.bak
+?? functions/api/attendance-excuses.js.before-final-get-scope-20260903-135909.bak
+?? functions/api/attendance-excuses.js.before-remove-duplicate-scope-20260903-140136.bak
+?? functions/api/attendance-excuses.js.before-teacher-scope-20260903-134001.bak
+?? functions/api/attendance-excuses.js.before-ui-security-20260903-134555.bak
+?? functions/api/billing-cycles.js.before-excuse-rules-20260903-015024.bak
+?? functions/api/billing-cycles.js.before-final-excuse-fix-20260903.bak
+?? functions/api/billing-cycles.js.before-late-approved-fix-20260903.bak
+?? functions/api/documents-permissions.js.before-validation-hardening-20260902-225452.bak
+?? functions/api/documents.js.before-final-security-20260902-224712.bak
+?? functions/api/documents.js.before-scope-hardening-20260902-225452.bak
+?? functions/api/documents.js.before-security-fix-20260902-224515.bak
+?? functions/api/documents.js.before-storage-guardian-fix-20260902-233623.bak
+?? functions/api/documents/
+?? functions/api/question-bank.js.before-clean-true-false-20260903-162617.bak
+?? functions/api/question-bank.js.before-true-false-final-20260903-162412.bak
+?? functions/api/question-bank.js.before-validation-hardening-20260903-161934.bak
+?? functions/api/sessions.js.before-patch-student-validation-fix-20260903-131958.bak
+?? functions/api/sessions.js.before-student-get-post-20260902-203058
+?? functions/api/sessions.js.before-student-get-post-safe-20260902-203149
+?? functions/api/sessions.js.before-student-validation-fix-20260903-131850.bak
+?? functions/api/sessions.js.final-safe-20260902-204021
+?? functions/api/test-engine.backup-20260904-205006.js
+?? functions/api/test-engine.before-submit-fix-20260904-211052.bak
+?? functions/api/tests.js.before-session-scope-fix-20260903-155939.bak
+?? functions/api/tests.js.before-session-student-select-fix-20260903-160107.bak
+?? functions/api/tests.js.before-teacher-student-scope-20260903-153840.bak
+?? migrations/.018_tests_question_bank_permissions.backup-20260904-195820.sql
+?? migrations/.019_advanced_tests_engine.before-local-20260904-200115.bak
+?? src/app.backup-before-test-ui-20260904-213228.js
+?? src/app.js.before-modules-20260903-134555.bak
+?? src/app.js.before-test-form-20260904-005737.bak
+?? src/app.js.before-test-form-step1-20260904-005906.bak
+?? src/app.js.before-test-load-fix-20260904-010149.bak
+?? src/app.js.before-test-submit-20260904-010028.bak
+?? src/app.js.before-tests-add-button-20260904-005518.bak
+?? src/app.js.before-tests-question-bank-admin-ui-20260904-004904.bak
+?? src/app.js.before-tests-question-bank-modules-20260903-164253.bak
+?? src/app.js.before-tests-question-bank-modules-20260904-004347.bak
+?? src/app.js.before-tests-question-bank-modules-20260904-004443.bak
+?? src/app.js.before-tests-question-bank-ui-20260903-163624.bak
+?? src/styles/app.css.before-final-table-css-20260903-135909.bak
+?? "tatus --short | sed -n '1,100p'"
+
+===== 2. PACKAGE / LOCKFILE =====
+{
+  "name": "alawabin-academy",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "check": "vite build"
+  },
+  "devDependencies": {
+    "vite": "^7.0.0",
+    "wrangler": "^4.0.0"
+  }
+}
+--- lockfiles ---
+./package-lock.json
+
+===== 3. SOURCE INVENTORY =====
+--- API functions ---
+functions/api/_auth.backup-20260904-210303.js
+functions/api/_auth.js
+functions/api/_circle-capacity.js
+functions/api/_password.js
+functions/api/attendance-excuses.js
+functions/api/attendance.js
+functions/api/auth.js
+functions/api/billing-cycles.js
+functions/api/circles.js
+functions/api/dashboard.js
+functions/api/documents.js
+functions/api/documents/permissions.js
+functions/api/enrollments.js
+functions/api/health.js
+functions/api/individual-scheduling.js
+functions/api/payment-exemptions.js
+functions/api/payments.js
+functions/api/question-bank.js
+functions/api/quran-progress.js
+functions/api/schedule-center.js
+functions/api/schedule-exceptions.js
+functions/api/schedule-generate.js
+functions/api/schedule-series.js
+functions/api/sessions.js
+functions/api/settings.js
+functions/api/students.js
+functions/api/subscriptions.js
+functions/api/teacher-leaves.js
+functions/api/teachers.js
+functions/api/test-engine.backup-20260904-205006.js
+functions/api/test-engine.js
+functions/api/tests.js
+--- frontend ---
+public/manifest.webmanifest
+public/robots.txt
+public/sw.js
+src/app.backup-before-test-ui-20260904-213228.js
+src/app.js
+src/app.js.before-modules-20260903-134555.bak
+src/app.js.before-test-form-20260904-005737.bak
+src/app.js.before-test-form-step1-20260904-005906.bak
+src/app.js.before-test-load-fix-20260904-010149.bak
+src/app.js.before-test-submit-20260904-010028.bak
+src/app.js.before-tests-add-button-20260904-005518.bak
+src/app.js.before-tests-question-bank-admin-ui-20260904-004904.bak
+src/app.js.before-tests-question-bank-modules-20260903-164253.bak
+src/app.js.before-tests-question-bank-modules-20260904-004347.bak
+src/app.js.before-tests-question-bank-modules-20260904-004443.bak
+src/app.js.before-tests-question-bank-ui-20260903-163624.bak
+src/lib/api.js
+src/main.js
+src/styles/app.css
+src/styles/app.css.before-final-table-css-20260903-135909.bak
+--- migrations ---
+migrations/.018_tests_question_bank_permissions.backup-20260904-195820.sql
+migrations/001_core.sql
+migrations/002_education.sql
+migrations/003_quran.sql
+migrations/004_operations.sql
+migrations/005_access_and_rules.sql
+migrations/006_professional_scheduling_and_billing.sql
+migrations/007_monthly_billing_rules.sql
+migrations/008_auth_sessions.sql
+migrations/009_professional_academy_foundation.sql
+migrations/010_professional_foundation_constraints.sql
+migrations/011_professional_api_permissions.sql
+migrations/012_teacher_student_safeguarding.sql
+migrations/013_absence_excuse_billing_rules.sql
+migrations/014_professional_schedule_series.sql
+migrations/015_professional_session_types.sql
+migrations/016_settings_documents.sql
+migrations/017_settings_documents_permissions.sql
+migrations/018_tests_question_bank_permissions.sql
+migrations/019_advanced_tests_engine.sql
+migrations/020_unified_multi_role_identity.sql
+
+===== 4. JS SYNTAX CHECK =====
+JS syntax scan completed.
+
+===== 5. FRONTEND BUILD =====
+
+> alawabin-academy@2.0.0 build
+> vite build
+
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 5 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                  0.59 kB │ gzip:  0.38 kB
+dist/assets/index-DYYfX2tP.css   7.84 kB │ gzip:  2.05 kB
+dist/assets/index-CsIvSKFQ.js   68.64 kB │ gzip: 14.30 kB
+✓ built in 818ms
+BUILD_RC=0
+
+===== 6. CLOUDFLARE FUNCTIONS BUILD =====
+
+ ⛅️ wrangler 4.125.0
+────────────────────
+✨ Compiled Worker successfully
+FUNCTIONS_BUILD_RC=0
+
+===== 7. W R A N G L E R CONFIG =====
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "alawabin",
+  "compatibility_date": "2026-08-19",
+  "pages_build_output_dir": "./dist",
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "alawabin-db",
+      "database_id": "214b2ef5-6937-43ab-a172-3f40f2c1bc63"
+    }
+  ],
+
+  "vars": {
+    "APP_NAME": "الأوَّابين",
+    "APP_TIMEZONE": "Africa/Cairo"
+  }
+}
+
+===== 8. SECURITY SCAN =====
+--- obvious credential material ---
+--- debug / temporary markers ---
+functions/api/auth.js:178:    "login-diagnostic"
+functions/api/auth.js:523:  // Temporary production diagnostic — remove after authentication is fixed.
+functions/api/auth.js:526:    "production-check"
+functions/api/auth.js:582:  if (action === "login-diagnostic") {
+functions/api/_password.js:144:      debug: "invalid-input",
+functions/api/_password.js:164:        debug: "invalid-iterations",
+functions/api/_password.js:185:        debug: {
+functions/api/_password.js:199:        debug: {
+functions/api/_password.js:223:      debug: {
+functions/api/_password.js:233:    debug: "unknown-hash-format",
+--- dangerous dynamic SQL patterns ---
+--- direct role checks ---
+functions/api/_auth.js:229:            typeof role === "string" &&
+functions/api/_auth.js:240:    typeof legacyRole === "string" &&
+functions/api/_auth.js:257:    user.role
+functions/api/_auth.js:261:    roles.includes(user.role)
+functions/api/_auth.js:262:      ? user.role
+functions/api/_auth.js:263:      : roles[0] || user.role || null;
+functions/api/_auth.js:312:      ? user.roles
+functions/api/_auth.js:314:        ? [user.role]
+functions/api/_auth.js:350:      user.role,
+functions/api/_auth.js:411:    Array.isArray(user.roles)
+functions/api/_auth.js:412:      ? user.roles
+functions/api/_auth.js:413:      : user.role
+functions/api/_auth.js:414:        ? [user.role]
+functions/api/auth.js:285:        role: roleAwareUser.role,
+functions/api/auth.js:287:          roleAwareUser.roles || [roleAwareUser.role],
+functions/api/auth.js:290:          roleAwareUser.role,
+functions/api/circles.js:183:    user?.role === "admin" ||
+functions/api/circles.js:184:    user?.role === "supervisor"
+functions/api/circles.js:197:    user?.role === "teacher" &&
+functions/api/circles.js:213:    user?.role === "teacher" &&
+functions/api/circles.js:492:      permission.user?.role === "teacher" &&
+functions/api/enrollments.js:107:    user?.role === "admin" ||
+functions/api/enrollments.js:108:    user?.role === "supervisor"
+functions/api/enrollments.js:802:      permission.user?.role === "teacher" &&
+functions/api/quran-progress.js:108:    auth.user.role === "admin" ||
+functions/api/quran-progress.js:109:    auth.user.role === "teacher"
+functions/api/quran-progress.js:151:      auth.user.role !== "admin" &&
+functions/api/quran-progress.js:152:      auth.user.role !== "teacher"
+functions/api/attendance-excuses.js:130:    if (user?.role === "teacher") {
+functions/api/attendance-excuses.js:144:    } else if (user?.role === "student") {
+functions/api/attendance-excuses.js:151:    } else if (user?.role === "guardian") {
+functions/api/attendance-excuses.js:230:      user?.role === "student" &&
+functions/api/attendance-excuses.js:238:      user?.role === "student" &&
+functions/api/attendance-excuses.js:395:    if (user?.role === "teacher") {
+functions/api/schedule-center.js:147:  if (user.role === "teacher") {
+functions/api/schedule-center.js:150:  } else if (user.role === "student") {
+functions/api/schedule-center.js:153:  } else if (user.role === "guardian") {
+functions/api/schedule-center.js:167:    user.role !== "admin" &&
+functions/api/schedule-center.js:168:    user.role !== "supervisor"
+functions/api/schedule-center.js:252:  if (user.role === "teacher") {
+functions/api/schedule-center.js:255:  } else if (user.role === "student") {
+functions/api/schedule-center.js:258:  } else if (user.role === "guardian") {
+functions/api/schedule-center.js:272:    user.role !== "admin" &&
+functions/api/schedule-center.js:273:    user.role !== "supervisor"
+functions/api/schedule-center.js:342:  if (user.role === "teacher") {
+functions/api/schedule-center.js:346:  } else if (user.role === "student") {
+functions/api/schedule-center.js:381:  } else if (user.role === "guardian") {
+functions/api/schedule-center.js:427:    user.role !== "admin" &&
+functions/api/schedule-center.js:428:    user.role !== "supervisor"
+functions/api/schedule-center.js:476:  if (user.role === "teacher") {
+functions/api/schedule-center.js:524:  } else if (user.role === "student") {
+functions/api/schedule-center.js:572:  } else if (user.role === "guardian") {
+functions/api/schedule-center.js:651:    user.role !== "admin" &&
+functions/api/schedule-center.js:652:    user.role !== "supervisor"
+functions/api/teacher-leaves.js:45:    user?.role === "admin" ||
+functions/api/teacher-leaves.js:46:    user?.role === "supervisor"
+functions/api/teacher-leaves.js:56:    user?.role === "teacher" &&
+functions/api/teacher-leaves.js:162:      auth.user?.role === "teacher" &&
+functions/api/teacher-leaves.js:234:      auth.user?.role === "teacher" &&
+functions/api/schedule-series.js:176:  if (!user || !user.role) {
+functions/api/schedule-series.js:179:    user.role !== "admin" &&
+functions/api/schedule-series.js:180:    user.role !== "supervisor"
+functions/api/schedule-series.js:182:    if (user.role === "teacher") {
+functions/api/schedule-series.js:189:    } else if (user.role === "student") {
+functions/api/schedule-series.js:196:    } else if (user.role === "guardian") {
+functions/api/schedule-series.js:411:      user.role === "admin" ||
+functions/api/schedule-series.js:412:      user.role === "supervisor"
+functions/api/schedule-series.js:417:    user.role === "teacher" &&
+functions/api/schedule-series.js:548:    user.role === "admin" ||
+functions/api/schedule-series.js:549:    user.role === "supervisor"
+functions/api/schedule-series.js:554:  if (user.role === "teacher") {
+functions/api/schedule-series.js:750:    user.role === "admin" ||
+functions/api/schedule-series.js:751:    user.role === "supervisor"
+functions/api/schedule-series.js:763:    user.role === "teacher" &&
+functions/api/schedule-generate.js:410:    user.role === "admin" ||
+functions/api/schedule-generate.js:411:    user.role === "supervisor"
+functions/api/schedule-generate.js:416:  if (user.role === "teacher") {
+functions/api/schedule-generate.js:423:  if (user.role === "student") {
+functions/api/schedule-generate.js:430:  if (user.role === "guardian") {
+functions/api/schedule-generate.js:455:  if (user.role === "teacher") {
+functions/api/schedule-generate.js:460:  } else if (user.role === "student") {
+functions/api/schedule-generate.js:466:    user.role !== "admin" &&
+functions/api/schedule-generate.js:467:    user.role !== "supervisor"
+functions/api/schedule-exceptions.js:39:  return user?.role === "admin" || user?.role === "supervisor";
+functions/api/schedule-exceptions.js:73:    user.role === "teacher" &&
+functions/api/schedule-exceptions.js:81:    user.role === "student" &&
+functions/api/schedule-exceptions.js:88:  if (user.role === "guardian" && series.student_id) {
+functions/api/settings.js:146:      sensitive && user.role !== "admin"
+functions/api/settings.js:298:  if (auth.user.role !== "admin") {
+functions/api/settings.js:496:  if (auth.user.role !== "admin") {
+functions/api/documents.js:25:  if (user.role === "admin") {
+functions/api/documents.js:57:      user.role,
+functions/api/documents.js:60:      user.role
+functions/api/documents.js:100:    user.role === "student" &&
+functions/api/documents.js:112:    user.role === "teacher" &&
+functions/api/documents.js:129:    user.role === "guardian" &&
+functions/api/documents.js:227:  if (user.role !== "admin") {
+functions/api/documents.js:276:      user.role,
+functions/api/documents.js:280:      user.role,
+functions/api/documents.js:284:      user.role,
+functions/api/documents.js:288:      user.role
+functions/api/documents.js:441:  if (user.role !== "admin") {
+functions/api/documents.js:453:      user.role === "student" &&
+functions/api/documents.js:464:      user.role === "teacher" &&
+functions/api/documents.js:583:  if (user.role !== "admin") {
+functions/api/documents.js:605:  if (user.role === "admin") {
+functions/api/documents.js.before-security-fix-20260902-224515.bak:55:      user.role,
+functions/api/documents.js.before-security-fix-20260902-224515.bak:126:  if (user.role === "student" && user.student_id) {
+functions/api/documents.js.before-security-fix-20260902-224515.bak:140:  if (user.role === "teacher" && user.teacher_id) {
+functions/api/documents/permissions.js:227:      if (!ALLOWED_ROLES.has(targetUser.role)) {
+functions/api/documents/permissions.js.before-transaction-audit-20260903-142751.bak:227:      if (!ALLOWED_ROLES.has(targetUser.role)) {
+functions/api/documents.js.before-final-security-20260902-224712.bak:26:  if (user.role === "admin") {
+functions/api/documents.js.before-final-security-20260902-224712.bak:58:      user.role,
+functions/api/documents.js.before-final-security-20260902-224712.bak:61:      user.role
+functions/api/documents.js.before-final-security-20260902-224712.bak:94:    user.role === "student" &&
+functions/api/documents.js.before-final-security-20260902-224712.bak:105:    user.role === "teacher" &&
+functions/api/documents.js.before-final-security-20260902-224712.bak:168:  if (user.role === "student" && user.student_id) {
+functions/api/documents.js.before-final-security-20260902-224712.bak:182:  if (user.role === "teacher" && user.teacher_id) {
+functions/api/documents.js.before-scope-hardening-20260902-225452.bak:25:  if (user.role === "admin") {
+functions/api/documents.js.before-scope-hardening-20260902-225452.bak:57:      user.role,
+functions/api/documents.js.before-scope-hardening-20260902-225452.bak:60:      user.role
+functions/api/documents.js.before-scope-hardening-20260902-225452.bak:100:    user.role === "student" &&
+functions/api/documents.js.before-scope-hardening-20260902-225452.bak:112:    user.role === "teacher" &&
+functions/api/documents.js.before-scope-hardening-20260902-225452.bak:175:  if (user.role === "student" && user.student_id) {
+functions/api/documents.js.before-scope-hardening-20260902-225452.bak:189:  if (user.role === "teacher" && user.teacher_id) {
+functions/api/tests.js:116:  if (user.role === "admin") {
+functions/api/tests.js:123:    user.role === "student" &&
+functions/api/tests.js:130:    user.role === "teacher" ||
+functions/api/tests.js:131:    user.role === "supervisor"
+functions/api/tests.js:133:    if (user.role === "supervisor") {
+functions/api/tests.js:194:  if (user.role === "student") {
+functions/api/tests.js:210:  } else if (user.role === "teacher") {
+functions/api/tests.js:232:    user.role === "supervisor" ||
+functions/api/tests.js:233:    user.role === "admin"
+functions/api/tests.js:292:    user.role !== "admin" &&
+functions/api/tests.js:293:    user.role !== "supervisor" &&
+functions/api/tests.js:294:    user.role !== "teacher"
+functions/api/tests.js:343:  if (user.role === "teacher") {
+functions/api/tests.js:430:    if (user.role === "teacher") {
+functions/api/tests.js:656:  if (user.role === "teacher") {
+functions/api/tests.js:777:    user.role !== "admin" &&
+functions/api/tests.js:778:    user.role !== "supervisor"
+functions/api/question-bank.js:794:    user.role === "teacher" &&
+functions/api/question-bank.js:929:    user.role === "teacher" &&
+functions/api/test-engine.js:123:    auth.user.role === "admin" ||
+functions/api/test-engine.js:124:    auth.user.role === "supervisor"
+functions/api/test-engine.js:138:    user.role === "admin" ||
+functions/api/test-engine.js:139:    user.role === "supervisor"
+functions/api/test-engine.js:144:  if (user.role === "student") {
+functions/api/test-engine.js:151:  if (user.role !== "teacher") {
+--- password / auth references ---
+functions/api/_auth.js:274:async function requireAuth(request, env) {
+functions/api/_auth.js:363:async function requirePermission(
+functions/api/_auth.js:368:  const auth = await requireAuth(
+functions/api/_auth.js:431:async function requireRole(
+functions/api/_auth.js:436:  const auth = await requireAuth(
+functions/api/_auth.js:610:  requireAuth,
+functions/api/_auth.js:612:  requirePermission,
+functions/api/_auth.js:613:  requireRole,
+functions/api/attendance.js:1:import { requirePermission } from "./_auth.js";
+functions/api/attendance.js:263:  const permission = await requirePermission(
+functions/api/attendance.js:483:  const permission = await requirePermission(
+functions/api/attendance.js:725:  const permission = await requirePermission(
+functions/api/auth.js:7:  requireAuth,
+functions/api/auth.js:12:  hashPassword,
+functions/api/auth.js:13:  verifyPassword,
+functions/api/auth.js:55:        password_hash
+functions/api/auth.js:65:  const passwordCheck = await verifyPassword(
+functions/api/auth.js:67:    user?.password_hash
+functions/api/auth.js:76:    hash_present: Boolean(user?.password_hash),
+functions/api/auth.js:78:      typeof user?.password_hash === "string"
+functions/api/auth.js:79:        ? user.password_hash.split("$")[0]
+functions/api/auth.js:82:      typeof user?.password_hash === "string"
+functions/api/auth.js:83:        ? user.password_hash.length
+functions/api/auth.js:159:        password_hash,
+functions/api/auth.js:171:    await verifyPassword(
+functions/api/auth.js:173:      user?.password_hash
+functions/api/auth.js:186:      hash_present: Boolean(user?.password_hash),
+functions/api/auth.js:188:        typeof user?.password_hash === "string"
+functions/api/auth.js:189:          ? user.password_hash.split("$")[0]
+functions/api/auth.js:192:        typeof user?.password_hash === "string"
+functions/api/auth.js:193:          ? user.password_hash.length
+functions/api/auth.js:236:      await hashPassword(password);
+functions/api/auth.js:241:        SET password_hash = ?,
+functions/api/auth.js:253:      action: "password_hash_upgraded",
+functions/api/auth.js:330:    await requireAuth(
+functions/api/auth.js:395:        SELECT id, password_hash, status
+functions/api/auth.js:419:    await verifyPassword(
+functions/api/auth.js:421:      user.password_hash
+functions/api/auth.js:437:    await hashPassword(
+functions/api/auth.js:444:      SET password_hash = ?,
+functions/api/auth.js:537:            password_hash
+functions/api/auth.js:558:        hash_present: Boolean(row?.password_hash),
+functions/api/auth.js:560:          typeof row?.password_hash === "string"
+functions/api/auth.js:561:            ? row.password_hash.split("$")[0]
+functions/api/auth.js:564:          typeof row?.password_hash === "string"
+functions/api/auth.js:565:            ? row.password_hash.length
+functions/api/billing-cycles.js:1:import { requirePermission } from "./_auth.js";
+functions/api/billing-cycles.js:1357:  const permission = await requirePermission(context.request, context.env, "billing-cycles.read");
+functions/api/billing-cycles.js:1526:  const permission = await requirePermission(context.request, context.env, "billing-cycles.write");
+functions/api/billing-cycles.js:2283:  const permission = await requirePermission(context.request, context.env, "billing-cycles.write");
+functions/api/circles.js:1:import { requirePermission } from "./_auth.js";
+functions/api/circles.js:362:  const permission = await requirePermission(
+functions/api/circles.js:645:  const permission = await requirePermission(
+functions/api/circles.js:944:  const permission = await requirePermission(
+functions/api/dashboard.js:1:import { requirePermission } from "./_auth.js";
+functions/api/dashboard.js:24:  const permission = await requirePermission(
+functions/api/enrollments.js:1:import { requirePermission } from "./_auth.js";
+functions/api/enrollments.js:675:  const permission = await requirePermission(
+functions/api/enrollments.js:879:  const permission = await requirePermission(
+functions/api/enrollments.js:1259:  const permission = await requirePermission(
+functions/api/individual-scheduling.js:1:import { requirePermission } from "./_auth.js";
+functions/api/individual-scheduling.js:324:  const permission = await requirePermission(context.request, context.env, "individual-scheduling.read");
+functions/api/individual-scheduling.js:791:  const permission = await requirePermission(context.request, context.env, "individual-scheduling.write");
+functions/api/individual-scheduling.js:1350:  const permission = await requirePermission(context.request, context.env, "individual-scheduling.write");
+functions/api/payment-exemptions.js:1:import { requirePermission } from "./_auth.js";
+functions/api/payment-exemptions.js:200:  const permission = await requirePermission(context.request, context.env, "payment-exemptions.read");
+functions/api/payment-exemptions.js:381:  const permission = await requirePermission(context.request, context.env, "payment-exemptions.write");
+functions/api/payment-exemptions.js:691:  const permission = await requirePermission(context.request, context.env, "payment-exemptions.write");
+functions/api/payments.js:1:import { requirePermission } from "./_auth.js";
+functions/api/payments.js:250:  const permission = await requirePermission(context.request, context.env, "payments.read");
+functions/api/payments.js:473:  const permission = await requirePermission(context.request, context.env, "payments.write");
+functions/api/payments.js:749:  const permission = await requirePermission(context.request, context.env, "payments.write");
+functions/api/quran-progress.js:7:  requireAuth,
+functions/api/quran-progress.js:8:  requirePermission,
+functions/api/quran-progress.js:87:  const auth = await requireAuth(request, env);
+functions/api/quran-progress.js:93:  const management = await requirePermission(
+functions/api/quran-progress.js:121:    const auth = await requireAuth(request, env);
+functions/api/sessions.js:1:import { requirePermission } from "./_auth.js";
+functions/api/sessions.js:426:  const permission = await requirePermission(
+functions/api/sessions.js:681:  const permission = await requirePermission(
+functions/api/sessions.js:1046:  const permission = await requirePermission(
+functions/api/students.js:1:import { requirePermission } from "./_auth.js";
+functions/api/students.js:207:  const permission = await requirePermission(
+functions/api/students.js:422:  const permission = await requirePermission(
+functions/api/students.js:731:  const permission = await requirePermission(
+functions/api/subscriptions.js:1:import { requirePermission } from "./_auth.js";
+functions/api/subscriptions.js:312:  const permission = await requirePermission(
+functions/api/subscriptions.js:554:  const permission = await requirePermission(
+functions/api/subscriptions.js:1006:  const permission = await requirePermission(
+functions/api/teachers.js:1:import { requirePermission } from "./_auth.js";
+functions/api/teachers.js:209:  const permission = await requirePermission(
+functions/api/teachers.js:384:  const permission = await requirePermission(
+functions/api/teachers.js:656:  const permission = await requirePermission(
+functions/api/students.js.before-auth-fix:1:import { requirePermission } from "./_auth.js";
+functions/api/attendance-excuses.js:4:  requireAuth,
+functions/api/attendance-excuses.js:5:  requireRole
+functions/api/attendance-excuses.js:97:    const user = await requireAuth(request, env);
+functions/api/attendance-excuses.js:192:    const user = await requireAuth(request, env);
+functions/api/attendance-excuses.js:357:    const user = await requireAuth(request, env);
+functions/api/attendance-excuses.js:358:    await requireRole(request, env, ["admin", "teacher"]);
+functions/api/schedule-center.js:2:  requirePermission,
+functions/api/schedule-center.js:692:    await requirePermission(
+functions/api/teacher-leaves.js:3:  requirePermission,
+functions/api/teacher-leaves.js:80:  const auth = await requirePermission(
+functions/api/teacher-leaves.js:214:  const auth = await requirePermission(
+functions/api/teacher-leaves.js:425:  const auth = await requirePermission(
+functions/api/schedule-series.js:2:  requirePermission
+functions/api/schedule-series.js:952:    await requirePermission(
+functions/api/schedule-series.js:1019:    await requirePermission(
+functions/api/schedule-series.js:1054:    await requirePermission(
+functions/api/schedule-generate.js:2:  requirePermission
+functions/api/schedule-generate.js:818:    await requirePermission(
+functions/api/schedule-exceptions.js:1:import { requirePermission } from "./_auth.js";
+functions/api/schedule-exceptions.js:585:  const auth = await requirePermission(
+functions/api/schedule-exceptions.js:699:  const auth = await requirePermission(
+functions/api/schedule-exceptions.js:724:  const auth = await requirePermission(
+functions/api/schedule-exceptions.js:762:  const auth = await requirePermission(
+functions/api/settings.js:2:  requirePermission,
+functions/api/settings.js:176:  const auth = await requirePermission(
+functions/api/settings.js:288:  const auth = await requirePermission(
+functions/api/settings.js:486:  const auth = await requirePermission(
+functions/api/documents.js:2:  requireAuth,
+functions/api/documents.js:693:    await requireAuth(request, env);
+functions/api/documents.js.before-security-fix-20260902-224515.bak:2:  requireAuth,
+functions/api/documents.js.before-security-fix-20260902-224515.bak:548:    await requireAuth(request, env);
+functions/api/documents/permissions.js:2:  requireAuth,
+functions/api/documents/permissions.js:18:  const auth = await requireAuth(request, env);
+functions/api/documents/permissions.js.before-transaction-audit-20260903-142751.bak:2:  requireAuth,
+functions/api/documents/permissions.js.before-transaction-audit-20260903-142751.bak:18:  const auth = await requireAuth(request, env);
+functions/api/documents.js.before-final-security-20260902-224712.bak:2:  requireAuth,
+functions/api/documents.js.before-final-security-20260902-224712.bak:590:    await requireAuth(request, env);
+functions/api/documents.js.before-scope-hardening-20260902-225452.bak:2:  requireAuth,
+functions/api/documents.js.before-scope-hardening-20260902-225452.bak:517:    await requireAuth(request, env);
+functions/api/tests.js:7:  requireAuth,
+functions/api/tests.js:8:  requirePermission,
+functions/api/tests.js:161:  const auth = await requirePermission(
+functions/api/tests.js:279:  const auth = await requirePermission(
+functions/api/tests.js:610:  const auth = await requirePermission(
+functions/api/tests.js:764:  const auth = await requirePermission(
+functions/api/question-bank.js:7:  requirePermission,
+functions/api/question-bank.js:458:  const auth = await requirePermission(
+functions/api/question-bank.js:647:  const auth = await requirePermission(
+functions/api/question-bank.js:746:  const auth = await requirePermission(
+functions/api/question-bank.js:886:  const auth = await requirePermission(
+functions/api/test-engine.js:2:  requireAuth,
+functions/api/test-engine.js:3:  requirePermission,
+functions/api/test-engine.js:105:  const auth = await requireAuth(request, env);
+functions/api/test-engine.js:112:    await requirePermission(
+functions/api/test-engine.js:1537:  const auth = await requireAuth(
+functions/api/test-engine.js:1773:  const auth = await requireAuth(
+functions/api/test-engine.js:1783:    await requirePermission(
+functions/api/sessions.js.before-student-get-post-20260902-203058:1:import { requirePermission } from "./_auth.js";
+functions/api/sessions.js.before-student-get-post-20260902-203058:418:  const permission = await requirePermission(
+functions/api/sessions.js.before-student-get-post-20260902-203058:673:  const permission = await requirePermission(
+functions/api/sessions.js.before-student-get-post-20260902-203058:1018:  const permission = await requirePermission(
+functions/api/sessions.js.before-student-get-post-safe-20260902-203149:1:import { requirePermission } from "./_auth.js";
+functions/api/sessions.js.before-student-get-post-safe-20260902-203149:418:  const permission = await requirePermission(
+functions/api/sessions.js.before-student-get-post-safe-20260902-203149:673:  const permission = await requirePermission(
+functions/api/sessions.js.before-student-get-post-safe-20260902-203149:1018:  const permission = await requirePermission(
+functions/api/documents-permissions.js.before-validation-hardening-20260902-225452.bak:2:  requireAuth,
+functions/api/documents-permissions.js.before-validation-hardening-20260902-225452.bak:10:  const auth = await requireAuth(request, env);
+functions/api/documents.js.before-storage-guardian-fix-20260902-233623.bak:2:  requireAuth,
+functions/api/documents.js.before-storage-guardian-fix-20260902-233623.bak:659:    await requireAuth(request, env);
+functions/api/billing-cycles.js.before-excuse-rules-20260903-015024.bak:1:import { requirePermission } from "./_auth.js";
+functions/api/billing-cycles.js.before-excuse-rules-20260903-015024.bak:1235:  const permission = await requirePermission(context.request, context.env, "billing-cycles.read");
+functions/api/billing-cycles.js.before-excuse-rules-20260903-015024.bak:1404:  const permission = await requirePermission(context.request, context.env, "billing-cycles.write");
+functions/api/billing-cycles.js.before-excuse-rules-20260903-015024.bak:2161:  const permission = await requirePermission(context.request, context.env, "billing-cycles.write");
+functions/api/.tests.js.before-test-engine-20260904-201125.bak:7:  requireAuth,
+functions/api/.tests.js.before-test-engine-20260904-201125.bak:8:  requirePermission,
+functions/api/.tests.js.before-test-engine-20260904-201125.bak:161:  const auth = await requirePermission(
+functions/api/.tests.js.before-test-engine-20260904-201125.bak:279:  const auth = await requirePermission(
+functions/api/.tests.js.before-test-engine-20260904-201125.bak:610:  const auth = await requirePermission(
+functions/api/.tests.js.before-test-engine-20260904-201125.bak:764:  const auth = await requirePermission(
+functions/api/sessions.js.final-safe-20260902-204021:1:import { requirePermission } from "./_auth.js";
+functions/api/sessions.js.final-safe-20260902-204021:420:  const permission = await requirePermission(
+functions/api/sessions.js.final-safe-20260902-204021:675:  const permission = await requirePermission(
+functions/api/sessions.js.final-safe-20260902-204021:1040:  const permission = await requirePermission(
+functions/api/billing-cycles.js.before-final-excuse-fix-20260903.bak:1:import { requirePermission } from "./_auth.js";
+functions/api/billing-cycles.js.before-final-excuse-fix-20260903.bak:1241:  const permission = await requirePermission(context.request, context.env, "billing-cycles.read");
+functions/api/billing-cycles.js.before-final-excuse-fix-20260903.bak:1410:  const permission = await requirePermission(context.request, context.env, "billing-cycles.write");
+
+===== 9. BACKUP / SECRET FILE STATUS =====
+--- temp admin password file ---
+EXISTS (content hidden)
+--- accidental / backup files are NOT deleted ---
+138
+backup_count_above
+
+===== 10. REMOTE D1 MIGRATIONS =====
+
+ ⛅️ wrangler 4.125.0 (update available 4.129.0)
+───────────────────────────────────────────────
+Resource location: remote 
+
+✅ No migrations to apply!
+
+===== 11. REMOTE D1 CORE INTEGRITY =====
+
+ ⛅️ wrangler 4.125.0 (update available 4.129.0)
+───────────────────────────────────────────────
+Resource location: remote 
+
+🌀 Executing on remote database alawabin-db (214b2ef5-6937-43ab-a172-3f40f2c1bc63):
+🌀 To execute on your local development database, remove the --remote flag from your wrangler command.
+🚣 Executed 1 command in 1.70ms
+[
+  {
+    "results": [
+      {
+        "users_count": 1,
+        "students_count": 0,
+        "teachers_count": 0,
+        "sessions_count": 0,
+        "attendance_count": 0,
+        "subscriptions_count": 0,
+        "auth_sessions_count": 20
+      }
+    ],
+    "success": true,
+    "meta": {
+      "served_by": "v3-prod",
+      "served_by_region": "WEUR",
+      "served_by_colo": "CDG",
+      "served_by_primary": true,
+      "timings": {
+        "sql_duration_ms": 1.7043
+      },
+      "duration": 1.7043,
+      "changes": 0,
+      "last_row_id": 0,
+      "changed_db": false,
+      "size_after": 1323008,
+      "rows_read": 21,
+      "rows_written": 0,
+      "total_attempts": 1
+    }
+  }
+]
+
+--- users status/roles ---
+
+ ⛅️ wrangler 4.125.0 (update available 4.129.0)
+───────────────────────────────────────────────
+Resource location: remote 
+
+🌀 Executing on remote database alawabin-db (214b2ef5-6937-43ab-a172-3f40f2c1bc63):
+🌀 To execute on your local development database, remove the --remote flag from your wrangler command.
+🚣 Executed 1 command in 0.51ms
+[
+  {
+    "results": [
+      {
+        "status": "active",
+        "role": "admin",
+        "count": 1
+      }
+    ],
+    "success": true,
+    "meta": {
+      "served_by": "v3-prod",
+      "served_by_region": "WEUR",
+      "served_by_colo": "CDG",
+      "served_by_primary": true,
+      "timings": {
+        "sql_duration_ms": 0.5131
+      },
+      "duration": 0.5131,
+      "changes": 0,
+      "last_row_id": 0,
+      "changed_db": false,
+      "size_after": 1323008,
+      "rows_read": 3,
+      "rows_written": 0,
+      "total_attempts": 1
+    }
+  }
+]
+
+--- important tables ---
+
+ ⛅️ wrangler 4.125.0 (update available 4.129.0)
+───────────────────────────────────────────────
+Resource location: remote 
+
+🌀 Executing on remote database alawabin-db (214b2ef5-6937-43ab-a172-3f40f2c1bc63):
+🌀 To execute on your local development database, remove the --remote flag from your wrangler command.
+🚣 Executed 1 command in 0.75ms
+[
+  {
+    "results": [
+      {
+        "name": "_cf_KV"
+      },
+      {
+        "name": "academic_terms"
+      },
+      {
+        "name": "academy_safeguarding_rules"
+      },
+      {
+        "name": "academy_settings"
+      },
+      {
+        "name": "achievement_definitions"
+      },
+      {
+        "name": "action_items"
+      },
+      {
+        "name": "approval_requests"
+      },
+      {
+        "name": "assignments"
+      },
+      {
+        "name": "attendance"
+      },
+      {
+        "name": "attendance_excuse_rules"
+      },
+      {
+        "name": "attendance_excuses"
+      },
+      {
+        "name": "attendance_warnings"
+      },
+      {
+        "name": "audit_logs"
+      },
+      {
+        "name": "auth_sessions"
+      },
+      {
+        "name": "backups"
+      },
+      {
+        "name": "behavior_incidents"
+      },
+      {
+        "name": "billing_cycle_items"
+      },
+      {
+        "name": "billing_cycle_runs"
+      },
+      {
+        "name": "billing_cycles"
+      },
+      {
+        "name": "billing_month_rules"
+      },
+      {
+        "name": "billing_notifications"
+      },
+      {
+        "name": "billing_session_items"
+      },
+      {
+        "name": "billing_settings"
+      },
+      {
+        "name": "certificates"
+      },
+      {
+        "name": "circle_enrollments"
+      },
+      {
+        "name": "circle_waitlist"
+      },
+      {
+        "name": "circles"
+      },
+      {
+        "name": "consent_records"
+      },
+      {
+        "name": "d1_migrations"
+      },
+      {
+        "name": "data_import_exports"
+      },
+      {
+        "name": "deleted_records"
+      },
+      {
+        "name": "document_links"
+      },
+      {
+        "name": "document_permissions"
+      },
+      {
+        "name": "documents"
+      },
+      {
+        "name": "enrollment_decisions"
+      },
+      {
+        "name": "enrollment_policies"
+      },
+      {
+        "name": "enrollment_requests"
+      },
+      {
+        "name": "enrollment_rules"
+      },
+      {
+        "name": "entity_change_log"
+      },
+      {
+        "name": "expenses"
+      },
+      {
+        "name": "fine_rules"
+      },
+      {
+        "name": "fines"
+      },
+      {
+        "name": "guardians"
+      },
+      {
+        "name": "individual_schedule_bookings"
+      },
+      {
+        "name": "individual_schedule_requests"
+      },
+      {
+        "name": "integrations"
+      },
+      {
+        "name": "introductory_meetings"
+      },
+      {
+        "name": "message_logs"
+      },
+      {
+        "name": "message_templates"
+      },
+      {
+        "name": "notifications"
+      },
+      {
+        "name": "package_circle_rules"
+      },
+      {
+        "name": "packages"
+      },
+      {
+        "name": "payment_allocations"
+      },
+      {
+        "name": "payment_exemptions"
+      },
+      {
+        "name": "payments"
+      },
+      {
+        "name": "question_bank"
+      },
+      {
+        "name": "quran_levels"
+      },
+      {
+        "name": "quran_paths"
+      },
+      {
+        "name": "quran_progress"
+      },
+      {
+        "name": "quran_recordings"
+      },
+      {
+        "name": "recurring_schedules"
+      },
+      {
+        "name": "role_permissions"
+      },
+      {
+        "name": "schedule_changes"
+      },
+      {
+        "name": "schedule_exceptions"
+      },
+      {
+        "name": "schedule_series"
+      },
+      {
+        "name": "sessions"
+      },
+      {
+        "name": "settings"
+      },
+      {
+        "name": "sqlite_sequence"
+      },
+      {
+        "name": "student_achievements"
+      },
+      {
+        "name": "student_billing_settings"
+      },
+      {
+        "name": "student_billing_starts"
+      },
+      {
+        "name": "student_guardians"
+      },
+      {
+        "name": "student_progress_summary"
+      },
+      {
+        "name": "students"
+      },
+      {
+        "name": "subscriptions"
+      },
+      {
+        "name": "system_settings"
+      },
+      {
+        "name": "tasks"
+      },
+      {
+        "name": "teacher_availability_slots"
+      },
+      {
+        "name": "teacher_leave_requests"
+      },
+      {
+        "name": "teacher_payments"
+      },
+      {
+        "name": "teachers"
+      },
+      {
+        "name": "test_answers"
+      },
+      {
+        "name": "test_attempt_questions"
+      },
+      {
+        "name": "test_attempts"
+      },
+      {
+        "name": "test_errors"
+      },
+      {
+        "name": "test_rubric_scores"
+      },
+      {
+        "name": "test_templates"
+      },
+      {
+        "name": "tests"
+      },
+      {
+        "name": "user_permissions"
+      },
+      {
+        "name": "user_roles"
+      },
+      {
+        "name": "users"
+      }
+    ],
+    "success": true,
+    "meta": {
+      "served_by": "v3-prod",
+      "served_by_region": "WEUR",
+      "served_by_colo": "CDG",
+      "served_by_primary": true,
+      "timings": {
+        "sql_duration_ms": 0.7529
+      },
+      "duration": 0.7529,
+      "changes": 0,
+      "last_row_id": 0,
+      "changed_db": false,
+      "size_after": 1323008,
+      "rows_read": 394,
+      "rows_written": 0,
+      "total_attempts": 1
+    }
+  }
+]
+
+===== 12. PRODUCTION HEALTH =====
+HTTP/2 200 
+date: Sun, 06 Sep 2026 14:22:34 GMT
+content-type: application/json
+content-length: 91
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=vflRiCsFNfBHgBBOKk%2FPXNIDOPDgTyILHL3VnDeThJBO9DZf2q3qXsu%2BUrN6y%2BXj%2B6xONqX9fR%2FffGJRY%2FoaLsLrwJwdB1hHQmXjvn5rxnOqbpsLU0wSUiD8xBbjRALvcH086XG%2B0GJ0AUHCuHIdKzg%3D"}]}
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+server: cloudflare
+cf-ray: a36e206aaa36ea59-FCO
+alt-svc: h3=":443"; ma=86400
+
+{"ok":true,"service":"alawabin-api","database":true,"timestamp":"2026-09-06T14:22:34.740Z"}
+
+===== 13. PRODUCTION AUTH USER CHECK =====
+{"success":true,"diagnostic":"production-user-check","found":true,"id":2,"role":"admin","status":"active","email_match":true,"phone_match":true,"hash_present":true,"hash_scheme":"pbkdf2-sha256","hash_length":87}
+
+===== 14. LOCAL PASSWORD VS REMOTE HASH =====
+REMOTE_HASH_READ=FAILED
+Password comparison skipped because required data is missing.
+
+===== 16. LIVE LOGIN =====
+HTTP/2 401 
+date: Sun, 06 Sep 2026 14:22:42 GMT
+content-type: application/json; charset=utf-8
+content-length: 137
+cache-control: no-store
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=z%2B1YqBCk44D1DJxb4vduDhEZ0ZLlYtPt%2FZQZFBC8b8G6oo%2BcdDlOl0Yvi1ANWwG%2FOMSOsX2T8Y0Pxu9urftsDyVw8JpAAxVfVMvX8P5uBKmm3AplzegP%2FFsuzq7wntD3j%2Fd9RMuNatdXAm2I1wNuyWY%3D"}]}
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+server: cloudflare
+cf-ray: a36e209d68cbea49-FCO
+alt-svc: h3=":443"; ma=86400
+
+{"success":false,"authenticated":false,"error":"INVALID_CREDENTIALS","message":"بيانات تسجيل الدخول غير صحيحة."}
+
+===== 17. LIVE AUTH ME =====
+HTTP/2 200 
+date: Sun, 06 Sep 2026 14:22:43 GMT
+content-type: application/json; charset=utf-8
+content-length: 50
+cache-control: no-store
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=fggDI5A5wHrB3joBfDzU15kTjvGSSvDflZ%2FEWPS04uBB%2BXSVositidTRf%2BI1KUI9Rm8tLufzcePgevW5VyfepkRfFXmqm3WRnIlDkufXqlhB83DQYRedrDLMwU6TlqtmzkH3g6vHjveNf83lm3sWI38%3D"}]}
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+server: cloudflare
+cf-ray: a36e20a0bf2dea5d-FCO
+alt-svc: h3=":443"; ma=86400
+
+{"success":true,"authenticated":false,"user":null}
+
+===== 18. AUTH METHOD TESTS =====
+--- GET me ---
+HTTP=200
+{"success":true,"authenticated":false,"user":null}
+--- GET login (must be 405) ---
+HTTP=405
+{"success":false,"error":"METHOD_NOT_ALLOWED","message":"طريقة الطلب غير مسموحة."}
+--- POST login ---
+HTTP=401
+{"success":false,"authenticated":false,"error":"INVALID_CREDENTIALS","message":"بيانات تسجيل الدخول غير صحيحة."}
+
+===== 19. API UNAUTHENTICATED SMOKE TEST =====
+health HTTP=200 BODY={"ok":true,"service":"alawabin-api","database":true,"timestamp":"2026-09-06T14:22:45.312Z"}
+students HTTP=401 BODY={"success":false,"error":"UNAUTHORIZED","message":"يجب تسجيل الدخول أولًا."}
+teachers HTTP=401 BODY={"success":false,"error":"UNAUTHORIZED","message":"يجب تسجيل الدخول أولًا."}
+circles HTTP=401 BODY={"success":false,"error":"UNAUTHORIZED","message":"يجب تسجيل الدخول أولًا."}
+attendance HTTP=401 BODY={"success":false,"error":"UNAUTHORIZED","message":"يجب تسجيل الدخول أولًا."}
+sessions HTTP=401 BODY={"success":false,"error":"UNAUTHORIZED","message":"يجب تسجيل الدخول أولًا."}
+subscriptions HTTP=401 BODY={"success":false,"error":"UNAUTHORIZED","message":"يجب تسجيل الدخول أولًا."}
+payments HTTP=401 BODY={"success":false,"error":"UNAUTHORIZED","message":"يجب تسجيل الدخول أولًا."}
+quran-progress HTTP=401 BODY={"success":false,"error":"UNAUTHORIZED","message":"يجب تسجيل الدخول أولًا."}
+tests HTTP=401 BODY={"success":false,"error":"UNAUTHORIZED","message":"يجب تسجيل الدخول أولًا."}
+question-bank HTTP=401 BODY={"success":false,"error":"UNAUTHORIZED","message":"يجب تسجيل الدخول أولًا."}
+test-engine HTTP=401 BODY={"success":false,"error":"UNAUTHORIZED","message":"يجب تسجيل الدخول أولًا."}
+billing-cycles HTTP=401 BODY={"success":false,"error":"UNAUTHORIZED","message":"يجب تسجيل الدخول أولًا."}
+attendance-excuses HTTP=200 BODY={"success":true,"data":[]}
+schedule-center HTTP=401 BODY={"success":false,"error":"UNAUTHORIZED","message":"يجب تسجيل الدخول أولًا."}
+schedule-series HTTP=401 BODY={"success":false,"error":"UNAUTHORIZED","message":"يجب تسجيل الدخول أولًا."}
+schedule-generate HTTP=200 BODY=<!doctype html> <html lang="ar" dir="rtl"> <head>   <meta charset="UTF-8">   <meta name="viewport" content="width=device-width,initial-scale=1">   <meta name="theme-color" content=
+schedule-exceptions HTTP=401 BODY={"success":false,"error":"UNAUTHORIZED","message":"يجب تسجيل الدخول أولًا."}
+teacher-leaves HTTP=401 BODY={"success":false,"error":"UNAUTHORIZED","message":"يجب تسجيل الدخول أولًا."}
+settings HTTP=401 BODY={"success":false,"error":"UNAUTHORIZED","message":"يجب تسجيل الدخول أولًا."}
+documents HTTP=401 BODY={"success":false,"error":"UNAUTHORIZED","message":"يجب تسجيل الدخول أولًا."}
+payment-exemptions HTTP=401 BODY={"success":false,"error":"UNAUTHORIZED","message":"يجب تسجيل الدخول أولًا."}
+enrollments HTTP=401 BODY={"success":false,"error":"UNAUTHORIZED","message":"يجب تسجيل الدخول أولًا."}
+individual-scheduling HTTP=401 BODY={"success":false,"error":"UNAUTHORIZED","message":"يجب تسجيل الدخول أولًا."}
+
+===== 20. API FILE COUNT =====
+31
+
+===== 21. FRONTEND SIZE =====
+99.0K	dist
+dist/assets/index-CsIvSKFQ.js
+dist/assets/index-DYYfX2tP.css
+dist/index.html
+dist/manifest.webmanifest
+dist/robots.txt
+dist/sw.js
+
+===== 22. PWA FILES =====
+OK public/manifest.webmanifest
+OK public/sw.js
+OK public/robots.txt
+OK dist/index.html
+
+===== 23. DEPLOYMENT VERSION =====
+HTTP/2 200 
+date: Sun, 06 Sep 2026 14:22:57 GMT
+content-type: application/json
+content-length: 91
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=F%2Fc8PKyh8uVmi7U8D48FtMC49J7lCMTvNVlrRkAGpuiEQem9zgMpH7rCeYqQx62%2FJ9XzY2oOJw99EuRWO8047I%2Bk87aURvKRtD6NGrdQtPfByBJFpfuqoe7AG3mJ04RdEDO3vIzN9fElis7biUa7Xxvvcubrfb8heKI%3D"}]}
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+server: cloudflare
+cf-ray: a36e20f67c76ea67-FCO
+alt-svc: h3=":443"; ma=86400
+
+{"ok":true,"service":"alawabin-api","database":true,"timestamp":"2026-09-06T14:22:57.047Z"}
+
+===== 24. FINAL GIT STATUS =====
+?? .016_settings_documents.before-api-permissions-20260902-215555.bak
+?? .016_settings_documents.before-repair-20260902-213320.bak
+?? .016_settings_documents.failed-20260902-213545.bak
+?? .016_settings_documents.pre-final-fix-20260902-214520.bak
+?? .admin-password-temp
+?? .auth-backup-20260905-150245.js
+?? .auth-before-diagnostic-context-20260905-213328.bak
+?? .auth-before-final-login-diagnostic-20260905-165333.bak
+?? .auth-before-fix-duplicate-20260905-213741.bak
+?? .auth-before-inline-diagnostic-20260905-170741.bak
+?? .auth-before-login-diagnostic-router-fix-20260905-214733.bak
+?? .auth-before-multi-role-20260905-174655.bak
+?? .auth-before-password-check-20260905-214122.bak
+?? .auth-before-password-runtime-diagnostic-20260905-163059.bak
+?? .auth-before-production-user-check-20260905-212857.bak
+?? .auth-before-real-password-diagnostic-20260905-215114.bak
+?? .auth-before-real-post-diagnostic-20260905-215652.bak
+?? .auth-before-remove-diagnostic-20260905-181522.bak
+?? .auth-before-role-context-20260905-175520.bak
+?? .auth-before-role-context-final-20260905-175831.bak
+?? .auth-before-role-context-final-20260905-175838.bak
+?? .auth-before-role-context-final-20260905-175956.bak
+?? .auth-before-role-context-final-20260905-180344.bak
+?? .auth-before-router-diagnostic-20260905-213245.bak
+?? .auth-before-session-fix-20260905-151546.js
+?? .auth-before-step10-20260905-180949.bak
+?? .auth-before-step6-20260905-180612.bak
+?? .auth-before-step8-20260905-180744.bak
+?? .auth-helper-before-multi-role-20260905-174655.bak
+?? .auth-helper-before-role-context-20260905-175520.bak
+?? .auth-helper-before-role-context-final-20260905-175831.bak
+?? .auth-helper-before-role-context-final-20260905-175838.bak
+?? .auth-helper-before-role-context-final-20260905-175956.bak
+?? .auth-helper-before-role-context-final-20260905-180344.bak
+?? .auth-helper-before-step10-20260905-180949.bak
+?? .auth-helper-before-step12-20260905-181121.bak
+?? .auth-helper-before-step6-20260905-180612.bak
+?? .auth.before-settings-documents-api-20260902-220949.bak
+?? .auth.before-settings-documents-api-20260902-221358.bak
+?? .billing-cycles.before-final-rules-20260903-014300.bak
+?? .billing-cycles.before-final-rules-20260903-014311.bak
+?? .billing-cycles.safe-before-rules-20260903-014722.bak
+?? .billing-cycles.safe-before-rules-20260903-014728.bak
+?? .billing-cycles.safe-before-rules-20260903-014737.bak
+?? .billing-cycles.safe-before-rules-20260903-014742.bak
+?? .circles.before-teacher-scope-20260902-212133.bak
+?? .enrollments.before-teacher-scope-20260902-211933.bak
+?? .final-audit-20260906-172132.txt
+?? .local-upgrade-snapshots/
+?? .password-before-duplicate-return-fix-20260905-181927.bak
+?? .password-before-final-runtime-check-20260905-220031.bak
+?? .password-before-inline-diagnostic-20260905-170741.bak
+?? .password-before-pbkdf2-runtime-diagnostic-20260905-170140.bak
+?? .password-before-production-refresh-20260905-212503.bak
+?? .password-before-remove-diagnostic-20260905-181522.bak
+?? .password-before-remove-duplicate-20260905-230909.bak
+?? .password-before-runtime-debug-20260905-163145.bak
+?? .password-before-syntax-fix-20260905-230807.bak
+?? .password-before-syntax-repair-20260905-181725.bak
+?? .schedule-series.before-reference-scope-20260902-211739.bak
+?? .schedule-series.before-scope-fix-20260902-211544.bak
+?? .schedule-series.pre-scope-20260902-210155.bak
+?? .sessions.pre-scope-20260902-210154.bak
+?? functions/api/.attendance-excuses.before-timezone-20260905-132216.bak
+?? functions/api/.test-engine.before-final-grading-safety-20260905-132630.bak
+?? functions/api/.test-engine.before-pending-error-fix-20260905-132827.bak
+?? functions/api/.test-engine.before-recalculate-fix-20260905-140815.bak
+?? functions/api/.test-engine.before-recalculate-fix-20260905-141200.bak
+?? functions/api/.test-engine.before-smart-selection-v2-20260905-142534.bak
+?? functions/api/.test-engine.before-studentid-call-fix-20260905-144136.bak
+?? functions/api/.test-engine.before-submit-validation-20260905-132216.bak
+?? functions/api/.test-engine.before-submit-validation-v2-20260905-132446.bak
+?? functions/api/.test-engine.js.before-answer-grading-20260904-201908.bak
+?? functions/api/.test-engine.js.before-error-schema-fix-20260904-202455.bak
+?? functions/api/.test-engine.js.before-runtime-safety-fix-20260904-202753.bak
+?? functions/api/.test-engine.js.before-smart-selection-20260904-201350.bak
+?? functions/api/.test-engine.js.before-submission-lock-20260904-202049.bak
+?? functions/api/.test-engine.js.before-teacher-grading-20260904-202314.bak
+?? functions/api/.test-engine.js.final-audit-20260904-202658.bak
+?? functions/api/.tests.js.before-test-engine-20260904-201125.bak
+?? functions/api/_auth.backup-20260904-210303.js
+?? functions/api/_password.before-timing-fix-20260905-161346.bak
+?? functions/api/attendance-excuses.js.before-final-excuse-fix-20260903.bak
+?? functions/api/attendance-excuses.js.before-final-get-scope-20260903-135909.bak
+?? functions/api/attendance-excuses.js.before-remove-duplicate-scope-20260903-140136.bak
+?? functions/api/attendance-excuses.js.before-teacher-scope-20260903-134001.bak
+?? functions/api/attendance-excuses.js.before-ui-security-20260903-134555.bak
+?? functions/api/billing-cycles.js.before-excuse-rules-20260903-015024.bak
+?? functions/api/billing-cycles.js.before-final-excuse-fix-20260903.bak
+?? functions/api/billing-cycles.js.before-late-approved-fix-20260903.bak
+?? functions/api/documents-permissions.js.before-validation-hardening-20260902-225452.bak
+?? functions/api/documents.js.before-final-security-20260902-224712.bak
+?? functions/api/documents.js.before-scope-hardening-20260902-225452.bak
+?? functions/api/documents.js.before-security-fix-20260902-224515.bak
+?? functions/api/documents.js.before-storage-guardian-fix-20260902-233623.bak
+?? functions/api/documents/
+?? functions/api/question-bank.js.before-clean-true-false-20260903-162617.bak
+?? functions/api/question-bank.js.before-true-false-final-20260903-162412.bak
+?? functions/api/question-bank.js.before-validation-hardening-20260903-161934.bak
+?? functions/api/sessions.js.before-patch-student-validation-fix-20260903-131958.bak
+?? functions/api/sessions.js.before-student-get-post-20260902-203058
+?? functions/api/sessions.js.before-student-get-post-safe-20260902-203149
+?? functions/api/sessions.js.before-student-validation-fix-20260903-131850.bak
+?? functions/api/sessions.js.final-safe-20260902-204021
+?? functions/api/test-engine.backup-20260904-205006.js
+?? functions/api/test-engine.before-submit-fix-20260904-211052.bak
+?? functions/api/tests.js.before-session-scope-fix-20260903-155939.bak
+?? functions/api/tests.js.before-session-student-select-fix-20260903-160107.bak
+?? functions/api/tests.js.before-teacher-student-scope-20260903-153840.bak
+?? migrations/.018_tests_question_bank_permissions.backup-20260904-195820.sql
+?? migrations/.019_advanced_tests_engine.before-local-20260904-200115.bak
+?? src/app.backup-before-test-ui-20260904-213228.js
+?? src/app.js.before-modules-20260903-134555.bak
+?? src/app.js.before-test-form-20260904-005737.bak
+?? src/app.js.before-test-form-step1-20260904-005906.bak
+?? src/app.js.before-test-load-fix-20260904-010149.bak
+?? src/app.js.before-test-submit-20260904-010028.bak
+?? src/app.js.before-tests-add-button-20260904-005518.bak
+?? src/app.js.before-tests-question-bank-admin-ui-20260904-004904.bak
+?? src/app.js.before-tests-question-bank-modules-20260903-164253.bak
+?? src/app.js.before-tests-question-bank-modules-20260904-004347.bak
+?? src/app.js.before-tests-question-bank-modules-20260904-004443.bak
+?? src/app.js.before-tests-question-bank-ui-20260903-163624.bak
+?? src/styles/app.css.before-final-table-css-20260903-135909.bak
+?? "tatus --short | sed -n '1,100p'"
+
+===== 25. FINAL SUMMARY =====
+BUILD_RC=0
+FUNCTIONS_BUILD_RC=0
+REPORT=/public/halaqat-quran-system/.final-audit-20260906-172132.txt
+OLD_ADMIN_HASH_BACKUP=/public/halaqat-quran-system/.admin-password-hash-backup-20260906-172132
+COOKIE_FILE=/tmp/alawabin-20260906-172132.cookies
+
+==================================================
+ END OF FINAL AUDIT
+==================================================
