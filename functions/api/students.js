@@ -214,7 +214,7 @@ export async function onRequestGet(
     return permission.response;
   }
 
-    const db =
+  const db =
     context.env?.DB;
 
   if (!db) {
@@ -223,6 +223,10 @@ export async function onRequestGet(
       503
     );
   }
+
+  const authUser =
+    permission.user ||
+    null;
 
   const url =
     new URL(
@@ -248,7 +252,31 @@ export async function onRequestGet(
       )
     );
 
+  const isTeacher =
+    authUser?.role === "teacher";
+
   try {
+    /* =====================================================
+       نطاق المعلم:
+       الطالب يجب أن يكون في حلقة نشطة
+       والحلقة معينة لهذا المعلم.
+    ===================================================== */
+
+    const teacherScopeSql = isTeacher
+      ? `
+        AND EXISTS (
+          SELECT 1
+          FROM circle_enrollments ce
+          INNER JOIN circles c
+            ON c.id = ce.circle_id
+          WHERE ce.student_id = students.id
+            AND ce.status = 'active'
+            AND c.status = 'active'
+            AND c.teacher_id = ?
+        )
+      `
+      : "";
+
     /* =====================================================
        طالب واحد
     ===================================================== */
@@ -261,6 +289,39 @@ export async function onRequestGet(
           "INVALID_STUDENT_ID",
           400
         );
+      }
+
+      if (isTeacher) {
+        const result =
+          await db
+            .prepare(`
+              SELECT
+                students.id,
+                students.student_code,
+                students.full_name,
+                students.status
+              FROM students
+              WHERE students.id = ?
+                ${teacherScopeSql}
+              LIMIT 1
+            `)
+            .bind(
+              Number(studentId),
+              authUser.teacher_id
+            )
+            .first();
+
+        if (!result) {
+          return error(
+            "STUDENT_NOT_FOUND",
+            404
+          );
+        }
+
+        return json({
+          ok: true,
+          data: result,
+        });
       }
 
       const student =
@@ -286,31 +347,61 @@ export async function onRequestGet(
        قائمة الطلاب
     ===================================================== */
 
-    let sql = `
-      SELECT
-        id,
-        user_id,
-        student_code,
-        full_name,
-        gender,
-        birth_date,
-        phone,
-        email,
-        guardian_name,
-        guardian_phone,
-        guardian_email,
-        address,
-        country,
-        educational_level,
-        notes,
-        status,
-        created_at,
-        updated_at
-      FROM students
-      WHERE 1 = 1
-    `;
+    let sql;
+
+    if (isTeacher) {
+      /*
+       * المعلم يرى فقط البيانات التشغيلية الآمنة.
+       * لا يتم إرجاع بيانات الاتصال أو بيانات ولي الأمر
+       * أو العنوان أو الملاحظات أو البيانات الحساسة.
+       */
+      sql = `
+        SELECT
+          students.id,
+          students.student_code,
+          students.full_name,
+          students.status
+        FROM students
+        WHERE 1 = 1
+          ${teacherScopeSql}
+      `;
+    } else {
+      sql = `
+        SELECT
+          id,
+          user_id,
+          student_code,
+          full_name,
+          gender,
+          birth_date,
+          phone,
+          email,
+          guardian_name,
+          guardian_phone,
+          guardian_email,
+          address,
+          country,
+          educational_level,
+          notes,
+          status,
+          created_at,
+          updated_at
+        FROM students
+        WHERE 1 = 1
+      `;
+    }
 
     const params = [];
+
+    /* -----------------------------------------------------
+       نطاق المعلم
+    ----------------------------------------------------- */
+
+    if (isTeacher) {
+      params.push(
+        authUser.teacher_id
+      );
+    }
 
     /* -----------------------------------------------------
        فلترة الحالة
@@ -333,54 +424,69 @@ export async function onRequestGet(
       params.push(status);
 
       sql += `
-        AND status = ?${params.length}
+        AND students.status = ?${params.length}
       `;
     }
 
     /* -----------------------------------------------------
        البحث
        
-       الإصلاح المهم:
-       نضع قيمة البحث مرة لكل placeholder
-       بدون إضافة parameter زائد.
+       المعلم:
+       الاسم + كود الطالب فقط.
+
+       الإدارة:
+       البحث الداخلي الحالي بدون تغيير.
     ----------------------------------------------------- */
 
     if (search) {
       const searchValue =
         `%${search}%`;
 
-      params.push(
-        searchValue,
-        searchValue,
-        searchValue,
-        searchValue,
-        searchValue,
-        searchValue
-      );
+      if (isTeacher) {
+        params.push(
+          searchValue,
+          searchValue
+        );
 
-      const start =
-        params.length - 5;
+        const searchStart =
+          params.length - 1;
 
-      /*
-       * نستخدم أرقام placeholders
-       * متوافقة مع ترتيب params.
-       */
-      sql += `
-        AND (
-          full_name LIKE ?${start}
-          OR student_code LIKE ?${start + 1}
-          OR phone LIKE ?${start + 2}
-          OR guardian_name LIKE ?${start + 3}
-          OR guardian_phone LIKE ?${start + 4}
-          OR email LIKE ?${start + 5}
-        )
-      `;
+        sql += `
+          AND (
+            students.full_name LIKE ?${searchStart}
+            OR students.student_code LIKE ?${searchStart + 1}
+          )
+        `;
+      } else {
+        params.push(
+          searchValue,
+          searchValue,
+          searchValue,
+          searchValue,
+          searchValue,
+          searchValue
+        );
+
+        const searchStart =
+          params.length - 5;
+
+        sql += `
+          AND (
+            full_name LIKE ?${searchStart}
+            OR student_code LIKE ?${searchStart + 1}
+            OR phone LIKE ?${searchStart + 2}
+            OR guardian_name LIKE ?${searchStart + 3}
+            OR guardian_phone LIKE ?${searchStart + 4}
+            OR email LIKE ?${searchStart + 5}
+          )
+        `;
+      }
     }
 
     sql += `
       ORDER BY
-        created_at DESC,
-        id DESC
+        students.created_at DESC,
+        students.id DESC
     `;
 
     const result =

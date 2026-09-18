@@ -27,3 +27,17 @@ functions/api/*.before-permission
 .auth-before-*.js
 
 migrations/.018_tests_question_bank_permissions.backup-*.sql
+cron-scheduler/.dev.vars
+cron-scheduler/.env*
+
+# Al-Awabin local backups and audit artifacts
+.alawabin-*
+.backup-*
+*.backup
+*.bak
+*.before-*
+.audit-backup-*/
+*.sql.bak
+backups/
+completed
+cron-scheduler/

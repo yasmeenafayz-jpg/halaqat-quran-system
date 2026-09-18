@@ -338,26 +338,30 @@ async function hasPermission(
     ) === 1;
   }
 
+  if (userRoles.length === 0) {
+    return false;
+  }
+
+  const placeholders = userRoles
+    .map(() => "?")
+    .join(", ");
+
   const rolePermission = await db
     .prepare(`
-      SELECT enabled
+      SELECT role, enabled
       FROM role_permissions
-      WHERE role = ?
+      WHERE role IN (${placeholders})
         AND permission = ?
+        AND enabled = 1
       LIMIT 1
     `)
     .bind(
-      user.role,
+      ...userRoles,
       permission
     )
     .first();
 
-  return (
-    !!rolePermission &&
-    Number(
-      rolePermission.enabled
-    ) === 1
-  );
+  return !!rolePermission;
 }
 
 async function requirePermission(

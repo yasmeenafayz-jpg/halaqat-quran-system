@@ -249,10 +249,12 @@ function validateInput(data, current = null) {
     current?.start_date
   );
 
-  const endDate =
-    data.end_date !== undefined
-      ? clean(data.end_date) || null
-      : current?.end_date ?? null;
+  // الجدول المتكرر مستمر بلا نهاية افتراضيًا.
+  // يمكن تحديد تاريخ نهاية اختياري عند الإنشاء أو التعديل.
+  const endDate = clean(
+    data.end_date ??
+    current?.end_date
+  ) || null;
 
   const startTime = clean(
     data.start_time ??

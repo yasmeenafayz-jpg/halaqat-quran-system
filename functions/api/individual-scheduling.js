@@ -170,6 +170,7 @@ async function request(db, requestId) {
         r.availability_slot_id,
         r.circle_id,
         r.subscription_id,
+        r.offering_id,
         r.requested_date,
         r.requested_start_time,
         r.requested_end_time,
@@ -205,6 +206,7 @@ async function booking(db, bookingId) {
         b.teacher_id,
         b.circle_id,
         b.subscription_id,
+        b.offering_id,
         b.booking_date,
         b.start_time,
         b.end_time,
@@ -316,6 +318,116 @@ async function pendingConflict(
     .first();
 }
 
+
+function isAdminOrSupervisor(user) {
+  return ["admin", "supervisor"].includes(user?.role);
+}
+
+function isStudentUser(user) {
+  return user?.role === "student";
+}
+
+function isTeacherUser(user) {
+  return user?.role === "teacher";
+}
+
+function sameId(a, b) {
+  return Number(a) > 0 && Number(a) === Number(b);
+}
+
+async function canAccessStudent(db, user, studentId) {
+  if (isAdminOrSupervisor(user)) {
+    return true;
+  }
+
+  if (isStudentUser(user)) {
+    return Boolean(
+      user.student_id &&
+      sameId(user.student_id, studentId)
+    );
+  }
+
+  if (isTeacherUser(user)) {
+    if (!user.teacher_id) {
+      return false;
+    }
+
+    const row = await db
+      .prepare(`
+        SELECT 1
+        FROM circle_enrollments ce
+        INNER JOIN circles c
+          ON c.id = ce.circle_id
+        WHERE ce.student_id = ?1
+          AND c.teacher_id = ?2
+          AND ce.status = 'active'
+          AND c.status = 'active'
+        LIMIT 1
+      `)
+      .bind(
+        studentId,
+        user.teacher_id
+      )
+      .first();
+
+    return Boolean(row);
+  }
+
+  return false;
+}
+
+async function canAccessRequest(db, user, current) {
+  if (!current) {
+    return false;
+  }
+
+  if (isAdminOrSupervisor(user)) {
+    return true;
+  }
+
+  if (isStudentUser(user)) {
+    return Boolean(
+      user.student_id &&
+      sameId(user.student_id, current.student_id)
+    );
+  }
+
+  if (isTeacherUser(user)) {
+    return Boolean(
+      user.teacher_id &&
+      sameId(user.teacher_id, current.teacher_id)
+    );
+  }
+
+  return false;
+}
+
+async function canAccessBooking(db, user, current) {
+  if (!current) {
+    return false;
+  }
+
+  if (isAdminOrSupervisor(user)) {
+    return true;
+  }
+
+  if (isStudentUser(user)) {
+    return Boolean(
+      user.student_id &&
+      sameId(user.student_id, current.student_id)
+    );
+  }
+
+  if (isTeacherUser(user)) {
+    return Boolean(
+      user.teacher_id &&
+      sameId(user.teacher_id, current.teacher_id)
+    );
+  }
+
+  return false;
+}
+
 /* =========================================================
    GET
 ========================================================= */
@@ -378,6 +490,16 @@ export async function onRequestGet(context) {
         );
       }
 
+      if (
+        !(await canAccessRequest(
+          db,
+          permission.user,
+          data
+        ))
+      ) {
+        return fail("FORBIDDEN", 403);
+      }
+
       return json({
         success: true,
         data,
@@ -403,6 +525,16 @@ export async function onRequestGet(context) {
           "BOOKING_NOT_FOUND",
           404
         );
+      }
+
+      if (
+        !(await canAccessBooking(
+          db,
+          permission.user,
+          data
+        ))
+      ) {
+        return fail("FORBIDDEN", 403);
       }
 
       return json({
@@ -552,6 +684,7 @@ export async function onRequestGet(context) {
           r.availability_slot_id,
           r.circle_id,
           r.subscription_id,
+          r.offering_id,
           r.requested_date,
           r.requested_start_time,
           r.requested_end_time,
@@ -604,6 +737,28 @@ export async function onRequestGet(context) {
 
         sql += `
           AND r.student_id = ?${params.length}
+        `;
+      }
+
+      if (isStudentUser(permission.user)) {
+        if (!permission.user.student_id) {
+          return fail("FORBIDDEN", 403);
+        }
+
+        params.push(permission.user.student_id);
+
+        sql += `
+          AND r.student_id = ?${params.length}
+        `;
+      } else if (isTeacherUser(permission.user)) {
+        if (!permission.user.teacher_id) {
+          return fail("FORBIDDEN", 403);
+        }
+
+        params.push(permission.user.teacher_id);
+
+        sql += `
+          AND r.teacher_id = ?${params.length}
         `;
       }
 
@@ -671,6 +826,7 @@ export async function onRequestGet(context) {
           b.teacher_id,
           b.circle_id,
           b.subscription_id,
+          b.offering_id,
           b.booking_date,
           b.start_time,
           b.end_time,
@@ -719,6 +875,28 @@ export async function onRequestGet(context) {
 
         sql += `
           AND b.student_id = ?${params.length}
+        `;
+      }
+
+      if (isStudentUser(permission.user)) {
+        if (!permission.user.student_id) {
+          return fail("FORBIDDEN", 403);
+        }
+
+        params.push(permission.user.student_id);
+
+        sql += `
+          AND b.student_id = ?${params.length}
+        `;
+      } else if (isTeacherUser(permission.user)) {
+        if (!permission.user.teacher_id) {
+          return fail("FORBIDDEN", 403);
+        }
+
+        params.push(permission.user.teacher_id);
+
+        sql += `
+          AND b.teacher_id = ?${params.length}
         `;
       }
 
@@ -788,9 +966,44 @@ export async function onRequestGet(context) {
 ========================================================= */
 
 export async function onRequestPost(context) {
-  const permission = await requirePermission(context.request, context.env, "individual-scheduling.write");
-  if (!permission.ok) return permission.response;
   const db = context.env?.DB;
+
+  const permissionName =
+    "individual-scheduling.request.write";
+
+  const permission =
+    await requirePermission(
+      context.request,
+      context.env,
+      permissionName
+    );
+
+  if (!permission.ok) {
+    const managerPermission =
+      await requirePermission(
+        context.request,
+        context.env,
+        "individual-scheduling.write"
+      );
+
+    if (!managerPermission.ok) {
+      return permission.response;
+    }
+
+    context.__alawabinManagerPermission =
+      managerPermission;
+  }
+
+  const activePermission =
+    context.__alawabinManagerPermission ||
+    permission;
+
+  if (!activePermission.ok) {
+    return activePermission.response;
+  }
+
+  const dbPermissionUser =
+    activePermission.user;
 
   if (!db) {
     return fail(
@@ -1001,10 +1214,15 @@ export async function onRequestPost(context) {
       action === "create_request" ||
       action === "request_slot"
     ) {
-      const studentId = id(
+      const requestedStudentId = id(
         body.student_id ??
         body.studentId
       );
+
+      const studentId =
+        isStudentUser(dbPermissionUser)
+          ? id(dbPermissionUser.student_id)
+          : requestedStudentId;
 
       const teacherId = id(
         body.teacher_id ??
@@ -1045,6 +1263,40 @@ export async function onRequestPost(context) {
         return fail(
           "TEACHER_ID_REQUIRED"
         );
+      }
+
+      if (isStudentUser(dbPermissionUser)) {
+        if (
+          !dbPermissionUser.student_id ||
+          !sameId(
+            dbPermissionUser.student_id,
+            studentId
+          )
+        ) {
+          return fail("FORBIDDEN", 403);
+        }
+      }
+
+      if (isTeacherUser(dbPermissionUser)) {
+        if (
+          !dbPermissionUser.teacher_id ||
+          !sameId(
+            dbPermissionUser.teacher_id,
+            teacherId
+          )
+        ) {
+          return fail("FORBIDDEN", 403);
+        }
+
+        if (
+          !(await canAccessStudent(
+            db,
+            dbPermissionUser,
+            studentId
+          ))
+        ) {
+          return fail("FORBIDDEN", 403);
+        }
       }
 
       if (!validDate(date)) {
@@ -1238,6 +1490,69 @@ export async function onRequestPost(context) {
         );
       }
 
+      const offeringId = id(
+        body.offering_id ??
+        body.offeringId
+      );
+
+      if (!offeringId) {
+        return fail(
+          "OFFERING_ID_REQUIRED"
+        );
+      }
+
+      const selectedOffering =
+        await db
+          .prepare(`
+            SELECT
+              id,
+              name,
+              price,
+              currency,
+              duration_minutes,
+              status
+            FROM individual_session_offerings
+            WHERE id = ?1
+              AND status = 'active'
+            LIMIT 1
+          `)
+          .bind(offeringId)
+          .first();
+
+      if (!selectedOffering) {
+        return fail(
+          "OFFERING_NOT_FOUND_OR_INACTIVE",
+          404
+        );
+      }
+
+      const requestedDuration =
+        (
+          new Date(
+            `1970-01-01T${end}:00Z`
+          ).getTime() -
+          new Date(
+            `1970-01-01T${start}:00Z`
+          ).getTime()
+        ) / 60000;
+
+      if (
+        !Number.isFinite(requestedDuration) ||
+        requestedDuration !==
+          Number(selectedOffering.duration_minutes)
+      ) {
+        return fail(
+          "REQUEST_DURATION_MUST_MATCH_OFFERING",
+          409,
+          {
+            offering_duration_minutes:
+              Number(selectedOffering.duration_minutes),
+            requested_duration_minutes:
+              requestedDuration,
+          }
+        );
+      }
+
       const subscriptionId = id(
         body.subscription_id ??
         body.subscriptionId
@@ -1249,7 +1564,7 @@ export async function onRequestPost(context) {
       );
 
       const requestedBy =
-        permission.user?.id ??
+        dbPermissionUser?.id ??
         null;
 
       const result = await db
@@ -1260,6 +1575,7 @@ export async function onRequestPost(context) {
             availability_slot_id,
             circle_id,
             subscription_id,
+            offering_id,
             requested_date,
             requested_start_time,
             requested_end_time,
@@ -1282,13 +1598,14 @@ export async function onRequestPost(context) {
             ?7,
             ?8,
             ?9,
+            ?10,
             'pending',
             NULL,
-            ?10,
-            NULL,
-            NULL,
             ?11,
-            ?11
+            NULL,
+            NULL,
+            ?12,
+            ?12
           )
         `)
         .bind(
@@ -1297,6 +1614,7 @@ export async function onRequestPost(context) {
           selectedSlot.id,
           circleId,
           subscriptionId,
+          offeringId,
           date,
           start,
           end,
@@ -1399,9 +1717,65 @@ export async function onRequestPatch(context) {
         );
       }
 
+      if (
+        isStudentUser(permission.user)
+      ) {
+        return fail("FORBIDDEN", 403);
+      }
+
+      if (
+        !(await canAccessRequest(
+          db,
+          permission.user,
+          current
+        ))
+      ) {
+        return fail("FORBIDDEN", 403);
+      }
+
       if (current.status !== "pending") {
         return fail(
           "REQUEST_IS_NOT_PENDING",
+          409
+        );
+      }
+
+      if (!current.offering_id) {
+        return fail(
+          "REQUEST_OFFERING_MISSING",
+          409
+        );
+      }
+
+      const selectedOffering =
+        await db
+          .prepare(`
+            SELECT
+              id,
+              name,
+              price,
+              currency,
+              duration_minutes,
+              status
+            FROM individual_session_offerings
+            WHERE id = ?1
+            LIMIT 1
+          `)
+          .bind(current.offering_id)
+          .first();
+
+      if (!selectedOffering) {
+        return fail(
+          "OFFERING_NOT_FOUND",
+          404
+        );
+      }
+
+      if (
+        selectedOffering.status !== "active"
+      ) {
+        return fail(
+          "OFFERING_INACTIVE",
           409
         );
       }
@@ -1464,6 +1838,7 @@ export async function onRequestPatch(context) {
               teacher_id,
               circle_id,
               subscription_id,
+              offering_id,
               booking_date,
               start_time,
               end_time,
@@ -1481,10 +1856,11 @@ export async function onRequestPatch(context) {
               ?6,
               ?7,
               ?8,
+              ?9,
               NULL,
               'confirmed',
-              ?9,
-              ?9
+              ?10,
+              ?10
             )
           `)
           .bind(
@@ -1493,6 +1869,7 @@ export async function onRequestPatch(context) {
             current.teacher_id,
             current.circle_id,
             current.subscription_id,
+            current.offering_id,
             current.requested_date,
             current.requested_start_time,
             current.requested_end_time,
@@ -1500,7 +1877,9 @@ export async function onRequestPatch(context) {
           ),
       ];
 
-      const results = await db.batch(statements);
+      const results = await db.batch(
+        statements
+      );
 
       const updatedRequest = results[0];
       const created = results[1];
@@ -1515,6 +1894,98 @@ export async function onRequestPatch(context) {
         );
       }
 
+      const bookingId =
+        created?.meta?.last_row_id;
+
+      if (!bookingId) {
+        return fail(
+          "BOOKING_CREATION_FAILED",
+          500
+        );
+      }
+
+      try {
+        await db
+          .prepare(`
+            INSERT INTO individual_booking_charges (
+              booking_id,
+              student_id,
+              offering_id,
+              amount,
+              currency,
+              status,
+              payment_id,
+              due_at,
+              paid_at,
+              created_at,
+              updated_at
+            )
+            VALUES (
+              ?1,
+              ?2,
+              ?3,
+              ?4,
+              ?5,
+              'pending',
+              NULL,
+              NULL,
+              NULL,
+              ?6,
+              ?6
+            )
+          `)
+          .bind(
+            bookingId,
+            current.student_id,
+            selectedOffering.id,
+            Number(selectedOffering.price),
+            selectedOffering.currency,
+            createdAt
+          )
+          .run();
+      } catch (chargeError) {
+        console.error(
+          "INDIVIDUAL_BOOKING_CHARGE_CREATE_ERROR",
+          chargeError
+        );
+
+        await db
+          .prepare(`
+            UPDATE individual_schedule_bookings
+            SET
+              status = 'cancelled',
+              updated_at = ?2
+            WHERE id = ?1
+          `)
+          .bind(
+            bookingId,
+            timestamp()
+          )
+          .run();
+
+        await db
+          .prepare(`
+            UPDATE individual_schedule_requests
+            SET
+              status = 'pending',
+              decided_at = NULL,
+              decided_by = NULL,
+              teacher_response_note = NULL,
+              updated_at = ?2
+            WHERE id = ?1
+          `)
+          .bind(
+            requestId,
+            timestamp()
+          )
+          .run();
+
+        return fail(
+          "BOOKING_CHARGE_CREATION_FAILED",
+          500
+        );
+      }
+
       return json({
         success: true,
         message:
@@ -1526,8 +1997,29 @@ export async function onRequestPatch(context) {
           ),
           booking: await booking(
             db,
-            created.meta.last_row_id
+            bookingId
           ),
+          charge: await db
+            .prepare(`
+              SELECT
+                id,
+                booking_id,
+                student_id,
+                offering_id,
+                amount,
+                currency,
+                status,
+                payment_id,
+                due_at,
+                paid_at,
+                created_at,
+                updated_at
+              FROM individual_booking_charges
+              WHERE booking_id = ?1
+              LIMIT 1
+            `)
+            .bind(bookingId)
+            .first(),
         },
       });
     }
@@ -1555,6 +2047,16 @@ export async function onRequestPatch(context) {
           "REQUEST_NOT_FOUND",
           404
         );
+      }
+
+      if (
+        !(await canAccessRequest(
+          db,
+          permission.user,
+          current
+        ))
+      ) {
+        return fail("FORBIDDEN", 403);
       }
 
       if (current.status !== "pending") {
@@ -1630,6 +2132,26 @@ export async function onRequestPatch(context) {
           "REQUEST_NOT_FOUND",
           404
         );
+      }
+
+      if (
+        !(await canAccessRequest(
+          db,
+          permission.user,
+          current
+        ))
+      ) {
+        return fail("FORBIDDEN", 403);
+      }
+
+      if (
+        isStudentUser(permission.user) &&
+        !sameId(
+          permission.user.student_id,
+          current.student_id
+        )
+      ) {
+        return fail("FORBIDDEN", 403);
       }
 
       if (
@@ -1715,6 +2237,16 @@ export async function onRequestPatch(context) {
           "BOOKING_NOT_FOUND",
           404
         );
+      }
+
+      if (
+        !(await canAccessBooking(
+          db,
+          permission.user,
+          current
+        ))
+      ) {
+        return fail("FORBIDDEN", 403);
       }
 
       const status = clean(

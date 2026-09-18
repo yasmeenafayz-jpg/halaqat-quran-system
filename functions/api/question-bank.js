@@ -450,6 +450,8 @@ async function validateQuestion(db, body, existing = null) {
       ayahStart,
       ayahEnd,
       levelId,
+      academicMaterialLessonId:
+        nullableId(body.academic_material_lesson_id),
     },
   };
 }
@@ -481,6 +483,11 @@ async function getQuestions(request, env) {
 
   const levelId =
     nullableId(url.searchParams.get("level_id"));
+
+  const academicMaterialLessonId =
+    nullableId(
+      url.searchParams.get("academic_material_lesson_id")
+    );
 
   const activeParam =
     url.searchParams.get("is_active");
@@ -585,6 +592,21 @@ async function getQuestions(request, env) {
   if (levelId) {
     where.push("q.level_id = ?");
     params.push(levelId);
+  }
+
+  if (
+    url.searchParams.has("academic_material_lesson_id") &&
+    !academicMaterialLessonId
+  ) {
+    return errorResponse(
+      "INVALID_ACADEMIC_MATERIAL_LESSON_ID",
+      "معرّف درس المادة الأكاديمية غير صالح."
+    );
+  }
+
+  if (academicMaterialLessonId) {
+    where.push("q.academic_material_lesson_id = ?");
+    params.push(academicMaterialLessonId);
   }
 
   if (activeParam !== null) {
@@ -692,13 +714,14 @@ async function createQuestion(request, env) {
         ayah_start,
         ayah_end,
         level_id,
+        academic_material_lesson_id,
         is_active,
         created_by,
         created_at,
         updated_at
       )
       VALUES (
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
         1, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
       )
       RETURNING *
@@ -715,6 +738,7 @@ async function createQuestion(request, env) {
       q.ayahStart,
       q.ayahEnd,
       q.levelId,
+      q.academicMaterialLessonId,
       user.id
     )
     .first();
@@ -840,7 +864,8 @@ async function updateQuestion(request, env) {
         ayah_start = ?10,
         ayah_end = ?11,
         level_id = ?12,
-        is_active = ?13,
+        academic_material_lesson_id = ?13,
+        is_active = ?14,
         updated_at = CURRENT_TIMESTAMP
       WHERE id = ?1
       RETURNING *
@@ -858,6 +883,7 @@ async function updateQuestion(request, env) {
       q.ayahStart,
       q.ayahEnd,
       q.levelId,
+      q.academicMaterialLessonId,
       active
     )
     .first();

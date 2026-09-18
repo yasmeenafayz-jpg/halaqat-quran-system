@@ -4,6 +4,14 @@ import {
   json,
   writeAudit,
 } from "./_auth.js";
+import {
+  awardPoints,
+  getMotivationPoints,
+} from "./_motivation.js";
+import {
+  evaluateAchievements,
+  recordChallengeEvent,
+} from "./_motivation-achievements.js";
 
 const TEST_TYPES = new Set([
   "daily_quick",
@@ -32,6 +40,39 @@ const SUBJECT_TYPES = new Set([
   "sirah",
   "noorani_qaida",
 ]);
+
+const QURAN_JUZ_RANGES = {
+  1:  [{ surah: 1, from: 1, to: 7 }, { surah: 2, from: 1, to: 141 }],
+  2:  [{ surah: 2, from: 142, to: 252 }],
+  3:  [{ surah: 2, from: 253, to: 286 }, { surah: 3, from: 1, to: 92 }],
+  4:  [{ surah: 3, from: 93, to: 200 }, { surah: 4, from: 1, to: 23 }],
+  5:  [{ surah: 4, from: 24, to: 147 }],
+  6:  [{ surah: 4, from: 148, to: 176 }, { surah: 5, from: 1, to: 81 }],
+  7:  [{ surah: 5, from: 82, to: 120 }, { surah: 6, from: 1, to: 110 }],
+  8:  [{ surah: 6, from: 111, to: 165 }, { surah: 7, from: 1, to: 87 }],
+  9:  [{ surah: 7, from: 88, to: 206 }, { surah: 8, from: 1, to: 40 }],
+  10: [{ surah: 8, from: 41, to: 75 }, { surah: 9, from: 1, to: 92 }],
+  11: [{ surah: 9, from: 93, to: 129 }, { surah: 10, from: 1, to: 109 }, { surah: 11, from: 1, to: 5 }],
+  12: [{ surah: 11, from: 6, to: 123 }, { surah: 12, from: 1, to: 52 }],
+  13: [{ surah: 12, from: 53, to: 111 }, { surah: 13, from: 1, to: 43 }, { surah: 14, from: 1, to: 52 }],
+  14: [{ surah: 15, from: 1, to: 99 }, { surah: 16, from: 1, to: 128 }],
+  15: [{ surah: 17, from: 1, to: 111 }, { surah: 18, from: 1, to: 74 }],
+  16: [{ surah: 18, from: 75, to: 110 }, { surah: 19, from: 1, to: 98 }, { surah: 20, from: 1, to: 135 }],
+  17: [{ surah: 21, from: 1, to: 112 }, { surah: 22, from: 1, to: 78 }],
+  18: [{ surah: 23, from: 1, to: 118 }, { surah: 24, from: 1, to: 64 }, { surah: 25, from: 1, to: 20 }],
+  19: [{ surah: 25, from: 21, to: 77 }, { surah: 26, from: 1, to: 227 }, { surah: 27, from: 1, to: 55 }],
+  20: [{ surah: 27, from: 56, to: 93 }, { surah: 28, from: 1, to: 88 }, { surah: 29, from: 1, to: 45 }],
+  21: [{ surah: 29, from: 46, to: 69 }, { surah: 30, from: 1, to: 60 }, { surah: 31, from: 1, to: 34 }, { surah: 32, from: 1, to: 30 }, { surah: 33, from: 1, to: 30 }],
+  22: [{ surah: 33, from: 31, to: 73 }, { surah: 34, from: 1, to: 54 }, { surah: 35, from: 1, to: 45 }, { surah: 36, from: 1, to: 27 }],
+  23: [{ surah: 36, from: 28, to: 83 }, { surah: 37, from: 1, to: 182 }, { surah: 38, from: 1, to: 88 }, { surah: 39, from: 1, to: 31 }],
+  24: [{ surah: 39, from: 32, to: 75 }, { surah: 40, from: 1, to: 85 }, { surah: 41, from: 1, to: 46 }],
+  25: [{ surah: 41, from: 47, to: 54 }, { surah: 42, from: 1, to: 53 }, { surah: 43, from: 1, to: 89 }, { surah: 44, from: 1, to: 59 }, { surah: 45, from: 1, to: 37 }],
+  26: [{ surah: 46, from: 1, to: 35 }, { surah: 47, from: 1, to: 38 }, { surah: 48, from: 1, to: 29 }, { surah: 49, from: 1, to: 18 }, { surah: 50, from: 1, to: 45 }, { surah: 51, from: 1, to: 30 }],
+  27: [{ surah: 51, from: 31, to: 60 }, { surah: 52, from: 1, to: 49 }, { surah: 53, from: 1, to: 62 }, { surah: 54, from: 1, to: 55 }, { surah: 55, from: 1, to: 78 }, { surah: 56, from: 1, to: 96 }, { surah: 57, from: 1, to: 29 }],
+  28: [{ surah: 58, from: 1, to: 22 }, { surah: 59, from: 1, to: 24 }, { surah: 60, from: 1, to: 13 }, { surah: 61, from: 1, to: 14 }, { surah: 62, from: 1, to: 11 }, { surah: 63, from: 1, to: 11 }, { surah: 64, from: 1, to: 18 }, { surah: 65, from: 1, to: 12 }, { surah: 66, from: 1, to: 12 }],
+  29: [{ surah: 67, from: 1, to: 30 }, { surah: 68, from: 1, to: 52 }, { surah: 69, from: 1, to: 52 }, { surah: 70, from: 1, to: 44 }, { surah: 71, from: 1, to: 28 }, { surah: 72, from: 1, to: 28 }, { surah: 73, from: 1, to: 20 }, { surah: 74, from: 1, to: 56 }, { surah: 75, from: 1, to: 40 }, { surah: 76, from: 1, to: 31 }, { surah: 77, from: 1, to: 50 }],
+  30: [{ surah: 78, from: 1, to: 40 }, { surah: 79, from: 1, to: 46 }, { surah: 80, from: 1, to: 42 }, { surah: 81, from: 1, to: 29 }, { surah: 82, from: 1, to: 19 }, { surah: 83, from: 1, to: 36 }, { surah: 84, from: 1, to: 25 }, { surah: 85, from: 1, to: 22 }, { surah: 86, from: 1, to: 17 }, { surah: 87, from: 1, to: 19 }, { surah: 88, from: 1, to: 26 }, { surah: 89, from: 1, to: 30 }, { surah: 90, from: 1, to: 20 }, { surah: 91, from: 1, to: 15 }, { surah: 92, from: 1, to: 21 }, { surah: 93, from: 1, to: 11 }, { surah: 94, from: 1, to: 8 }, { surah: 95, from: 1, to: 8 }, { surah: 96, from: 1, to: 19 }, { surah: 97, from: 1, to: 5 }, { surah: 98, from: 1, to: 8 }, { surah: 99, from: 1, to: 8 }, { surah: 100, from: 1, to: 11 }, { surah: 101, from: 1, to: 11 }, { surah: 102, from: 1, to: 8 }, { surah: 103, from: 1, to: 3 }, { surah: 104, from: 1, to: 9 }, { surah: 105, from: 1, to: 5 }, { surah: 106, from: 1, to: 4 }, { surah: 107, from: 1, to: 7 }, { surah: 108, from: 1, to: 3 }, { surah: 109, from: 1, to: 6 }, { surah: 110, from: 1, to: 3 }, { surah: 111, from: 1, to: 5 }, { surah: 112, from: 1, to: 4 }, { surah: 113, from: 1, to: 5 }, { surah: 114, from: 1, to: 6 }]
+};
 
 const SOURCES = new Set([
   "academy",
@@ -169,9 +210,13 @@ async function canAccessStudent(
   const assigned = await db
     .prepare(
       `SELECT 1
-       FROM enrollments e
-       WHERE e.student_id = ?
-       AND e.teacher_id = ?
+       FROM circle_enrollments ce
+       INNER JOIN circles c
+         ON c.id = ce.circle_id
+       WHERE ce.student_id = ?
+         AND ce.status = 'active'
+         AND c.teacher_id = ?
+         AND c.status = 'active'
        LIMIT 1`
     )
     .bind(studentId, teacher.id)
@@ -210,6 +255,64 @@ async function getProgress(
     .all();
 
   return result.results || [];
+}
+
+function findMatchingProgress(
+  progressRows,
+  question
+) {
+  if (!Array.isArray(progressRows)) {
+    return null;
+  }
+
+  const surah =
+    Number(question?.surah_number);
+
+  const ayahStart =
+    Number(question?.ayah_start);
+
+  const ayahEnd =
+    Number(question?.ayah_end);
+
+  if (
+    !Number.isInteger(surah) ||
+    surah < 1 ||
+    surah > 114 ||
+    !Number.isInteger(ayahStart) ||
+    ayahStart < 1 ||
+    !Number.isInteger(ayahEnd) ||
+    ayahEnd < ayahStart
+  ) {
+    return null;
+  }
+
+  /*
+   * getProgress() is ordered newest-first.
+   * Therefore the first overlapping record is the
+   * most recent relevant progress record.
+   */
+  return (
+    progressRows.find((item) => {
+      const itemSurah =
+        Number(item.surah_number);
+
+      const fromAyah =
+        Number(item.from_ayah);
+
+      const toAyah =
+        Number(item.to_ayah);
+
+      return (
+        itemSurah === surah &&
+        Number.isInteger(fromAyah) &&
+        fromAyah >= 1 &&
+        Number.isInteger(toAyah) &&
+        toAyah >= fromAyah &&
+        ayahStart <= toAyah &&
+        ayahEnd >= fromAyah
+      );
+    }) || null
+  );
 }
 
 function chooseProgress(
@@ -290,6 +393,9 @@ async function selectQuestions(
     questionCount,
     progress,
     studentId,
+    quranScope = "progress",
+    quranSurahNumber = null,
+    quranJuzNumber = null,
   }
 ) {
   const limit =
@@ -301,36 +407,245 @@ async function selectQuestions(
       )
     );
 
+  const progressRows =
+    Array.isArray(progress)
+      ? progress
+      : [];
+
+  /*
+   * Quran tests are HARD-LIMITED to the student's
+   * actual recorded Quran progress.
+   *
+   * A question is eligible only when:
+   *   - it has a valid surah number
+   *   - it has a valid ayah range
+   *   - its ayah range overlaps a relevant progress range
+   *
+   * We merge overlapping progress ranges per surah first,
+   * so the SQL query remains small even when the student
+   * has many progress records.
+   */
+  let questionsQuery = `
+    SELECT
+      q.id,
+      q.subject_type,
+      q.question_type,
+      q.difficulty,
+      q.question_text,
+      q.options_json,
+      q.explanation,
+      q.correct_answer,
+      q.surah_number,
+      q.ayah_start,
+      q.ayah_end,
+      q.level_id,
+      q.academic_material_lesson_id
+    FROM question_bank q
+    WHERE q.is_active = 1
+      AND q.subject_type = ?
+  `;
+
+  const questionBindings = [
+    subjectType,
+  ];
+
+  if (subjectType !== "quran") {
+    questionsQuery = `
+      SELECT
+        q.id,
+        q.subject_type,
+        q.question_type,
+        q.difficulty,
+        q.question_text,
+        q.options_json,
+        q.explanation,
+        q.correct_answer,
+        q.surah_number,
+        q.ayah_start,
+        q.ayah_end,
+        q.level_id,
+        q.academic_material_lesson_id
+      FROM question_bank q
+      INNER JOIN academic_material_lessons l
+        ON l.id = q.academic_material_lesson_id
+      INNER JOIN academic_material_units u
+        ON u.id = l.unit_id
+      INNER JOIN academic_materials m
+        ON m.id = u.material_id
+      WHERE q.is_active = 1
+        AND q.subject_type = ?
+        AND l.status = 'active'
+        AND u.status = 'active'
+        AND m.status = 'approved'
+        AND m.test_eligible = 1
+    `;
+  }
+
+  if (subjectType === "quran") {
+    const rangesBySurah = new Map();
+
+    for (const item of progressRows) {
+      const surah = Number(item.surah_number);
+      const fromAyah = Number(item.from_ayah);
+      const toAyah = Number(item.to_ayah);
+
+      if (
+        !Number.isInteger(surah) ||
+        surah < 1 ||
+        surah > 114 ||
+        !Number.isInteger(fromAyah) ||
+        fromAyah < 1 ||
+        !Number.isInteger(toAyah) ||
+        toAyah < fromAyah
+      ) {
+        continue;
+      }
+
+      const ranges =
+        rangesBySurah.get(surah) || [];
+
+      ranges.push({
+        from: fromAyah,
+        to: toAyah,
+      });
+
+      rangesBySurah.set(
+        surah,
+        ranges
+      );
+    }
+
+    const mergedRanges = [];
+
+    for (const [
+      surah,
+      ranges,
+    ] of rangesBySurah) {
+      ranges.sort(
+        (a, b) =>
+          a.from - b.from ||
+          a.to - b.to
+      );
+
+      const merged = [];
+
+      for (const range of ranges) {
+        const last =
+          merged[merged.length - 1];
+
+        if (
+          last &&
+          range.from <= last.to + 1
+        ) {
+          last.to = Math.max(
+            last.to,
+            range.to
+          );
+        } else {
+          merged.push({
+            from: range.from,
+            to: range.to,
+          });
+        }
+      }
+
+      for (const range of merged) {
+        mergedRanges.push({
+          surah,
+          from: range.from,
+          to: range.to,
+        });
+      }
+    }
+
+    if (!mergedRanges.length) {
+      return [];
+    }
+
+    const overlapConditions =
+      mergedRanges.map(() => {
+        return `(
+          surah_number = ?
+          AND ayah_start IS NOT NULL
+          AND ayah_end IS NOT NULL
+          AND ayah_start <= ?
+          AND ayah_end >= ?
+        )`;
+      });
+
+    questionsQuery += `
+      AND (
+        ${overlapConditions.join("\n        OR ")}
+      )
+    `;
+
+    for (const range of mergedRanges) {
+      questionBindings.push(
+        range.surah,
+        range.to,
+        range.from
+      );
+    }
+
+    if (
+      quranScope === "surah" &&
+      Number.isInteger(quranSurahNumber)
+    ) {
+      questionsQuery += `
+        AND surah_number = ?
+      `;
+
+      questionBindings.push(
+        quranSurahNumber
+      );
+    }
+
+    if (
+      quranScope === "juz" &&
+      Number.isInteger(quranJuzNumber) &&
+      QURAN_JUZ_RANGES[quranJuzNumber]
+    ) {
+      const juzConditions = QURAN_JUZ_RANGES[quranJuzNumber].map(() => {
+        return `(
+          surah_number = ?
+          AND ayah_start IS NOT NULL
+          AND ayah_end IS NOT NULL
+          AND ayah_start <= ?
+          AND ayah_end >= ?
+        )`;
+      });
+
+      questionsQuery += `
+        AND (
+          ${juzConditions.join("\n          OR ")}
+        )
+      `;
+
+      for (const range of QURAN_JUZ_RANGES[quranJuzNumber]) {
+        questionBindings.push(
+          range.surah,
+          range.to,
+          range.from
+        );
+      }
+    }
+  }
+
+  questionsQuery += `
+    ORDER BY
+      CASE difficulty
+        WHEN 'medium' THEN 1
+        WHEN 'easy' THEN 2
+        WHEN 'hard' THEN 3
+        ELSE 4
+      END,
+      id DESC
+  `;
+
   const questionsResult =
     await db
-      .prepare(
-        `SELECT
-           id,
-           subject_type,
-           question_type,
-           difficulty,
-           question_text,
-           options_json,
-           explanation,
-           correct_answer,
-           surah_number,
-           ayah_start,
-           ayah_end,
-           level_id
-         FROM question_bank
-         WHERE is_active = 1
-         AND subject_type = ?
-         ORDER BY
-           CASE difficulty
-             WHEN 'medium' THEN 1
-             WHEN 'easy' THEN 2
-             WHEN 'hard' THEN 3
-             ELSE 4
-           END,
-           id DESC
-         LIMIT 300`
-      )
-      .bind(subjectType)
+      .prepare(questionsQuery)
+      .bind(...questionBindings)
       .all();
 
   const pool =
@@ -339,11 +654,6 @@ async function selectQuestions(
   if (!pool.length) {
     return [];
   }
-
-  const progressRows =
-    Array.isArray(progress)
-      ? progress
-      : [];
 
   /*
    * Previous questions for this student.
@@ -763,6 +1073,97 @@ async function createAttempt(
     );
   }
 
+  /*
+   * Quran test scope:
+   * - progress: use the student's relevant recorded progress.
+   * - surah: restrict questions to one selected surah.
+   * - juz: restrict questions to the selected juz
+   *   while still respecting the student's recorded progress.
+   * - khatma: use all relevant recorded progress.
+   */
+  let quranScope =
+    cleanString(body.quran_scope) ||
+    "progress";
+
+  if (subjectType === "quran" && testType === "surah") {
+    quranScope = "surah";
+  }
+
+  if (subjectType === "quran" && testType === "juz") {
+    quranScope = "juz";
+  }
+
+  if (subjectType === "quran" && testType === "khatma") {
+    quranScope = "khatma";
+  }
+
+  if (
+    subjectType !== "quran" &&
+    quranScope !== "progress"
+  ) {
+    return errorResponse(
+      "QURAN_SCOPE_REQUIRES_QURAN",
+      "نطاق القرآن مخصص لاختبارات القرآن فقط."
+    );
+  }
+
+  if (
+    ![
+      "progress",
+      "surah",
+      "juz",
+      "khatma"
+    ].includes(quranScope)
+  ) {
+    return errorResponse(
+      "INVALID_QURAN_SCOPE",
+      "نطاق اختبار القرآن غير صالح."
+    );
+  }
+
+  const quranSurahNumber =
+    body.quran_surah_number === undefined ||
+    body.quran_surah_number === null ||
+    body.quran_surah_number === ""
+      ? null
+      : validId(body.quran_surah_number);
+
+  const quranJuzNumber =
+    body.quran_juz_number === undefined ||
+    body.quran_juz_number === null ||
+    body.quran_juz_number === ""
+      ? null
+      : validId(body.quran_juz_number);
+
+  if (
+    quranScope === "juz" &&
+    (
+      !Number.isInteger(quranJuzNumber) ||
+      quranJuzNumber < 1 ||
+      quranJuzNumber > 30 ||
+      !QURAN_JUZ_RANGES[quranJuzNumber]
+    )
+  ) {
+    return errorResponse(
+      "INVALID_QURAN_JUZ",
+      "يجب اختيار جزء صحيح من 1 إلى 30."
+    );
+  }
+
+  if (
+    quranScope === "surah" &&
+    (
+      !Number.isInteger(quranSurahNumber) ||
+      quranSurahNumber < 1 ||
+      quranSurahNumber > 114
+    )
+  ) {
+    return errorResponse(
+      "INVALID_QURAN_SURAH",
+      "يجب اختيار سورة صحيحة لاختبار السورة."
+    );
+  }
+
   const questionCount = Math.min(
     Math.max(
       Math.floor(
@@ -797,6 +1198,9 @@ async function createAttempt(
         questionCount,
         progress: relevantProgress,
         studentId,
+        quranScope,
+        quranSurahNumber,
+        quranJuzNumber,
       }
     );
 
@@ -864,6 +1268,18 @@ async function createAttempt(
     relevant_progress_count:
       relevantProgress.length,
     question_count: questions.length,
+    quran_scope:
+      subjectType === "quran"
+        ? quranScope
+        : null,
+    quran_surah_number:
+      subjectType === "quran"
+        ? quranSurahNumber
+        : null,
+    quran_juz_number:
+      subjectType === "quran"
+        ? quranJuzNumber
+        : null,
     generated_at:
       new Date().toISOString(),
   });
@@ -923,11 +1339,12 @@ async function createAttempt(
     const question = questions[index];
 
     const matchingProgress =
-      relevantProgress.find(
-        (item) =>
-          Number(item.surah_number) ===
-          Number(question.surah_number)
-      );
+      subjectType === "quran"
+        ? findMatchingProgress(
+            relevantProgress,
+            question
+          )
+        : null;
 
     await env.DB
       .prepare(
@@ -1690,6 +2107,83 @@ async function submitAttempt(
     }
   );
 
+  // Motivation: award points only when the attempt is fully auto-graded.
+  if (summary.status === "graded") {
+    try {
+      const testType =
+        Number(summary.percentage) >= 90
+          ? "excellent"
+          : "completed";
+
+      const points =
+        getMotivationPoints(
+          "test",
+          { testType }
+        );
+
+      if (points > 0) {
+        await awardPoints(
+          env.DB,
+          {
+            studentId: attempt.student_id,
+            eventType: "test",
+            sourceType: "test_attempt",
+            sourceId: attemptId,
+            points,
+            reason:
+              testType === "excellent"
+                ? "إتمام اختبار بنتيجة ممتازة"
+                : "إتمام الاختبار",
+            idempotencyKey:
+              "test:" +
+              attemptId +
+              ":completed",
+            metadata: {
+              attempt_id: attemptId,
+              test_type: testType,
+              percentage:
+                summary.percentage,
+            },
+            awardedBy: auth.user.id,
+          }
+        );
+
+        await evaluateAchievements(
+          env.DB,
+          attempt.student_id,
+          {
+            sourceType: "test_attempt",
+            sourceId: attemptId,
+          }
+        );
+        try {
+          await recordChallengeEvent(
+            env.DB,
+            Number(attempt.student_id),
+            {
+              eventType: "test",
+              value: 1,
+              sourceType: "test_attempt",
+              sourceId: Number(attemptId),
+              idempotencyKey:
+                `test:${attemptId}:completed:challenge`,
+            }
+          );
+        } catch (challengeError) {
+          console.error(
+            "TEST_CHALLENGE_ERROR",
+            challengeError
+          );
+        }
+      }
+    } catch (motivationError) {
+      console.error(
+        "TEST_MOTIVATION_ERROR",
+        motivationError
+      );
+    }
+  }
+
   return json({
     success: true,
     data: {
@@ -1945,9 +2439,13 @@ async function canTeacherGradeAttempt(
     await db
       .prepare(
         `SELECT 1
-         FROM enrollments
-         WHERE student_id = ?
-           AND teacher_id = ?
+         FROM circle_enrollments ce
+         INNER JOIN circles c
+           ON c.id = ce.circle_id
+         WHERE ce.student_id = ?
+           AND ce.status = 'active'
+           AND c.teacher_id = ?
+           AND c.status = 'active'
          LIMIT 1`
       )
       .bind(
@@ -2673,6 +3171,81 @@ async function gradeAttempt(
         finalResult.percentage,
     }
   );
+
+  // Motivation: teacher-finalized tests receive points here.
+  try {
+    const testType =
+      Number(finalResult.percentage) >= 90
+        ? "excellent"
+        : "completed";
+
+    const points =
+      getMotivationPoints(
+        "test",
+        { testType }
+      );
+
+    if (points > 0) {
+      await awardPoints(
+        env.DB,
+        {
+          studentId: found.attempt.student_id,
+          eventType: "test",
+          sourceType: "test_attempt",
+          sourceId: attemptId,
+          points,
+          reason:
+            testType === "excellent"
+              ? "إتمام اختبار بنتيجة ممتازة"
+              : "إتمام الاختبار",
+          idempotencyKey:
+            "test:" +
+            attemptId +
+            ":completed",
+          metadata: {
+            attempt_id: attemptId,
+            test_type: testType,
+            percentage:
+              finalResult.percentage,
+          },
+          awardedBy: access.user.id,
+        }
+      );
+
+      await evaluateAchievements(
+        env.DB,
+        found.attempt.student_id,
+        {
+          sourceType: "test_attempt",
+          sourceId: attemptId,
+        }
+      );
+      try {
+        await recordChallengeEvent(
+          env.DB,
+          Number(found.attempt.student_id),
+          {
+            eventType: "test",
+            value: 1,
+            sourceType: "test_attempt",
+            sourceId: Number(attemptId),
+            idempotencyKey:
+              `test:${attemptId}:completed:challenge`,
+          }
+        );
+      } catch (challengeError) {
+        console.error(
+          "TEST_TEACHER_CHALLENGE_ERROR",
+          challengeError
+        );
+      }
+    }
+  } catch (motivationError) {
+    console.error(
+      "TEST_MOTIVATION_ERROR",
+      motivationError
+    );
+  }
 
   return json({
     success: true,

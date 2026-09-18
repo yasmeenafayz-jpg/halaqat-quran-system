@@ -1,3 +1,8 @@
+import { awardPoints, getMotivationPoints } from "./_motivation.js";
+import {
+  evaluateAchievements,
+  recordChallengeEvent,
+} from "./_motivation-achievements.js";
 import { requirePermission } from "./_auth.js";
 /**
  * الأوَّابين — Attendance API
@@ -690,6 +695,83 @@ export async function onRequestPost(
         db,
         attendanceId
       );
+
+    try {
+      if (status === "present") {
+        await awardPoints(db, {
+          studentId,
+          eventType: "attendance",
+          sourceType: "attendance",
+          sourceId: attendanceId,
+          points: getMotivationPoints("attendance", {
+            attendanceType: "present",
+          }),
+          reason: "حضور الجلسة",
+          idempotencyKey: `attendance:${attendanceId}:present`,
+          metadata: {
+            attendance_id: Number(attendanceId),
+            status,
+          },
+        });
+
+        await awardPoints(db, {
+          studentId,
+          eventType: "attendance",
+          sourceType: "attendance",
+          sourceId: attendanceId,
+          points: getMotivationPoints("attendance", {
+            attendanceType: "punctual",
+          }),
+          reason: "الالتزام بموعد الجلسة",
+          idempotencyKey: `attendance:${attendanceId}:punctual`,
+          metadata: {
+            attendance_id: Number(attendanceId),
+            status,
+          },
+        });
+      }
+
+      await evaluateAchievements(db, studentId, {
+        sourceType: "attendance",
+        sourceId: attendanceId,
+      });
+      /*
+       * Challenge engine:
+       * الحضور الفعلي يسجل حدثًا واحدًا للتحديات.
+       * late يُعامل كحضور فعلي، مع بقاء نقاط punctual
+       * مرتبطة بمنطق النقاط الحالي فقط.
+       */
+      if (
+        status === "present" ||
+        status === "late"
+      ) {
+        try {
+          await recordChallengeEvent(
+            db,
+            Number(studentId),
+            {
+              eventType: "attendance",
+              activityType: status,
+              value: 1,
+              sourceType: "attendance",
+              sourceId: Number(attendanceId),
+              idempotencyKey:
+                `attendance:${attendanceId}:challenge`,
+            }
+          );
+        } catch (challengeError) {
+          console.error(
+            "ATTENDANCE_CHALLENGE_ERROR",
+            challengeError
+          );
+        }
+      }
+    } catch (motivationError) {
+      console.error(
+        "ATTENDANCE_MOTIVATION_ERROR",
+        motivationError
+      );
+    }
 
     return json(
       {

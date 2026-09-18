@@ -9,6 +9,15 @@ import {
   json,
 } from "./_auth.js";
 
+import {
+  awardPoints,
+  getMotivationPoints,
+} from "./_motivation.js";
+import {
+  evaluateAchievements,
+  recordChallengeEvent,
+} from "./_motivation-achievements.js";
+
 function badRequest(message) {
   return json(
     {
@@ -83,6 +92,66 @@ function getStudentId(user, requestedId) {
   return null;
 }
 
+
+async function canAccessStudentProgress(
+  db,
+  user,
+  studentId
+) {
+  if (!user || !studentId) {
+    return false;
+  }
+
+  // الإدارة والمشرف لهما نطاق شامل.
+  if (
+    user.role === "admin" ||
+    user.role === "supervisor"
+  ) {
+    return true;
+  }
+
+  // الطالب يرى سجل نفسه فقط.
+  const ownStudent = await db.prepare(`
+    SELECT id
+    FROM students
+    WHERE user_id = ?
+    LIMIT 1
+  `).bind(user.id).first();
+
+  if (
+    ownStudent &&
+    Number(ownStudent.id) === Number(studentId)
+  ) {
+    return true;
+  }
+
+  // المعلم يرى فقط الطلاب المسجلين فعليًا
+  // في حلقاته النشطة والتي هو معلمها.
+  if (
+    user.role === "teacher" &&
+    user.teacher_id
+  ) {
+    const assigned = await db.prepare(`
+      SELECT 1
+      FROM circle_enrollments ce
+      INNER JOIN circles c
+        ON c.id = ce.circle_id
+      WHERE ce.student_id = ?
+        AND ce.status = 'active'
+        AND c.teacher_id = ?
+        AND c.status = 'active'
+      LIMIT 1
+    `).bind(
+      studentId,
+      user.teacher_id
+    ).first();
+
+    return Boolean(assigned);
+  }
+
+  return false;
+}
+
 async function canManageProgress(request, env) {
   const auth = await requireAuth(request, env);
 
@@ -140,23 +209,19 @@ export async function onRequestGet(context) {
       );
     }
 
-    /*
-     * الطالب يستطيع رؤية سجله فقط.
-     * الإدارة والمعلم يستطيعان الوصول إلى طالب محدد.
-     */
     if (
-      requestedStudentId &&
-      Number(requestedStudentId) !==
-        Number(auth.user.student_id) &&
-      auth.user.role !== "admin" &&
-      auth.user.role !== "teacher"
+      !await canAccessStudentProgress(
+        env.DB,
+        auth.user,
+        studentId
+      )
     ) {
       return json(
         {
           success: false,
           error: "FORBIDDEN",
           message:
-            "لا يمكنك الوصول إلى سجل طالب آخر.",
+            "لا يمكنك الوصول إلى سجل هذا الطالب.",
         },
         403
       );
@@ -328,6 +393,24 @@ export async function onRequestPost(context) {
     if (!studentId) {
       return badRequest(
         "يجب تحديد الطالب."
+      );
+    }
+
+    if (
+      !await canAccessStudentProgress(
+        env.DB,
+        management.user,
+        studentId
+      )
+    ) {
+      return json(
+        {
+          success: false,
+          error: "FORBIDDEN",
+          message:
+            "لا يمكنك إدارة سجل هذا الطالب.",
+        },
+        403
       );
     }
 
@@ -527,6 +610,98 @@ export async function onRequestPost(context) {
             .first()
         : null;
 
+    // -------------------------------------------------------
+    // Motivation:
+    // منح نقاط فقط بعد نجاح تسجيل نشاط القرآن.
+    // مفتاح منع التكرار مرتبط بسجل quran_progress نفسه.
+    // -------------------------------------------------------
+    let motivation = null;
+
+    if (progress?.id && progress?.student_id) {
+      const qualityEligible =
+        qualityScore === null ||
+        qualityScore >= 60;
+
+      if (qualityEligible) {
+        const points =
+          getMotivationPoints(
+            "quran_progress",
+            {
+              activityType,
+              ayahCount,
+            }
+          );
+
+        try {
+          motivation = await awardPoints(
+            env.DB,
+            {
+              studentId: Number(progress.student_id),
+              eventType: "quran_progress",
+              sourceType: "quran_progress",
+              sourceId: Number(progress.id),
+              points,
+              reason:
+                "إنجاز نشاط في القرآن والورد",
+              idempotencyKey:
+                `quran_progress:${progress.id}:completed`,
+              metadata: {
+                activity_type:
+                  activityType,
+                ayah_count:
+                  ayahCount,
+                quality_score:
+                  qualityScore,
+              },
+              awardedBy:
+                management?.user?.id ||
+                auth?.user?.id ||
+                null,
+            }
+          );
+
+          try {
+            await evaluateAchievements(
+              env.DB,
+              Number(progress.student_id),
+              {
+                sourceType: "quran_progress",
+                sourceId: Number(progress.id),
+              }
+            );
+          } catch (achievementError) {
+            console.error(
+              "QURAN_PROGRESS_ACHIEVEMENT_ERROR",
+              achievementError
+            );
+          }
+        } catch {
+          // فشل التشجيع لا يلغي تسجيل نشاط القرآن.
+          motivation = null;
+        }
+        try {
+          await recordChallengeEvent(
+            env.DB,
+            Number(progress.student_id),
+            {
+              eventType: "quran_progress",
+              activityType,
+              value: 1,
+              sourceType: "quran_progress",
+              sourceId: Number(progress.id),
+              idempotencyKey:
+                `quran_progress:${progress.id}:completed:challenge`,
+            }
+          );
+        } catch (challengeError) {
+          console.error(
+            "QURAN_PROGRESS_CHALLENGE_ERROR",
+            challengeError
+          );
+        }
+      }
+    }
+
     return json(
       {
         success: true,
@@ -535,6 +710,18 @@ export async function onRequestPost(context) {
         data: progress,
         ayah_count:
           ayahCount,
+        ...(motivation
+          ? {
+              motivation: {
+                points_added:
+                  motivation.created
+                    ? motivation.event?.points || 0
+                    : 0,
+                duplicate:
+                  !!motivation.duplicate,
+              },
+            }
+          : {}),
       },
       201
     );
@@ -582,7 +769,9 @@ export async function onRequestDelete(context) {
     const existing =
       await env.DB
         .prepare(`
-          SELECT id
+          SELECT
+            id,
+            student_id
           FROM quran_progress
           WHERE id = ?
           LIMIT 1
@@ -599,6 +788,24 @@ export async function onRequestDelete(context) {
             "سجل الورد غير موجود.",
         },
         404
+      );
+    }
+
+    if (
+      !await canAccessStudentProgress(
+        env.DB,
+        management.user,
+        existing.student_id
+      )
+    ) {
+      return json(
+        {
+          success: false,
+          error: "FORBIDDEN",
+          message:
+            "لا يمكنك حذف سجل هذا الطالب.",
+        },
+        403
       );
     }
 

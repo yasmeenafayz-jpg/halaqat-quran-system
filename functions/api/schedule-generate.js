@@ -165,6 +165,9 @@ function isOccurrence(
   const endDate =
     clean(series.end_date) || null;
 
+  // السلسلة تبدأ من start_date وتنتهي اختياريًا عند end_date.
+  // إذا لم يوجد end_date فالسلسلة مفتوحة النهاية،
+  // وتظل نافذة التوليد هي التي تحدد نطاق التوليد.
   if (
     !isDateInRange(
       date,
@@ -368,7 +371,7 @@ function applyException(
   return result;
 }
 
-async function audit(
+export async function audit(
   db,
   userId,
   action,
@@ -401,7 +404,7 @@ async function audit(
   }
 }
 
-async function canUseSeries(
+export async function canUseSeries(
   db,
   user,
   series
@@ -434,7 +437,7 @@ async function canUseSeries(
   return false;
 }
 
-async function loadSeries(
+export async function loadSeries(
   db,
   user,
   seriesId = null
@@ -485,7 +488,7 @@ async function loadSeries(
   return result.results || [];
 }
 
-async function loadExceptions(
+export async function loadExceptions(
   db,
   seriesIds
 ) {
@@ -563,7 +566,7 @@ async function sessionExists(
   return false;
 }
 
-async function generateSeries(
+export async function generateSeries(
   db,
   series,
   exceptions,
@@ -574,9 +577,17 @@ async function generateSeries(
     series.start_date
   );
 
+  // rangeEnd هو نهاية نافذة التوليد المطلوبة.
+  // إذا كان للسلسلة end_date محدد، فلا نتجاوزه.
+  const configuredEndDate = clean(
+    series.end_date
+  );
+
   const seriesEnd =
-    clean(series.end_date) ||
-    rangeEnd;
+    configuredEndDate &&
+    configuredEndDate < rangeEnd
+      ? configuredEndDate
+      : rangeEnd;
 
   let cursor = rangeStart;
 
@@ -598,7 +609,7 @@ async function generateSeries(
         0,
         daysBetween(
           rangeStart,
-          rangeEnd
+          seriesEnd
         ) ?? 0
       )
     );
@@ -685,6 +696,19 @@ async function generateSeries(
         occurrence_date: date,
         reason:
           "RESCHEDULED_OUTSIDE_RANGE",
+        session_date:
+          effective.session_date
+      });
+      continue;
+    }
+
+    if (
+      effective.session_date > seriesEnd
+    ) {
+      skipped.push({
+        occurrence_date: date,
+        reason:
+          "RESCHEDULED_AFTER_SERIES_END",
         session_date:
           effective.session_date
       });
@@ -860,12 +884,27 @@ export async function onRequestPost({
       );
     }
 
-    const today =
-      new Date()
-        .toISOString()
-        .slice(0, 10);
+    const today = (() => {
+      const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: "Africa/Cairo",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit"
+      }).formatToParts(new Date());
 
-    const rangeStart =
+      const values = Object.fromEntries(
+        parts
+          .filter((part) => part.type !== "literal")
+          .map((part) => [part.type, part.value])
+      );
+
+      return `${values.year}-${values.month}-${values.day}`;
+    })();
+
+    // نافذة التوليد المستقبلية افتراضيًا 60 يومًا.
+    // يمكن تحديد start_date وend_date للطلب.
+    // وإذا كانت للسلسلة end_date محددة، فلا نتجاوزها.
+    const requestedStart =
       clean(
         body.start_date ??
         url.searchParams.get(
@@ -874,13 +913,21 @@ export async function onRequestPost({
         today
       );
 
+    const rangeStart =
+      requestedStart > today
+        ? requestedStart
+        : today;
+
     const rangeEnd =
       clean(
         body.end_date ??
         url.searchParams.get(
           "end_date"
-        ) ??
-        rangeStart
+        )
+      ) ||
+      addDays(
+        rangeStart,
+        60
       );
 
     if (

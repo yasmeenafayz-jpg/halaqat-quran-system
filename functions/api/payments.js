@@ -179,6 +179,7 @@ async function getPayment(
         p.status,
         p.notes,
         p.created_at,
+        p.individual_booking_charge_id,
 
         s.full_name AS student_name,
 
@@ -206,6 +207,382 @@ async function getPayment(
     `)
     .bind(paymentId)
     .first();
+}
+
+/* =========================================================
+   Individual booking payment settlement
+========================================================= */
+
+async function settleIndividualBookingPayment(
+  db,
+  paymentId,
+  chargeId,
+  paymentAmount,
+  paymentCurrency,
+  paymentStatus,
+  paidAt
+) {
+  if (!validId(chargeId)) {
+    return {
+      ok: true,
+      individual: false,
+    };
+  }
+
+  const charge =
+    await db
+      .prepare(`
+        SELECT
+          c.id,
+          c.booking_id,
+          c.student_id,
+          c.offering_id,
+          c.amount,
+          c.currency,
+          c.status,
+          c.payment_id,
+          c.paid_at,
+
+          b.request_id,
+          b.teacher_id,
+          b.circle_id,
+          b.subscription_id,
+          b.booking_date,
+          b.start_time,
+          b.end_time,
+          b.session_id,
+          b.status AS booking_status
+
+        FROM individual_booking_charges c
+
+        INNER JOIN individual_schedule_bookings b
+          ON b.id = c.booking_id
+
+        WHERE c.id = ?1
+        LIMIT 1
+      `)
+      .bind(Number(chargeId))
+      .first();
+
+  if (!charge) {
+    return {
+      ok: false,
+      error: "INDIVIDUAL_BOOKING_CHARGE_NOT_FOUND",
+      status: 404,
+    };
+  }
+
+  if (
+    Number(charge.student_id) !==
+    Number(
+      await db
+        .prepare(`
+          SELECT student_id
+          FROM payments
+          WHERE id = ?1
+          LIMIT 1
+        `)
+        .bind(Number(paymentId))
+        .first()
+        .then(row => row?.student_id)
+    )
+  ) {
+    return {
+      ok: false,
+      error: "INDIVIDUAL_BOOKING_PAYMENT_STUDENT_MISMATCH",
+      status: 409,
+    };
+  }
+
+  if (
+    charge.payment_id &&
+    Number(charge.payment_id) !== Number(paymentId)
+  ) {
+    return {
+      ok: false,
+      error: "INDIVIDUAL_BOOKING_ALREADY_HAS_PAYMENT",
+      status: 409,
+    };
+  }
+
+  if (
+    Number(paymentAmount) !== Number(charge.amount)
+  ) {
+    return {
+      ok: false,
+      error: "INDIVIDUAL_BOOKING_PAYMENT_AMOUNT_MISMATCH",
+      status: 409,
+    };
+  }
+
+  if (
+    clean(paymentCurrency).toUpperCase() !==
+    clean(charge.currency).toUpperCase()
+  ) {
+    return {
+      ok: false,
+      error: "INDIVIDUAL_BOOKING_PAYMENT_CURRENCY_MISMATCH",
+      status: 409,
+    };
+  }
+
+  /*
+   * Pending payment:
+   * link the payment to the charge, but do not activate
+   * the booking or create the official session yet.
+   */
+  if (paymentStatus !== "completed") {
+    const linked =
+      await db
+        .prepare(`
+          UPDATE individual_booking_charges
+          SET
+            payment_id = ?2,
+            updated_at = ?3
+          WHERE id = ?1
+            AND (
+              payment_id IS NULL
+              OR payment_id = ?2
+            )
+        `)
+        .bind(
+          Number(chargeId),
+          Number(paymentId),
+          now()
+        )
+        .run();
+
+    if (
+      !linked.meta?.changes ||
+      linked.meta.changes !== 1
+    ) {
+      return {
+        ok: false,
+        error: "INDIVIDUAL_BOOKING_CHARGE_LINK_FAILED",
+        status: 500,
+      };
+    }
+
+    return {
+      ok: true,
+      individual: true,
+      activated: false,
+    };
+  }
+
+  if (
+    charge.booking_status !== "confirmed"
+  ) {
+    return {
+      ok: false,
+      error: "INDIVIDUAL_BOOKING_NOT_CONFIRMED",
+      status: 409,
+    };
+  }
+
+  /*
+   * Idempotency:
+   * if a session already exists, only make sure the charge
+   * is marked paid and linked to this payment.
+   */
+  if (charge.session_id) {
+    await db
+      .prepare(`
+        UPDATE individual_booking_charges
+        SET
+          status = 'paid',
+          payment_id = ?2,
+          paid_at = ?3,
+          updated_at = ?3
+        WHERE id = ?1
+      `)
+      .bind(
+        Number(chargeId),
+        Number(paymentId),
+        paidAt || now()
+      )
+      .run();
+
+    return {
+      ok: true,
+      individual: true,
+      activated: true,
+      sessionId: Number(charge.session_id),
+      idempotent: true,
+    };
+  }
+
+  /*
+   * Create the official individual session.
+   * It is deliberately created here, after successful payment.
+   */
+  const createdSession =
+    await db
+      .prepare(`
+        INSERT INTO sessions (
+          circle_id,
+          teacher_id,
+          student_id,
+          session_type,
+          session_date,
+          start_time,
+          end_time,
+          meeting_provider,
+          meeting_url,
+          status,
+          notes,
+          created_at,
+          updated_at
+        )
+        VALUES (
+          ?1,
+          ?2,
+          ?3,
+          'individual',
+          ?4,
+          ?5,
+          ?6,
+          NULL,
+          NULL,
+          'scheduled',
+          ?7,
+          ?8,
+          ?8
+        )
+        RETURNING id
+      `)
+      .bind(
+        charge.circle_id ?? null,
+        charge.teacher_id ?? null,
+        charge.student_id,
+        charge.booking_date,
+        charge.start_time,
+        charge.end_time,
+        `Individual booking #${charge.booking_id}`,
+        now()
+      )
+      .first();
+
+  const sessionId =
+    createdSession?.id;
+
+  if (!sessionId) {
+    return {
+      ok: false,
+      error: "INDIVIDUAL_SESSION_CREATION_FAILED",
+      status: 500,
+    };
+  }
+
+  /*
+   * Concurrency guard:
+   * only the first request may attach a session to the booking.
+   */
+  const attached =
+    await db
+      .prepare(`
+        UPDATE individual_schedule_bookings
+        SET
+          session_id = ?2,
+          updated_at = ?3
+        WHERE id = ?1
+          AND status = 'confirmed'
+          AND session_id IS NULL
+      `)
+      .bind(
+        Number(charge.booking_id),
+        Number(sessionId),
+        now()
+      )
+      .run();
+
+  if (
+    !attached.meta?.changes ||
+    attached.meta.changes !== 1
+  ) {
+    /*
+     * Another request won the race.
+     * Remove only the session we just created.
+     */
+    await db
+      .prepare(`
+        DELETE FROM sessions
+        WHERE id = ?1
+      `)
+      .bind(Number(sessionId))
+      .run();
+
+    const currentBooking =
+      await db
+        .prepare(`
+          SELECT session_id
+          FROM individual_schedule_bookings
+          WHERE id = ?1
+          LIMIT 1
+        `)
+        .bind(Number(charge.booking_id))
+        .first();
+
+    if (currentBooking?.session_id) {
+      await db
+        .prepare(`
+          UPDATE individual_booking_charges
+          SET
+            status = 'paid',
+            payment_id = ?2,
+            paid_at = ?3,
+            updated_at = ?3
+          WHERE id = ?1
+        `)
+        .bind(
+          Number(chargeId),
+          Number(paymentId),
+          paidAt || now()
+        )
+        .run();
+
+      return {
+        ok: true,
+        individual: true,
+        activated: true,
+        sessionId: Number(currentBooking.session_id),
+        idempotent: true,
+      };
+    }
+
+    return {
+      ok: false,
+      error: "INDIVIDUAL_BOOKING_SESSION_ATTACH_FAILED",
+      status: 500,
+    };
+  }
+
+  /*
+   * Final financial state.
+   */
+  await db
+    .prepare(`
+      UPDATE individual_booking_charges
+      SET
+        status = 'paid',
+        payment_id = ?2,
+        paid_at = ?3,
+        updated_at = ?3
+      WHERE id = ?1
+    `)
+    .bind(
+      Number(chargeId),
+      Number(paymentId),
+      paidAt || now()
+    )
+    .run();
+
+  return {
+    ok: true,
+    individual: true,
+    activated: true,
+    sessionId: Number(sessionId),
+  };
 }
 
 /* =========================================================
@@ -333,6 +710,7 @@ export async function onRequestGet(
         p.status,
         p.notes,
         p.created_at,
+        p.individual_booking_charge_id,
 
         s.full_name AS student_name,
 
@@ -522,6 +900,21 @@ export async function onRequestPost(
           subscriptionValue
         );
 
+  const individualBookingChargeValue =
+    data.individual_booking_charge_id ??
+    data.individualBookingChargeId;
+
+  const individualBookingChargeId =
+    individualBookingChargeValue ===
+      undefined ||
+    individualBookingChargeValue ===
+      null ||
+    individualBookingChargeValue === ""
+      ? null
+      : Number(
+          individualBookingChargeValue
+        );
+
   const amount =
     Number(data.amount);
 
@@ -578,6 +971,15 @@ export async function onRequestPost(
   ) {
     return errorResponse(
       "INVALID_SUBSCRIPTION_ID"
+    );
+  }
+
+  if (
+    individualBookingChargeId !== null &&
+    !validId(individualBookingChargeId)
+  ) {
+    return errorResponse(
+      "INVALID_INDIVIDUAL_BOOKING_CHARGE_ID"
     );
   }
 
@@ -661,6 +1063,91 @@ export async function onRequestPost(
       }
     }
 
+    let individualCharge = null;
+
+    if (individualBookingChargeId) {
+      individualCharge =
+        await db
+          .prepare(`
+            SELECT
+              c.*,
+              b.status AS booking_status,
+              b.session_id
+            FROM individual_booking_charges c
+            INNER JOIN individual_schedule_bookings b
+              ON b.id = c.booking_id
+            WHERE c.id = ?1
+            LIMIT 1
+          `)
+          .bind(individualBookingChargeId)
+          .first();
+
+      if (!individualCharge) {
+        return errorResponse(
+          "INDIVIDUAL_BOOKING_CHARGE_NOT_FOUND",
+          404
+        );
+      }
+
+      if (
+        Number(individualCharge.student_id) !==
+        Number(studentId)
+      ) {
+        return errorResponse(
+          "INDIVIDUAL_BOOKING_CHARGE_DOES_NOT_BELONG_TO_STUDENT",
+          409
+        );
+      }
+
+      if (
+        individualCharge.status === "cancelled"
+      ) {
+        return errorResponse(
+          "INDIVIDUAL_BOOKING_CHARGE_CANCELLED",
+          409
+        );
+      }
+
+      if (
+        individualCharge.status === "paid" ||
+        individualCharge.payment_id
+      ) {
+        return errorResponse(
+          "INDIVIDUAL_BOOKING_ALREADY_PAID",
+          409
+        );
+      }
+
+      if (
+        individualCharge.booking_status !== "confirmed"
+      ) {
+        return errorResponse(
+          "INDIVIDUAL_BOOKING_NOT_CONFIRMED",
+          409
+        );
+      }
+
+      if (
+        Number(amount) !==
+        Number(individualCharge.amount)
+      ) {
+        return errorResponse(
+          "INDIVIDUAL_BOOKING_PAYMENT_AMOUNT_MISMATCH",
+          409
+        );
+      }
+
+      if (
+        clean(currency).toUpperCase() !==
+        clean(individualCharge.currency).toUpperCase()
+      ) {
+        return errorResponse(
+          "INDIVIDUAL_BOOKING_PAYMENT_CURRENCY_MISMATCH",
+          409
+        );
+      }
+    }
+
     const created =
       await db
         .prepare(`
@@ -675,7 +1162,8 @@ export async function onRequestPost(
             paid_at,
             status,
             notes,
-            created_at
+            created_at,
+            individual_booking_charge_id
           )
           VALUES (
             ?1,
@@ -688,7 +1176,8 @@ export async function onRequestPost(
             ?8,
             ?9,
             ?10,
-            ?11
+            ?11,
+            ?12
           )
         `)
         .bind(
@@ -702,12 +1191,43 @@ export async function onRequestPost(
           paidAt,
           status,
           notes,
-          now()
+          now(),
+          individualBookingChargeId
         )
         .run();
 
     const paymentId =
       created.meta?.last_row_id;
+
+    if (!paymentId) {
+      return errorResponse(
+        "PAYMENT_CREATE_FAILED",
+        500
+      );
+    }
+
+    if (individualBookingChargeId) {
+      const settlement =
+        await settleIndividualBookingPayment(
+          db,
+          paymentId,
+          individualBookingChargeId,
+          amount,
+          currency,
+          status,
+          paidAt
+        );
+
+      if (!settlement.ok) {
+        return errorResponse(
+          settlement.error,
+          settlement.status || 500,
+          {
+            payment_id: Number(paymentId),
+          }
+        );
+      }
+    }
 
     const payment =
       await getPayment(
@@ -881,6 +1401,68 @@ export async function onRequestPatch(
         : current.notes;
 
     if (
+      current.individual_booking_charge_id
+    ) {
+      const linkedCharge =
+        await db
+          .prepare(`
+            SELECT
+              id,
+              student_id,
+              amount,
+              currency,
+              status,
+              payment_id
+            FROM individual_booking_charges
+            WHERE id = ?1
+            LIMIT 1
+          `)
+          .bind(
+            Number(
+              current.individual_booking_charge_id
+            )
+          )
+          .first();
+
+      if (!linkedCharge) {
+        return errorResponse(
+          "INDIVIDUAL_BOOKING_CHARGE_NOT_FOUND",
+          404
+        );
+      }
+
+      if (
+        Number(linkedCharge.student_id) !==
+        Number(current.student_id)
+      ) {
+        return errorResponse(
+          "INDIVIDUAL_BOOKING_PAYMENT_STUDENT_MISMATCH",
+          409
+        );
+      }
+
+      if (
+        Number(amount) !==
+        Number(linkedCharge.amount)
+      ) {
+        return errorResponse(
+          "INDIVIDUAL_BOOKING_PAYMENT_AMOUNT_MISMATCH",
+          409
+        );
+      }
+
+      if (
+        clean(currency).toUpperCase() !==
+        clean(linkedCharge.currency).toUpperCase()
+      ) {
+        return errorResponse(
+          "INDIVIDUAL_BOOKING_PAYMENT_CURRENCY_MISMATCH",
+          409
+        );
+      }
+    }
+
+    if (
       !validAmount(amount)
     ) {
       return errorResponse(
@@ -938,6 +1520,32 @@ export async function onRequestPatch(
           notes
         )
         .first();
+
+    if (
+      current.individual_booking_charge_id &&
+      status === "completed"
+    ) {
+      const settlement =
+        await settleIndividualBookingPayment(
+          db,
+          paymentId,
+          current.individual_booking_charge_id,
+          amount,
+          currency,
+          status,
+          paidAt
+        );
+
+      if (!settlement.ok) {
+        return errorResponse(
+          settlement.error,
+          settlement.status || 500,
+          {
+            payment_id: Number(paymentId),
+          }
+        );
+      }
+    }
 
     const payment =
       await getPayment(
