@@ -3484,6 +3484,17 @@ export class App {
 
       if (isStudent) {
         await loadStudent();
+      } else if (active.length === 1) {
+        select.value = String(active[0].id);
+        await loadStudent();
+      } else {
+        area.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon">☾</div>
+            <h3>اختر طالبًا</h3>
+            <p>اختر الطالب لعرض الحفظ والمراجعة والورد والخطة التعليمية.</p>
+          </div>
+        `;
       }
 
       content.querySelector("#quran-refresh")?.addEventListener(
