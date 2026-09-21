@@ -177,7 +177,7 @@ function calculateTotal({
 
 function calculateStatus(
   totalAmount,
-  paidAmount,
+  coveredAmount,
   requestedStatus
 ) {
   if (requestedStatus === "cancelled") {
@@ -188,11 +188,11 @@ function calculateStatus(
     return "paid";
   }
 
-  if (paidAmount >= totalAmount) {
+  if (coveredAmount >= totalAmount) {
     return "paid";
   }
 
-  if (paidAmount > 0) {
+  if (coveredAmount > 0) {
     return "partially_paid";
   }
 
@@ -217,7 +217,7 @@ function calculateSessionChargeability({
   attendanceStatus,
   excuseSubmittedAt,
   excuseStatus,
-  excuseDeadlineHours = 4,
+  excuseDeadlineHours = 24,
   sessionStartTime,
   academyCancelled = false
 }) {
@@ -391,7 +391,7 @@ function calculateSessionChargeabilityCairo({
   attendanceStatus,
   excuseSubmittedAt,
   excuseStatus,
-  excuseDeadlineHours = 4,
+  excuseDeadlineHours = 24,
   lateExcuseIsChargeable = true,
   absentWithoutExcuseIsChargeable = true,
   excusedAbsenceIsChargeable = false,
@@ -651,7 +651,7 @@ async function getAutomaticSessionBilling(
 
   const excuseDeadlineHours =
     Number(
-      excuseRules?.excuse_deadline_hours ?? 4
+      excuseRules?.excuse_deadline_hours ?? 24
     );
 
   const lateExcuseIsChargeable =
@@ -1946,9 +1946,17 @@ export async function onRequestPost(context) {
         fineAmount,
       });
 
-    if (paidAmount > totalAmount) {
+    const sponsoredAmount = 0;
+
+    const coveredAmount =
+      money(
+        paidAmount +
+        sponsoredAmount
+      );
+
+    if (coveredAmount > totalAmount) {
       return errorResponse(
-        "PAID_AMOUNT_EXCEEDS_TOTAL",
+        "COVERED_AMOUNT_EXCEEDS_TOTAL",
         409
       );
     }
@@ -1957,14 +1965,14 @@ export async function onRequestPost(context) {
       money(
         Math.max(
           0,
-          totalAmount - paidAmount
+          totalAmount - coveredAmount
         )
       );
 
     const finalStatus =
       calculateStatus(
         totalAmount,
-        paidAmount,
+        coveredAmount,
         requestedStatus
       );
 
@@ -2012,7 +2020,7 @@ export async function onRequestPost(context) {
           ).padStart(2, "0")}T23:59:59.000Z`;
 
     const paidAt =
-      paidAmount >= totalAmount &&
+      coveredAmount >= totalAmount &&
       totalAmount > 0
         ? now()
         : nullable(
@@ -2085,6 +2093,7 @@ export async function onRequestPost(context) {
 
             total_amount,
             paid_amount,
+            sponsored_amount,
             remaining_amount,
 
             status,
@@ -2156,6 +2165,7 @@ export async function onRequestPost(context) {
 
           totalAmount,
           paidAmount,
+          sponsoredAmount,
           remainingAmount,
 
           finalStatus,
@@ -2444,13 +2454,20 @@ export async function onRequestPatch(context) {
             current.paid_amount
           );
 
+    const sponsoredAmount =
+      Number(
+        current.sponsored_amount || 0
+      );
+
     if (
       packageAmount === null ||
       sessionAmount === null ||
       discountAmount === null ||
       exemptionAmount === null ||
       fineAmount === null ||
-      paidAmount === null
+      paidAmount === null ||
+      !Number.isFinite(sponsoredAmount) ||
+      sponsoredAmount < 0
     ) {
       return errorResponse(
         "INVALID_BILLING_AMOUNT"
@@ -2466,9 +2483,15 @@ export async function onRequestPatch(context) {
         fineAmount,
       });
 
-    if (paidAmount > totalAmount) {
+    const coveredAmount =
+      money(
+        paidAmount +
+        sponsoredAmount
+      );
+
+    if (coveredAmount > totalAmount) {
       return errorResponse(
-        "PAID_AMOUNT_EXCEEDS_TOTAL",
+        "COVERED_AMOUNT_EXCEEDS_TOTAL",
         409
       );
     }
@@ -2477,7 +2500,7 @@ export async function onRequestPatch(context) {
       money(
         Math.max(
           0,
-          totalAmount - paidAmount
+          totalAmount - coveredAmount
         )
       );
 
@@ -2501,7 +2524,7 @@ export async function onRequestPatch(context) {
     const finalStatus =
       calculateStatus(
         totalAmount,
-        paidAmount,
+        coveredAmount,
         requestedStatus
       );
 
@@ -2597,7 +2620,7 @@ export async function onRequestPatch(context) {
     let paidAt;
 
     if (
-      paidAmount >= totalAmount &&
+      coveredAmount >= totalAmount &&
       totalAmount > 0
     ) {
       paidAt =
@@ -2639,16 +2662,17 @@ export async function onRequestPatch(context) {
 
             total_amount = ?12,
             paid_amount = ?13,
-            remaining_amount = ?14,
+            sponsored_amount = ?14,
+            remaining_amount = ?15,
 
-            status = ?15,
+            status = ?16,
 
-            issued_at = ?16,
-            due_at = ?17,
-            paid_at = ?18,
+            issued_at = ?17,
+            due_at = ?18,
+            paid_at = ?19,
 
-            notes = ?19,
-            updated_at = ?20
+            notes = ?20,
+            updated_at = ?21
 
           WHERE id = ?1
         `)
@@ -2679,6 +2703,7 @@ export async function onRequestPatch(context) {
 
           totalAmount,
           paidAmount,
+          sponsoredAmount,
           remainingAmount,
 
           finalStatus,

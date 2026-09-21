@@ -412,6 +412,7 @@ export class App {
             ${this.nav("dashboard","لوحة التحكم","نظرة عامة")}
             ${this.nav("today","جدول اليوم","الجلسات والمواعيد")}
             ${this.nav("schedule","الجدول","مركز الجدول والمواعيد")}
+            ${this.user?.role === "student" ? this.nav("individual-booking","الحجز الفردي","احجز جلسة فردية وتابع طلباتك") : ""}
             ${this.nav("students","الطلاب","إدارة الطلاب")}
             ${this.nav("teachers","المعلمون","فريق الأكاديمية")}
             ${this.nav("circles","الحلقات","الفردية والجماعية")}
@@ -505,6 +506,448 @@ export class App {
       this.renderLogin("تعذر الاتصال بخدمة تسجيل الدخول.");
     }
   }
+
+  async renderIndividualBookingModule() {
+    const content = this.root.querySelector("#app-content");
+    if (!content) return;
+
+    if (this.user?.role !== "student") {
+      this.setHeading("الحجز الفردي", "هذه الخدمة مخصصة للطلاب");
+      content.innerHTML = "<section class=\"content-card\"><h2>الخدمة مخصصة للطلاب</h2><p>يمكن للطالب حجز جلسة فردية ومتابعة طلباته من هنا.</p></section>";
+      return;
+    }
+
+    this.setHeading("الحجز الفردي", "احجزي جلسة فردية واختاري الموعد المناسب لك");
+
+    content.innerHTML = `
+      <section class="content-card" id="individual-booking-root">
+        <div class="section-heading">
+          <div>
+            <span class="eyebrow">جلسة فردية</span>
+            <h2>احجزي جلسة فردية</h2>
+            <p>اختاري نوع الجلسة ثم اليوم والموعد المناسب.</p>
+          </div>
+          <span class="status-pill">الحجز الفردي</span>
+        </div>
+
+        <div id="individual-booking-message"></div>
+
+        <div class="form-grid">
+          <label>
+            نوع الجلسة
+            <select id="individual-offering">
+              <option value="">جاري تحميل الجلسات...</option>
+            </select>
+          </label>
+
+          <label>
+            اليوم
+            <input id="individual-date" type="date">
+          </label>
+        </div>
+
+        <div id="individual-offering-info"></div>
+
+        <div class="section-heading" style="margin-top:20px">
+          <div>
+            <span class="eyebrow">المواعيد</span>
+            <h3>المواعيد المتاحة</h3>
+          </div>
+        </div>
+
+        <div id="individual-slots">
+          <div class="empty-state">اختاري نوع الجلسة واليوم.</div>
+        </div>
+
+        <div class="section-heading" style="margin-top:28px">
+          <div>
+            <span class="eyebrow">المتابعة</span>
+            <h3>طلباتي وحجوزاتي</h3>
+          </div>
+        </div>
+
+        <div id="individual-my-requests"><div class="empty-state">جاري التحميل...</div></div>
+        <div id="individual-my-bookings" style="margin-top:16px"><div class="empty-state">جاري التحميل...</div></div>
+
+        <div class="section-heading" style="margin-top:28px">
+          <div>
+            <span class="eyebrow">دعم تعليمي سري</span>
+            <h3>هل تحتاجين مساعدة في تكلفة الحلقة أو المستوى؟</h3>
+            <p>يمكنك إرسال طلب دعم تعليمي بسرية، وتتم مراجعته وفق الحاجة وتوفر التمويل.</p>
+          </div>
+        </div>
+
+        <div class="content-card" id="educational-support-root">
+          <div id="educational-support-message"></div>
+
+          <div class="form-grid">
+            <label>
+              نوع الدعم
+              <select id="support-scope">
+                <option value="subscription">اشتراك</option>
+                <option value="circle">حلقة</option>
+                <option value="level">مستوى</option>
+                <option value="other">أخرى</option>
+              </select>
+            </label>
+
+            <label>
+              عدد الأشهر المطلوبة
+              <input id="support-months" type="number" min="1" step="1" placeholder="مثال: 1">
+            </label>
+
+            <label>
+              المبلغ المطلوب إن كان محددًا
+              <input id="support-amount" type="number" min="0" step="1" placeholder="اختياري">
+            </label>
+          </div>
+
+          <label style="display:block;margin-top:14px">
+            سبب طلب الدعم
+            <textarea id="support-reason" rows="4" maxlength="2000"
+              placeholder="اكتبي باختصار ما ترغبين في توضيحه للجنة المراجعة..."></textarea>
+          </label>
+
+          <label style="display:block;margin-top:14px">
+            ملاحظة عن الالتزام
+            <textarea id="support-commitment" rows="3"
+              placeholder="اختياري: أي ملاحظة تساعد في توضيح التزامك بالدراسة والمتابعة."></textarea>
+          </label>
+
+          <div style="margin-top:14px">
+            <button class="primary-button" id="support-submit" type="button">
+              إرسال طلب الدعم بسرية
+            </button>
+          </div>
+
+          <div id="educational-support-history" style="margin-top:18px">
+            <div class="empty-state">جاري تحميل طلبات الدعم السابقة...</div>
+          </div>
+        </div>
+      </section>
+    `;
+
+    const root = content.querySelector("#individual-booking-root");
+    const offeringSelect = root.querySelector("#individual-offering");
+    const dateInput = root.querySelector("#individual-date");
+    const slotsBox = root.querySelector("#individual-slots");
+    const offeringInfo = root.querySelector("#individual-offering-info");
+    const messageBox = root.querySelector("#individual-booking-message");
+    const requestsBox = root.querySelector("#individual-my-requests");
+    const bookingsBox = root.querySelector("#individual-my-bookings");
+
+    const supportRoot = root.querySelector("#educational-support-root");
+    const supportMessage = root.querySelector("#educational-support-message");
+    const supportScope = root.querySelector("#support-scope");
+    const supportMonths = root.querySelector("#support-months");
+    const supportAmount = root.querySelector("#support-amount");
+    const supportReason = root.querySelector("#support-reason");
+    const supportCommitment = root.querySelector("#support-commitment");
+    const supportSubmit = root.querySelector("#support-submit");
+    const supportHistory = root.querySelector("#educational-support-history");
+
+    const supportStatus = (value) => ({
+      pending_review: "قيد المراجعة",
+      needs_info: "تحتاج معلومات إضافية",
+      approved: "تمت الموافقة",
+      partially_approved: "تمت الموافقة جزئيًا",
+      waiting_funding: "في انتظار توفر التمويل",
+      rejected: "لم تتم الموافقة حاليًا",
+      closed: "مغلق"
+    }[value] || value || "—");
+
+    const loadSupportRequests = async () => {
+      try {
+        const response = await this.apiGet("/api/sponsorship-support");
+        const rows = Array.isArray(response?.data) ? response.data : [];
+
+        if (!rows.length) {
+          supportHistory.innerHTML =
+            '<div class="empty-state">لا توجد طلبات دعم سابقة.</div>';
+          return;
+        }
+
+        supportHistory.innerHTML = `
+          <div class="section-heading">
+            <div>
+              <span class="eyebrow">المتابعة</span>
+              <h4>طلبات الدعم السابقة</h4>
+            </div>
+          </div>
+          <div style="display:grid;gap:10px">
+            ${rows.map((row) => `
+              <div class="content-card" style="padding:12px">
+                <strong>${esc(supportStatus(row.status))}</strong>
+                <div style="margin-top:6px">${esc(row.public_message || "")}</div>
+                <div style="margin-top:6px">
+                  النطاق: ${esc({
+                    subscription: "اشتراك",
+                    circle: "حلقة",
+                    level: "مستوى",
+                    other: "أخرى"
+                  }[row.requested_scope] || row.requested_scope)}
+                </div>
+                ${row.requested_months ? `<div style="margin-top:4px">المدة المطلوبة: ${esc(row.requested_months)} شهر</div>` : ""}
+                ${row.eligibility_review_until ? `<div style="margin-top:4px">المراجعة حتى: ${esc(row.eligibility_review_until)}</div>` : ""}
+              </div>
+            `).join("")}
+          </div>
+        `;
+      } catch {
+        supportHistory.innerHTML =
+          '<div class="empty-state">تعذر تحميل طلبات الدعم حاليًا.</div>';
+      }
+    };
+
+    supportSubmit?.addEventListener("click", async () => {
+      const reason = String(supportReason?.value || "").trim();
+
+      if (reason.length < 10) {
+        supportMessage.innerHTML =
+          '<div class="quick-strip">يرجى كتابة سبب مختصر لطلب الدعم.</div>';
+        supportReason?.focus();
+        return;
+      }
+
+      supportSubmit.disabled = true;
+      supportMessage.innerHTML =
+        '<div class="quick-strip">جاري إرسال الطلب بسرية...</div>';
+
+      try {
+        const payload = {
+          action: "request_support",
+          requested_scope: supportScope?.value || "subscription",
+          requested_months: supportMonths?.value || null,
+          requested_amount: supportAmount?.value || null,
+          reason,
+          commitment_note: String(supportCommitment?.value || "").trim()
+        };
+
+        const response = await this.apiPost(
+          "/api/sponsorship-support",
+          payload
+        );
+
+        supportMessage.innerHTML =
+          `<div class="quick-strip">${esc(
+            response?.data?.public_message ||
+            "تم استلام طلبك وسيتم مراجعته بسرية."
+          )}</div>`;
+
+        if (supportMonths) supportMonths.value = "";
+        if (supportAmount) supportAmount.value = "";
+        if (supportReason) supportReason.value = "";
+        if (supportCommitment) supportCommitment.value = "";
+
+        await loadSupportRequests();
+      } catch (error) {
+        const code = String(error?.message || "");
+        const errors = {
+          SPONSORSHIP_SEATS_CLOSED:
+            "التقديم على الدعم مغلق حاليًا من إدارة الأكاديمية.",
+          ACTIVE_SUPPORT_REQUEST_EXISTS:
+            "لديك طلب دعم قائم بالفعل، ويمكنك متابعة حالته في الأسفل.",
+          SUPPORT_REASON_REQUIRED:
+            "يرجى كتابة سبب طلب الدعم.",
+          SUPPORT_REASON_TOO_LONG:
+            "سبب الطلب أطول من الحد المسموح."
+        };
+
+        supportMessage.innerHTML =
+          `<div class="quick-strip">${esc(
+            errors[code] || "تعذر إرسال طلب الدعم حاليًا."
+          )}</div>`;
+
+        await loadSupportRequests();
+      } finally {
+        supportSubmit.disabled = false;
+      }
+    });
+
+    const now = new Date();
+    const today = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+      .toISOString().slice(0, 10);
+    dateInput.value = today;
+    dateInput.min = today;
+
+    const esc = (value) => this.escape(String(value ?? "—"));
+
+    const message = (text) => {
+      messageBox.innerHTML = `<div class="content-card" style="margin:12px 0;padding:12px">${esc(text)}</div>`;
+    };
+
+    const money = (amount, currency = "EGP") => {
+      const value = Number(amount);
+      if (!Number.isFinite(value)) return "—";
+      return `${value.toLocaleString("ar-EG")} ${esc(currency)}`;
+    };
+
+    const status = (value) => ({
+      pending: "قيد المراجعة",
+      confirmed: "مؤكد",
+      completed: "مكتمل",
+      cancelled: "ملغى",
+      rejected: "مرفوض"
+    }[value] || value || "—");
+
+    let offerings = [];
+
+    const renderOffering = () => {
+      const selected = offerings.find((o) => String(o.id) === String(offeringSelect.value));
+      if (!selected) {
+        offeringInfo.innerHTML = "";
+        return;
+      }
+      offeringInfo.innerHTML = `<div class="content-card" style="margin-top:14px"><span class="eyebrow">تفاصيل الجلسة</span><h4>${esc(selected.name)}</h4>${selected.description ? `<p>${esc(selected.description)}</p>` : ""}<strong>${money(selected.price, selected.currency)}</strong><span style="margin-inline-start:10px">${esc(selected.duration_minutes)} دقيقة</span></div>`;
+    };
+
+    const loadOfferings = async () => {
+      const response = await this.apiGet("/api/individual-session-offerings");
+      offerings = Array.isArray(response?.data) ? response.data : [];
+
+      if (!offerings.length) {
+        offeringSelect.innerHTML = "<option value=\"\">لا توجد جلسات متاحة حاليًا</option>";
+        offeringInfo.innerHTML = "<div class=\"empty-state\">لا توجد عروض جلسات فردية متاحة حاليًا.</div>";
+        return;
+      }
+
+      offeringSelect.innerHTML =
+        "<option value=\"\">اختاري نوع الجلسة</option>" +
+        offerings.map((o) => `<option value="${esc(o.id)}">${esc(o.name)} — ${money(o.price, o.currency)} — ${esc(o.duration_minutes)} دقيقة</option>`).join("");
+      renderOffering();
+    };
+
+    const loadRequests = async () => {
+      try {
+        const response = await this.apiGet("/api/individual-scheduling?type=requests");
+        const rows = Array.isArray(response?.data) ? response.data : [];
+        if (!rows.length) {
+          requestsBox.innerHTML = "<div class=\"empty-state\">لا توجد طلبات حجز حتى الآن.</div>";
+          return;
+        }
+        requestsBox.innerHTML = `<div class="content-card"><div class="section-heading"><h4>طلباتي</h4><span class="status-pill">${rows.length} طلب</span></div><div style="display:grid;gap:10px">${rows.map((r) => `<div class="content-card" style="padding:12px"><strong>${esc(r.teacher_name || "المعلم")}</strong><div>${esc(r.requested_date)} — ${esc(r.requested_start_time)} إلى ${esc(r.requested_end_time)}</div><div style="margin-top:6px">الحالة: <strong>${esc(status(r.status))}</strong></div>${r.teacher_response_note ? `<div style="margin-top:6px">ملاحظة: ${esc(r.teacher_response_note)}</div>` : ""}</div>`).join("")}</div></div>`;
+      } catch {
+        requestsBox.innerHTML = "<div class=\"empty-state\">تعذر تحميل طلبات الحجز.</div>";
+      }
+    };
+
+    const loadBookings = async () => {
+      try {
+        const response = await this.apiGet("/api/individual-scheduling?type=bookings");
+        const rows = Array.isArray(response?.data) ? response.data : [];
+        if (!rows.length) {
+          bookingsBox.innerHTML = "<div class=\"empty-state\">لا توجد حجوزات مؤكدة حتى الآن.</div>";
+          return;
+        }
+        bookingsBox.innerHTML = `<div class="content-card"><div class="section-heading"><h4>جلساتي الفردية</h4></div><div style="display:grid;gap:10px">${rows.map((b) => { const o = offerings.find((x) => String(x.id) === String(b.offering_id)); return `<div class="content-card" style="padding:12px"><strong>${esc(b.teacher_name || "المعلم")}</strong><div>${esc(b.booking_date)} — ${esc(b.start_time)} إلى ${esc(b.end_time)}</div>${o ? `<div style="margin-top:6px">الجلسة: ${esc(o.name)}</div><div style="margin-top:6px">المبلغ: <strong>${money(o.price, o.currency)}</strong></div>` : ""}<div style="margin-top:6px">حالة الجلسة: <strong>${esc(status(b.status))}</strong></div></div>`; }).join("")}</div></div>`;
+      } catch {
+        bookingsBox.innerHTML = "<div class=\"empty-state\">تعذر تحميل الحجوزات.</div>";
+      }
+    };
+
+    const minutes = (time) => {
+      const parts = String(time || "").split(":");
+      if (parts.length < 2) return NaN;
+      return Number(parts[0]) * 60 + Number(parts[1]);
+    };
+
+    const addMinutes = (time, amount) => {
+      const value = minutes(time) + Number(amount);
+      if (!Number.isFinite(value)) return time;
+      const h = Math.floor(value / 60) % 24;
+      const m = value % 60;
+      return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+    };
+
+    const loadSlots = async () => {
+      const offering = offerings.find((o) => String(o.id) === String(offeringSelect.value));
+      if (!offering || !dateInput.value) {
+        slotsBox.innerHTML = "<div class=\"empty-state\">اختاري نوع الجلسة واليوم.</div>";
+        return;
+      }
+
+      slotsBox.innerHTML = "<div class=\"empty-state\">جاري تحميل المواعيد...</div>";
+
+      try {
+        const response = await this.apiGet("/api/individual-scheduling?type=slots&date=" + encodeURIComponent(dateInput.value));
+        const rows = Array.isArray(response?.data) ? response.data : [];
+        const duration = Number(offering.duration_minutes);
+
+        const usable = rows.filter((slot) => {
+          const start = slot.start_time || slot.startTime;
+          const end = slot.end_time || slot.endTime;
+          return start && end && Number.isFinite(duration) && minutes(end) - minutes(start) >= duration;
+        });
+
+        if (!usable.length) {
+          slotsBox.innerHTML = "<div class=\"empty-state\">لا يوجد موعد مناسب لمدة الجلسة المختارة في هذا اليوم.</div>";
+          return;
+        }
+
+        slotsBox.innerHTML = `<div style="display:grid;gap:10px">${usable.map((slot) => {
+          const teacherId = slot.teacher_id ?? slot.teacherId;
+          const teacherName = slot.teacher_name ?? slot.teacherName ?? slot.teacher?.full_name ?? "المعلم";
+          const start = slot.start_time ?? slot.startTime;
+          const slotId = slot.id ?? slot.slot_id ?? slot.availability_slot_id;
+          const end = addMinutes(start, duration);
+          return `<button type="button" class="secondary-button individual-slot-btn" data-slot-id="${esc(slotId)}" data-teacher-id="${esc(teacherId)}" data-start="${esc(start)}" data-end="${esc(end)}" style="text-align:right;padding:14px"><strong>${esc(teacherName)}</strong><br>${esc(start)} — ${esc(end)}<br><small>${esc(duration)} دقيقة</small></button>`;
+        }).join("")}</div>`;
+
+        slotsBox.querySelectorAll(".individual-slot-btn").forEach((button) => {
+          button.addEventListener("click", async () => {
+            button.disabled = true;
+            try {
+              await this.apiPost("/api/individual-scheduling", {
+                action: "request",
+                availability_slot_id: Number(button.dataset.slotId),
+                teacher_id: Number(button.dataset.teacherId),
+                offering_id: Number(offering.id),
+                requested_date: dateInput.value,
+                requested_start_time: button.dataset.start,
+                requested_end_time: button.dataset.end
+              });
+              message("تم إرسال طلب الحجز بنجاح. ستظهر حالة الطلب في قسم طلباتي.");
+              await loadRequests();
+              await loadBookings();
+              await loadSlots();
+            } catch (error) {
+              const code = String(error?.message || "");
+              const errors = {
+                INDIVIDUAL_BOOKING_CLOSED: "الحجز الفردي مغلق حاليًا من إدارة الأكاديمية.",
+                TIME_ALREADY_BOOKED: "هذا الموعد تم حجزه بالفعل.",
+                TIME_ALREADY_REQUESTED: "يوجد طلب آخر على هذا الموعد.",
+                SLOT_NOT_AVAILABLE: "هذا الموعد لم يعد متاحًا.",
+                REQUEST_DURATION_MUST_MATCH_OFFERING: "مدة الموعد لا تطابق مدة الجلسة المختارة."
+              };
+              message(errors[code] || "تعذر إرسال طلب الحجز. قد يكون الموعد حُجز قبل الإرسال.");
+            } finally {
+              button.disabled = false;
+            }
+          });
+        });
+      } catch {
+        slotsBox.innerHTML = "<div class=\"empty-state\">تعذر تحميل المواعيد المتاحة.</div>";
+      }
+    };
+
+    offeringSelect.addEventListener("change", async () => {
+      renderOffering();
+      await loadSlots();
+    });
+    dateInput.addEventListener("change", loadSlots);
+
+    try {
+      await loadOfferings();
+      await Promise.all([
+        loadRequests(),
+        loadBookings(),
+        loadSupportRequests()
+      ]);
+    } catch {
+      message("تعذر تحميل بيانات الحجز الفردي حاليًا.");
+    }
+  }
+
 
   nav(id, title, subtitle) {
     return `
@@ -1159,10 +1602,17 @@ export class App {
   }
 
   async renderModule(page) {
+    if (page === "individual-booking") {
+      await this.renderIndividualBookingModule();
+      return;
+    }
+
+
     const titles = {
       dashboard: ["لوحة التحكم", "نظرة عامة على الأكاديمية"],
       today: ["جدول اليوم", "الجلسات والمواعيد وفق الصلاحيات"],
       schedule: ["الجدول", "مركز الجدول والمواعيد والإجازات"],
+      "individual-booking": ["الحجز الفردي", "احجز جلسة فردية وتابع طلباتك وحجوزاتك"],
       students: ["الطلاب", "إدارة ملفات الطلاب والمتابعة"],
       teachers: ["المعلمون", "إدارة فريق الأكاديمية"],
       circles: ["الحلقات", "الحلقات الفردية والجماعية"],
@@ -1369,6 +1819,11 @@ export class App {
 
       if (page === "notifications") {
         await this.renderNotificationsModule(info[0]);
+        return;
+      }
+
+      if (page === "payments") {
+        await this.renderPaymentsModule(info[0]);
         return;
       }
 
@@ -1976,24 +2431,51 @@ export class App {
     const area = content.querySelector("#quran-student-content");
 
     try {
-      const result = await this.apiGet("/api/students");
-      const students = Array.isArray(result?.data)
-        ? result.data
-        : Array.isArray(result?.results)
-          ? result.results
-          : [];
+      const isStudent = this.user?.role === "student";
 
-      const active = students.filter(
-        (s) => !s?.status || s.status === "active"
-      );
+      let active = [];
 
-      select.innerHTML =
-        '<option value="">اختر الطالب</option>' +
-        active.map((s) => `
-          <option value="${this.escape(String(s.id))}">
-            ${this.escape(s.full_name || s.name || `طالب #${s.id}`)}
+      if (isStudent) {
+        const ownStudentId = Number(this.user?.student_id || 0);
+
+        if (!ownStudentId) {
+          throw new Error("لم يتم العثور على ملف الطالب المرتبط بالحساب.");
+        }
+
+        active = [{
+          id: ownStudentId,
+          full_name: this.user?.full_name || "الطالب",
+          status: "active"
+        }];
+
+        select.innerHTML = `
+          <option value="${this.escape(String(ownStudentId))}">
+            ${this.escape(this.user?.full_name || "ملفي التعليمي")}
           </option>
-        `).join("");
+        `;
+
+        select.disabled = true;
+      } else {
+        const result = await this.apiGet("/api/students");
+
+        const students = Array.isArray(result?.data)
+          ? result.data
+          : Array.isArray(result?.results)
+            ? result.results
+            : [];
+
+        active = students.filter(
+          (s) => !s?.status || s.status === "active"
+        );
+
+        select.innerHTML =
+          '<option value="">اختر الطالب</option>' +
+          active.map((s) => `
+            <option value="${this.escape(String(s.id))}">
+              ${this.escape(s.full_name || s.name || `طالب #${s.id}`)}
+            </option>
+          `).join("");
+      }
 
       const loadStudent = async () => {
         const id = Number(select.value || 0);
@@ -2025,6 +2507,640 @@ export class App {
           const rows = Array.isArray(data?.data) ? data.data : [];
           const summary = data?.summary || {};
           const student = active.find((s) => Number(s.id) === id);
+
+          let learningPlanData = null;
+          try {
+            learningPlanData = await this.apiGet(
+              "/api/learning-plan?student_id=" +
+              encodeURIComponent(id)
+            );
+          } catch (_) {
+            learningPlanData = null;
+          }
+
+          const learningPlan = learningPlanData?.plan || null;
+          const learningGoals = Array.isArray(learningPlanData?.goals)
+            ? learningPlanData.goals
+            : [];
+          const learningToday = Array.isArray(learningPlanData?.today)
+            ? learningPlanData.today
+            : [];
+          const learningStats = learningPlanData?.stats || {};
+
+          const planStatus = {
+            draft: "مسودة",
+            active: "نشطة",
+            paused: "متوقفة مؤقتًا",
+            completed: "مكتملة",
+            cancelled: "ملغاة"
+          };
+
+          const goalTypes = {
+            memorization: "حفظ جديد",
+            review: "مراجعة",
+            memorization_review: "حفظ + مراجعة",
+            tamkeen: "تمكين وتثبيت",
+            cumulative_recitation: "سرد تراكمي",
+            tajweed: "تجويد",
+            test: "اختبار",
+            attendance: "حضور",
+            skill: "مهارة",
+            custom: "هدف مخصص"
+          };
+
+          const goalProgress = (goal) => {
+            const target = Number(goal?.target_value);
+            const progress = Number(goal?.progress_value || 0);
+
+            if (Number.isFinite(target) && target > 0) {
+              return Math.max(
+                0,
+                Math.min(100, Math.round((progress / target) * 100))
+              );
+            }
+
+            return goal?.status === "completed" ? 100 : 0;
+          };
+
+          const goalTypeLabels = {
+            memorization: "حفظ",
+            review: "مراجعة",
+            memorization_review: "حفظ + مراجعة",
+            tamkeen: "تمكين وتثبيت",
+            cumulative_recitation: "تسميع تراكمي",
+            tajweed: "تجويد",
+            test: "اختبار",
+            attendance: "حضور",
+            skill: "مهارة",
+            custom: "هدف مخصص"
+          };
+
+          const goalStatusLabels = {
+            pending: "لم يبدأ",
+            in_progress: "جارٍ",
+            completed: "مكتمل",
+            skipped: "متجاوز",
+            cancelled: "ملغى"
+          };
+
+          const learningGoalsHtml = learningGoals.length
+            ? `
+              <div style="display:grid;gap:12px;margin-top:14px;">
+                ${learningGoals.map((goal) => {
+                  const progress = Number(goal?.progress_value || 0);
+                  const target = Number(goal?.target_value);
+                  const percent = goalProgress(goal);
+
+                  const targetText =
+                    Number.isFinite(target) && target > 0
+                      ? `${progress} / ${target}`
+                      : String(progress);
+
+                  const canEdit =
+                    this.user?.role === "student"
+                      ? Number(this.user?.student_id) === id
+                      : true;
+
+                  return `
+                    <article
+                      class="content-card"
+                      style="padding:14px;"
+                    >
+                      <div style="
+                        display:flex;
+                        justify-content:space-between;
+                        gap:12px;
+                        align-items:flex-start;
+                        flex-wrap:wrap;
+                      ">
+                        <div style="min-width:0;flex:1;">
+                          <div style="
+                            display:flex;
+                            gap:7px;
+                            align-items:center;
+                            flex-wrap:wrap;
+                            margin-bottom:6px;
+                          ">
+                            <strong>
+                              ${this.escape(goal?.title || "هدف تعليمي")}
+                            </strong>
+
+                            <span style="
+                              padding:4px 8px;
+                              border-radius:999px;
+                              background:rgba(120,90,160,.10);
+                              font-size:11px;
+                            ">
+                              ${this.escape(
+                                goalTypeLabels[goal?.goal_type] ||
+                                goal?.goal_type ||
+                                "هدف"
+                              )}
+                            </span>
+
+                            <span style="
+                              padding:4px 8px;
+                              border-radius:999px;
+                              background:rgba(0,0,0,.05);
+                              font-size:11px;
+                            ">
+                              ${this.escape(
+                                goalStatusLabels[goal?.status] ||
+                                goal?.status ||
+                                "لم يبدأ"
+                              )}
+                            </span>
+                          </div>
+
+                          ${
+                            goal?.description
+                              ? `
+                                <p style="
+                                  margin:0 0 7px;
+                                  font-size:13px;
+                                  opacity:.78;
+                                ">
+                                  ${this.escape(goal.description)}
+                                </p>
+                              `
+                              : ""
+                          }
+
+                          ${
+                            goal?.surah_name
+                              ? `
+                                <div style="
+                                  font-size:12px;
+                                  opacity:.75;
+                                ">
+                                  السورة:
+                                  ${this.escape(goal.surah_name)}
+                                  ${
+                                    goal?.from_ayah || goal?.to_ayah
+                                      ? `
+                                        — الآيات
+                                        ${this.escape(
+                                          String(goal.from_ayah || "—")
+                                        )}
+                                        →
+                                        ${this.escape(
+                                          String(goal.to_ayah || "—")
+                                        )}
+                                      `
+                                      : ""
+                                  }
+                                </div>
+                              `
+                              : ""
+                          }
+                        </div>
+
+                        <strong style="font-size:18px;">
+                          ${percent}%
+                        </strong>
+                      </div>
+
+                      <div style="
+                        height:8px;
+                        background:rgba(0,0,0,.08);
+                        border-radius:999px;
+                        overflow:hidden;
+                        margin:12px 0;
+                      ">
+                        <div style="
+                          width:${percent}%;
+                          height:100%;
+                          background:currentColor;
+                          border-radius:999px;
+                        "></div>
+                      </div>
+
+                      <div style="
+                        display:flex;
+                        justify-content:space-between;
+                        gap:8px;
+                        flex-wrap:wrap;
+                        align-items:center;
+                        margin-bottom:10px;
+                        font-size:12px;
+                      ">
+                        <span>
+                          الإنجاز:
+                          <strong>${this.escape(targetText)}</strong>
+                        </span>
+
+                        ${
+                          goal?.due_date
+                            ? `
+                              <span>
+                                الموعد:
+                                ${this.escape(goal.due_date)}
+                              </span>
+                            `
+                            : ""
+                        }
+                      </div>
+
+                      ${
+                        canEdit && goal?.status !== "completed"
+                          ? `
+                            <div style="
+                              display:flex;
+                              gap:8px;
+                              flex-wrap:wrap;
+                              align-items:center;
+                            ">
+                              <input
+                                class="form-control"
+                                type="number"
+                                min="0"
+                                step="any"
+                                value="${this.escape(String(progress))}"
+                                ${
+                                  Number.isFinite(target) && target > 0
+                                    ? `max="${this.escape(String(target))}"`
+                                    : ""
+                                }
+                                data-learning-goal-progress="${this.escape(
+                                  String(goal.id)
+                                )}"
+                                aria-label="مقدار الإنجاز"
+                                style="max-width:130px;"
+                              />
+
+                              <button
+                                type="button"
+                                class="btn btn-primary"
+                                data-learning-goal-save="${this.escape(
+                                  String(goal.id)
+                                )}"
+                              >
+                                حفظ الإنجاز
+                              </button>
+
+                              <button
+                                type="button"
+                                class="btn btn-secondary"
+                                data-learning-goal-complete="${this.escape(
+                                  String(goal.id)
+                                )}"
+                              >
+                                تم الإنجاز
+                              </button>
+                            </div>
+                          `
+                          : goal?.status === "completed"
+                            ? `
+                              <div style="
+                                padding:9px 12px;
+                                border-radius:10px;
+                                background:rgba(46,125,50,.08);
+                                font-size:13px;
+                              ">
+                                ✓ تم إنجاز هذا الهدف
+                              </div>
+                            `
+                            : ""
+                      }
+                    </article>
+                  `;
+                }).join("")}
+              </div>
+            `
+            : `
+              <div style="
+                padding:14px;
+                border-radius:12px;
+                background:rgba(0,0,0,.04);
+                margin-top:12px;
+                font-size:13px;
+              ">
+                لا توجد أهداف تعليمية مضافة حاليًا.
+              </div>
+            `;
+
+          const learningPlanHtml = `
+            <section class="content-card" style="margin-bottom:16px;">
+              <div class="section-heading">
+                <div>
+                  <span class="eyebrow">خطتي التعليمية</span>
+                  <h3>
+                    ${this.escape(
+                      learningPlan?.title || "الخطة التعليمية"
+                    )}
+                  </h3>
+                  <p>
+                    ${
+                      learningPlan
+                        ? this.escape(
+                            learningPlan.goal ||
+                            "متابعة أهداف الطالب التعليمية."
+                          )
+                        : "لا توجد خطة تعليمية مضافة لهذا الطالب حاليًا."
+                    }
+                  </p>
+                </div>
+
+                ${
+                  learningPlan
+                    ? `
+                      <span style="
+                        padding:6px 10px;
+                        border-radius:999px;
+                        background:rgba(120,90,160,.10);
+                        font-size:12px;
+                      ">
+                        ${this.escape(
+                          planStatus[learningPlan.status] ||
+                          learningPlan.status ||
+                          "—"
+                        )}
+                      </span>
+                    `
+                    : ""
+                }
+              </div>
+
+              ${
+                learningPlan
+                  ? `
+                    <div class="reports-grid">
+                      <article class="report-card">
+                        <div class="report-card-icon">🎯</div>
+                        <div class="report-card-body">
+                          <span class="report-card-label">إنجاز الخطة</span>
+                          <strong class="report-card-value">
+                            ${Number(learningStats.progress_percent || 0)}%
+                          </strong>
+                        </div>
+                      </article>
+
+                      <article class="report-card">
+                        <div class="report-card-icon">✓</div>
+                        <div class="report-card-body">
+                          <span class="report-card-label">الأهداف المكتملة</span>
+                          <strong class="report-card-value">
+                            ${Number(learningStats.completed_goals || 0)}
+                            /
+                            ${Number(learningStats.total_goals || 0)}
+                          </strong>
+                        </div>
+                      </article>
+
+                      <article class="report-card">
+                        <div class="report-card-icon">◷</div>
+                        <div class="report-card-body">
+                          <span class="report-card-label">قيد التنفيذ</span>
+                          <strong class="report-card-value">
+                            ${Number(learningStats.in_progress_goals || 0)}
+                          </strong>
+                        </div>
+                      </article>
+
+                      <article class="report-card">
+                        <div class="report-card-icon">📅</div>
+                        <div class="report-card-body">
+                          <span class="report-card-label">مدة الخطة</span>
+                          <strong class="report-card-value" style="font-size:13px;">
+                            ${this.escape(
+                              learningPlan.start_date ||
+                              "—"
+                            )}
+                            ${
+                              learningPlan.target_end_date
+                                ? " → " + this.escape(learningPlan.target_end_date)
+                                : ""
+                            }
+                          </strong>
+                        </div>
+                      </article>
+                    </div>
+
+                    <div style="margin-top:16px;">
+                      <div style="
+                        display:flex;
+                        justify-content:space-between;
+                        margin-bottom:7px;
+                        font-size:13px;
+                      ">
+                        <span>التقدم الكلي</span>
+                        <strong>
+                          ${Number(learningStats.progress_percent || 0)}%
+                        </strong>
+                      </div>
+
+                      <div style="
+                        height:10px;
+                        border-radius:999px;
+                        background:rgba(0,0,0,.08);
+                        overflow:hidden;
+                      ">
+                        <div style="
+                          width:${Math.max(
+                            0,
+                            Math.min(
+                              100,
+                              Number(learningStats.progress_percent || 0)
+                            )
+                          )}%;
+                          height:100%;
+                          border-radius:999px;
+                          background:currentColor;
+                          opacity:.75;
+                        "></div>
+                      </div>
+                    </div>
+
+                    ${
+                      learningPlan.path_name || learningPlan.level_name
+                        ? `
+                          <div style="
+                            display:flex;
+                            flex-wrap:wrap;
+                            gap:8px;
+                            margin-top:16px;
+                          ">
+                            ${
+                              learningPlan.path_name
+                                ? `
+                                  <span style="
+                                    padding:6px 10px;
+                                    border-radius:999px;
+                                    background:rgba(0,0,0,.05);
+                                    font-size:12px;
+                                  ">
+                                    المسار:
+                                    ${this.escape(learningPlan.path_name)}
+                                  </span>
+                                `
+                                : ""
+                            }
+
+                            ${
+                              learningPlan.level_name
+                                ? `
+                                  <span style="
+                                    padding:6px 10px;
+                                    border-radius:999px;
+                                    background:rgba(0,0,0,.05);
+                                    font-size:12px;
+                                  ">
+                                    المستوى:
+                                    ${this.escape(learningPlan.level_name)}
+                                  </span>
+                                `
+                                : ""
+                            }
+                          </div>
+                        `
+                        : ""
+                    }
+                  `
+                  : `
+                    <div class="empty-state" style="margin-top:8px;">
+                      <div class="empty-icon">🎯</div>
+                      <h4>لا توجد خطة تعليمية بعد</h4>
+                      <p>
+                        يمكن للإدارة أو المعلم المخول إنشاء خطة تعليمية لهذا الطالب.
+                      </p>
+                    </div>
+                  `
+              }
+
+              ${
+                learningToday.length
+                  ? `
+                    <div style="margin-top:18px;">
+                      <div class="section-heading">
+                        <div>
+                          <span class="eyebrow">مطلوب اليوم</span>
+                          <h4>أهداف اليوم</h4>
+                        </div>
+                        <strong>${learningToday.length}</strong>
+                      </div>
+
+                      <div style="
+                        display:grid;
+                        grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+                        gap:12px;
+                      ">
+                        ${learningToday.map((goal) => `
+                          <article style="
+                            padding:14px;
+                            border-radius:14px;
+                            background:rgba(120,90,160,.07);
+                          ">
+                            <strong>
+                              ${this.escape(
+                                goal.title ||
+                                goalTypes[goal.goal_type] ||
+                                "هدف"
+                              )}
+                            </strong>
+
+                            <div style="
+                              margin-top:5px;
+                              font-size:12px;
+                              opacity:.75;
+                            ">
+                              ${this.escape(
+                                goalTypes[goal.goal_type] ||
+                                goal.goal_type ||
+                                "هدف"
+                              )}
+                            </div>
+
+                            <div style="
+                              margin-top:10px;
+                              font-size:13px;
+                            ">
+                              الإنجاز ${goalProgress(goal)}%
+                            </div>
+                          </article>
+                        `).join("")}
+                      </div>
+                    </div>
+                  `
+                  : ""
+              }
+
+              ${
+                learningGoals.length
+                  ? `
+                    <div style="margin-top:18px;">
+                      <div class="section-heading">
+                        <div>
+                          <span class="eyebrow">أهداف الخطة</span>
+                          <h4>مسار التعلم</h4>
+                        </div>
+                      </div>
+
+                      <div style="
+                        display:grid;
+                        grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+                        gap:12px;
+                      ">
+                        ${learningGoals.map((goal) => {
+                          const p = goalProgress(goal);
+
+                          return `
+                            <article style="
+                              padding:14px;
+                              border:1px solid rgba(0,0,0,.08);
+                              border-radius:14px;
+                            ">
+                              <strong>
+                                ${this.escape(
+                                  goal.title ||
+                                  goalTypes[goal.goal_type] ||
+                                  "هدف"
+                                )}
+                              </strong>
+
+                              <div style="
+                                margin-top:5px;
+                                font-size:12px;
+                                opacity:.75;
+                              ">
+                                ${this.escape(
+                                  goalTypes[goal.goal_type] ||
+                                  goal.goal_type ||
+                                  "هدف"
+                                )}
+                              </div>
+
+                              <div style="
+                                margin-top:10px;
+                                height:8px;
+                                border-radius:999px;
+                                background:rgba(0,0,0,.08);
+                                overflow:hidden;
+                              ">
+                                <div style="
+                                  width:${p}%;
+                                  height:100%;
+                                  border-radius:999px;
+                                  background:currentColor;
+                                  opacity:.75;
+                                "></div>
+                              </div>
+
+                              <div style="
+                                margin-top:7px;
+                                font-size:12px;
+                              ">
+                                الإنجاز ${p}%
+                              </div>
+                            </article>
+                          `;
+                        }).join("")}
+                      </div>
+                    </div>
+                  `
+                  : ""
+              }
+            </section>
+          `;
 
           let wirdData = null;
           try {
@@ -2123,6 +3239,28 @@ export class App {
           };
 
           area.innerHTML = `
+            ${learningPlanHtml}
+
+            <section class="content-card" style="margin-top:16px;">
+              <div class="section-heading">
+                <div>
+                  <span class="eyebrow">الأهداف التعليمية</span>
+                  <h3>إنجاز أهدافي</h3>
+                  <p>
+                    سجّل مقدار ما أنجزته، وسيتم تحديث نسبة الإنجاز تلقائيًا.
+                  </p>
+                </div>
+
+                <strong>
+                  ${this.escape(
+                    String(learningStats.progress_percent ?? 0)
+                  )}%
+                </strong>
+              </div>
+
+              ${learningGoalsHtml}
+            </section>
+
             ${wirdHtml}
 
             <div class="reports-grid">
@@ -2235,9 +3373,118 @@ export class App {
             loadStudent
           );
         }
+
+        area
+          .querySelectorAll("[data-learning-goal-save]")
+          .forEach((button) => {
+            button.addEventListener("click", async () => {
+              const goalId = Number(
+                button.getAttribute("data-learning-goal-save")
+              );
+
+              const input = area.querySelector(
+                `[data-learning-goal-progress="${goalId}"]`
+              );
+
+              const progressValue = Number(input?.value);
+
+              if (
+                !Number.isFinite(progressValue) ||
+                progressValue < 0
+              ) {
+                alert("أدخل قيمة إنجاز صحيحة.");
+                return;
+              }
+
+              const originalText = button.textContent;
+
+              button.disabled = true;
+              button.textContent = "جارٍ الحفظ...";
+
+              try {
+                const result = await this.apiPost(
+                  "/api/learning-plan",
+                  {
+                    action: "update_goal_progress",
+                    goal_id: goalId,
+                    progress_value: progressValue
+                  }
+                );
+
+                if (!result?.success) {
+                  throw new Error(
+                    result?.error ||
+                    result?.message ||
+                    "تعذر حفظ الإنجاز."
+                  );
+                }
+
+                await loadStudent();
+              } catch (error) {
+                alert(
+                  error?.message ||
+                  "تعذر حفظ إنجاز الهدف."
+                );
+
+                button.disabled = false;
+                button.textContent = originalText;
+              }
+            });
+          });
+
+        area
+          .querySelectorAll("[data-learning-goal-complete]")
+          .forEach((button) => {
+            button.addEventListener("click", async () => {
+              const goalId = Number(
+                button.getAttribute("data-learning-goal-complete")
+              );
+
+              if (!Number.isFinite(goalId) || goalId <= 0) {
+                return;
+              }
+
+              const originalText = button.textContent;
+
+              button.disabled = true;
+              button.textContent = "جارٍ الإكمال...";
+
+              try {
+                const result = await this.apiPost(
+                  "/api/learning-plan",
+                  {
+                    action: "complete_goal",
+                    goal_id: goalId
+                  }
+                );
+
+                if (!result?.success) {
+                  throw new Error(
+                    result?.error ||
+                    result?.message ||
+                    "تعذر إكمال الهدف."
+                  );
+                }
+
+                await loadStudent();
+              } catch (error) {
+                alert(
+                  error?.message ||
+                  "تعذر إكمال الهدف."
+                );
+
+                button.disabled = false;
+                button.textContent = originalText;
+              }
+            });
+          });
       };
 
       select.addEventListener("change", loadStudent);
+
+      if (isStudent) {
+        await loadStudent();
+      }
 
       content.querySelector("#quran-refresh")?.addEventListener(
         "click",
@@ -2441,6 +3688,450 @@ export class App {
     } catch {
       badge.hidden = true;
     }
+  }
+
+  async renderPaymentsModule(title) {
+    const content = this.root.querySelector("#module-live-content");
+    if (!content) return;
+
+    content.innerHTML = [
+      "<div class=\"section-heading\">",
+      "<div>",
+      "<span class=\"eyebrow\">المركز المالي</span>",
+      "<h3>" + this.escape(title) + "</h3>",
+      "<p>المدفوعات والاشتراكات وكفالة مقاعد الطلاب داخل أكاديمية الأوَّابين.</p>",
+      "</div>",
+      "<div class=\"hero-actions\">",
+      "<button class=\"secondary-button\" id=\"finance-refresh\" type=\"button\">تحديث</button>",
+      "<button class=\"primary-button\" id=\"sponsorship-create\" type=\"button\">إنشاء كفالة</button>",
+      "</div>",
+      "</div>",
+
+      "<div class=\"reports-grid\">",
+      "<article class=\"report-card\"><div class=\"report-card-icon\">🤲</div><div class=\"report-card-body\"><span class=\"report-card-label\">عدد الكفالات</span><strong class=\"report-card-value\" id=\"sp-count\">—</strong></div></article>",
+      "<article class=\"report-card\"><div class=\"report-card-icon\">💰</div><div class=\"report-card-body\"><span class=\"report-card-label\">المبلغ المموّل</span><strong class=\"report-card-value\" id=\"sp-funded\">—</strong></div></article>",
+      "<article class=\"report-card\"><div class=\"report-card-icon\">📌</div><div class=\"report-card-body\"><span class=\"report-card-label\">المبلغ المخصص</span><strong class=\"report-card-value\" id=\"sp-allocated\">—</strong></div></article>",
+      "<article class=\"report-card\"><div class=\"report-card-icon\">🌱</div><div class=\"report-card-body\"><span class=\"report-card-label\">المبلغ المتبقي</span><strong class=\"report-card-value\" id=\"sp-remaining\">—</strong></div></article>",
+      "</div>",
+
+      "<div id=\"sponsorship-modal\"></div>",
+
+      "<section class=\"content-card\" style=\"margin-top:18px;\">",
+      "<div class=\"section-heading\">",
+      "<div>",
+      "<span class=\"eyebrow\">كفالة الطلاب</span>",
+      "<h3>الكفالات</h3>",
+      "<p>عرض الكفالات المسجلة ومتابعة الرصيد والتخصيص.</p>",
+      "</div>",
+      "</div>",
+      "<div id=\"sponsorship-list\"><div class=\"loading-state\"><div class=\"loading-spinner\"></div><h3>جاري تحميل الكفالات...</h3></div></div>",
+      "</section>"
+    ].join("");
+
+    const money = (value) => new Intl.NumberFormat("ar-EG", {
+      style: "currency",
+      currency: "EGP",
+      maximumFractionDigits: 2
+    }).format(Number(value || 0));
+
+    const modal = this.root.querySelector("#sponsorship-modal");
+
+    const closeModal = () => {
+      if (modal) modal.innerHTML = "";
+    };
+
+    const load = async () => {
+      const list = this.root.querySelector("#sponsorship-list");
+      if (!list) return;
+
+      list.innerHTML =
+        "<div class=\"loading-state\"><div class=\"loading-spinner\"></div><h3>جاري تحميل الكفالات...</h3></div>";
+
+      try {
+        const result = await this.apiGet("/api/sponsorships");
+        const items = Array.isArray(result?.data) ? result.data : [];
+
+        let funded = 0;
+        let allocated = 0;
+        let remaining = 0;
+
+        for (const item of items) {
+          funded += Number(item.funded_amount || 0);
+          allocated += Number(item.allocated_amount || 0);
+          remaining += Math.max(
+            0,
+            Number(
+              item.available_amount ??
+              (Number(item.funded_amount || 0) -
+               Number(item.allocated_amount || 0))
+            )
+          );
+        }
+
+        const count = this.root.querySelector("#sp-count");
+        const fundedEl = this.root.querySelector("#sp-funded");
+        const allocatedEl = this.root.querySelector("#sp-allocated");
+        const remainingEl = this.root.querySelector("#sp-remaining");
+
+        if (count) count.textContent = String(items.length);
+        if (fundedEl) fundedEl.textContent = money(funded);
+        if (allocatedEl) allocatedEl.textContent = money(allocated);
+        if (remainingEl) remainingEl.textContent = money(remaining);
+
+        if (!items.length) {
+          list.innerHTML =
+            "<div class=\"empty-state premium-empty\"><div class=\"empty-icon\">🤲</div><h3>لا توجد كفالات بعد</h3><p>سيظهر هنا سجل الكفالات التي يتم إنشاؤها وإدارتها.</p></div>";
+          return;
+        }
+
+        const scopeLabels = {
+          student: "طالب محدد",
+          seats: "مقاعد",
+          months: "أشهر",
+          level: "مستوى"
+        };
+
+        list.innerHTML =
+          "<div style=\"overflow-x:auto;\"><table class=\"data-table\"><thead><tr>" +
+          "<th>الكفالة</th>" +
+          "<th>النطاق</th>" +
+          "<th>المموّل</th>" +
+          "<th>المخصص</th>" +
+          "<th>المتاح</th>" +
+          "<th>الحالة</th>" +
+          "<th>إجراء</th>" +
+          "</tr></thead><tbody>" +
+
+          items.map((item) => {
+            const available = Math.max(
+              0,
+              Number(item.available_amount ??
+                (Number(item.funded_amount || 0) -
+                 Number(item.allocated_amount || 0)))
+            );
+
+            return (
+              "<tr>" +
+              "<td><strong>" +
+              this.escape(item.title || item.sponsor_name || "كفالة") +
+              "</strong></td>" +
+
+              "<td>" +
+              this.escape(scopeLabels[item.scope_type] || item.scope_type || "—") +
+              "</td>" +
+
+              "<td>" +
+              this.escape(money(item.funded_amount)) +
+              "</td>" +
+
+              "<td>" +
+              this.escape(money(item.allocated_amount)) +
+              "</td>" +
+
+              "<td>" +
+              this.escape(money(available)) +
+              "</td>" +
+
+              "<td><span class=\"status-pill\">" +
+              this.escape(item.status || "—") +
+              "</span></td>" +
+
+              "<td>" +
+              "<button class=\"secondary-button sponsorship-fund-btn\" " +
+              "data-id=\"" + Number(item.id) + "\" type=\"button\">" +
+              "تمويل</button>" +
+              "</td>" +
+
+              "</tr>"
+            );
+          }).join("") +
+
+          "</tbody></table></div>";
+
+        list.querySelectorAll(".sponsorship-fund-btn").forEach((button) => {
+          button.addEventListener("click", () => {
+            openFundModal(Number(button.dataset.id));
+          });
+        });
+
+      } catch (error) {
+        list.innerHTML =
+          "<div class=\"empty-state premium-empty\"><div class=\"empty-icon\">!</div><h3>تعذر تحميل الكفالات</h3><p>" +
+          this.escape(error?.message || "حدث خطأ أثناء تحميل الكفالات.") +
+          "</p></div>";
+      }
+    };
+
+    const openCreateModal = () => {
+      if (!modal) return;
+
+      modal.innerHTML = `
+        <div class="content-card sponsorship-modal-card" style="margin-top:18px;">
+          <div class="section-heading">
+            <div>
+              <span class="eyebrow">كفالة الطلاب</span>
+              <h3>إنشاء كفالة جديدة</h3>
+            </div>
+            <button class="secondary-button" id="sponsorship-close-modal" type="button">
+              إغلاق
+            </button>
+          </div>
+
+          <form id="sponsorship-create-form">
+            <div class="form-grid">
+
+              <label>
+                اسم الكافل
+                <input name="sponsor_name" required>
+              </label>
+
+              <label>
+                عنوان الكفالة
+                <input name="title" placeholder="مثال: كفالة طالب لمدة شهر">
+              </label>
+
+              <label>
+                نوع الكفالة
+                <select name="scope_type" required>
+                  <option value="student">طالب محدد</option>
+                  <option value="seats">عدد مقاعد</option>
+                  <option value="months">عدد أشهر</option>
+                  <option value="level">مستوى كامل</option>
+                </select>
+              </label>
+
+              <label>
+                رقم الطالب
+                <input name="target_student_id" type="number" min="1">
+              </label>
+
+              <label>
+                رقم المستوى
+                <input name="target_level_id" type="number" min="1">
+              </label>
+
+              <label>
+                عدد المقاعد
+                <input name="allocated_seats" type="number" min="1">
+              </label>
+
+              <label>
+                عدد الأشهر
+                <input name="allocated_months" type="number" min="1">
+              </label>
+
+              <label>
+                الهاتف
+                <input name="sponsor_phone">
+              </label>
+
+              <label>
+                البريد الإلكتروني
+                <input name="sponsor_email" type="email">
+              </label>
+
+              <label>
+                تاريخ البداية
+                <input name="start_date" type="date">
+              </label>
+
+              <label>
+                تاريخ النهاية
+                <input name="end_date" type="date">
+              </label>
+
+              <label class="checkbox-field">
+                <input name="is_anonymous" type="checkbox">
+                كفالة مجهولة للطلاب
+              </label>
+
+            </div>
+
+            <label>
+              ملاحظات
+              <textarea name="notes" rows="3"></textarea>
+            </label>
+
+            <div class="section-heading">
+              <span></span>
+              <button class="primary-button" type="submit">
+                إنشاء الكفالة
+              </button>
+            </div>
+
+            <div id="sponsorship-create-message"></div>
+          </form>
+        </div>
+      `;
+
+      modal.querySelector("#sponsorship-close-modal")
+        ?.addEventListener("click", closeModal);
+
+      modal.querySelector("#sponsorship-create-form")
+        ?.addEventListener("submit", async (event) => {
+          event.preventDefault();
+
+          const form = event.currentTarget;
+          const data = Object.fromEntries(new FormData(form).entries());
+
+          data.is_anonymous =
+            form.querySelector("[name=is_anonymous]")?.checked === true;
+
+          [
+            "target_student_id",
+            "target_level_id",
+            "allocated_seats",
+            "allocated_months"
+          ].forEach((key) => {
+            if (data[key] === "") delete data[key];
+          });
+
+          const message =
+            form.querySelector("#sponsorship-create-message");
+
+          try {
+            const response = await fetch("/api/sponsorships", {
+              method: "POST",
+              credentials: "same-origin",
+              headers: {
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                action: "create",
+                ...data
+              })
+            });
+
+            const result = await response.json();
+
+            if (!response.ok || !result.success) {
+              throw new Error(result?.error || "CREATE_FAILED");
+            }
+
+            message.innerHTML =
+              "<div class=\"quick-strip\">تم إنشاء الكفالة بنجاح.</div>";
+
+            form.reset();
+
+            await load();
+
+          } catch (error) {
+            message.innerHTML =
+              "<div class=\"quick-strip\">تعذر إنشاء الكفالة: " +
+              this.escape(error?.message || "CREATE_FAILED") +
+              "</div>";
+          }
+        });
+    };
+
+    const openFundModal = (sponsorshipId) => {
+      if (!modal) return;
+
+      modal.innerHTML = `
+        <div class="content-card sponsorship-modal-card" style="margin-top:18px;">
+          <div class="section-heading">
+            <div>
+              <span class="eyebrow">كفالة الطلاب</span>
+              <h3>تمويل الكفالة #${Number(sponsorshipId)}</h3>
+            </div>
+
+            <button class="secondary-button" id="sponsorship-close-fund" type="button">
+              إغلاق
+            </button>
+          </div>
+
+          <form id="sponsorship-fund-form">
+
+            <label>
+              مبلغ التمويل
+              <input
+                name="amount"
+                type="number"
+                min="0.01"
+                step="0.01"
+                required
+              >
+            </label>
+
+            <label>
+              رقم عملية الدفع — اختياري
+              <input name="payment_id" type="number" min="1">
+            </label>
+
+            <label>
+              ملاحظات
+              <textarea name="notes" rows="3"></textarea>
+            </label>
+
+            <button class="primary-button" type="submit">
+              تسجيل التمويل
+            </button>
+
+            <div id="sponsorship-fund-message"></div>
+          </form>
+        </div>
+      `;
+
+      modal.querySelector("#sponsorship-close-fund")
+        ?.addEventListener("click", closeModal);
+
+      modal.querySelector("#sponsorship-fund-form")
+        ?.addEventListener("submit", async (event) => {
+          event.preventDefault();
+
+          const form = event.currentTarget;
+          const data = Object.fromEntries(new FormData(form).entries());
+
+          if (data.payment_id === "") {
+            delete data.payment_id;
+          }
+
+          const message =
+            form.querySelector("#sponsorship-fund-message");
+
+          try {
+            const response = await fetch("/api/sponsorships", {
+              method: "POST",
+              credentials: "same-origin",
+              headers: {
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                action: "fund",
+                sponsorship_id: sponsorshipId,
+                ...data
+              })
+            });
+
+            const result = await response.json();
+
+            if (!response.ok || !result.success) {
+              throw new Error(result?.error || "FUNDING_FAILED");
+            }
+
+            message.innerHTML =
+              "<div class=\"quick-strip\">تم تسجيل التمويل بنجاح.</div>";
+
+            form.reset();
+
+            await load();
+
+          } catch (error) {
+            message.innerHTML =
+              "<div class=\"quick-strip\">تعذر تسجيل التمويل: " +
+              this.escape(error?.message || "FUNDING_FAILED") +
+              "</div>";
+          }
+        });
+    };
+
+    this.root.querySelector("#finance-refresh")
+      ?.addEventListener("click", load);
+
+    this.root.querySelector("#sponsorship-create")
+      ?.addEventListener("click", openCreateModal);
+
+    await load();
   }
 
   async renderNotificationsModule(title) {
@@ -11640,17 +13331,113 @@ export class App {
     const result = await this.apiGet("/api/settings");
     const rows = result?.data || [];
 
+    const sponsorshipSetting = rows.find(
+      row => row.setting_key === "academy.sponsorship_seats_open"
+    );
+
+    const individualSetting = rows.find(
+      row => row.setting_key === "academy.individual_booking_open"
+    );
+
+    const isSettingOpen = (value) =>
+      value === true ||
+      value === 1 ||
+      String(value).toLowerCase() === "true" ||
+      String(value) === "1";
+
+    const sponsorshipOpen =
+      isSettingOpen(sponsorshipSetting?.setting_value);
+
+    const individualOpen =
+      isSettingOpen(individualSetting?.setting_value);
+
     content.innerHTML = `
       <div class="section-heading">
         <div>
           <span class="eyebrow">إدارة الأكاديمية</span>
           <h3>${this.escape(title)}</h3>
-          <p>الإعدادات الحالية: <strong>${rows.length}</strong></p>
+          <p>التحكم في الخدمات المتاحة للطلاب وإعدادات الأكاديمية.</p>
         </div>
         <button class="secondary-button" id="refresh-module" type="button">
           تحديث
         </button>
       </div>
+
+      <section class="premium-card" style="margin-bottom:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;">
+          <div>
+            <span class="eyebrow">إتاحة الخدمات للطلاب</span>
+            <h3 style="margin:6px 0;">فتح وإغلاق الخدمات</h3>
+            <p style="margin:0;">
+              يتحكم هذا القسم في إمكانية الطلاب استخدام الكفالة والحجز الفردي.
+            </p>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-top:18px;">
+
+          <div class="premium-card" style="margin:0;">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+              <div>
+                <strong>كفالة مقاعد الطلاب</strong>
+                <p style="margin:6px 0 0;">
+                  ${sponsorshipOpen
+                    ? "الطلاب يستطيعون التقديم والاستفادة من الكفالات المتاحة."
+                    : "التقديم والاستفادة من كفالة المقاعد مغلقان حاليًا."}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                class="${sponsorshipOpen ? "primary-button" : "secondary-button"} availability-toggle"
+                data-setting-id="${sponsorshipSetting?.id ?? ""}"
+                data-setting-key="academy.sponsorship_seats_open"
+                data-next-value="${sponsorshipOpen ? "0" : "1"}"
+                ${sponsorshipSetting?.id ? "" : "disabled"}
+              >
+                ${sponsorshipOpen ? "إغلاق الكفالة" : "فتح الكفالة"}
+              </button>
+            </div>
+
+            <div style="margin-top:12px;">
+              <span class="status-badge">
+                ${sponsorshipOpen ? "مفتوحة للطلاب" : "مغلقة للطلاب"}
+              </span>
+            </div>
+          </div>
+
+          <div class="premium-card" style="margin:0;">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+              <div>
+                <strong>الحجز الفردي</strong>
+                <p style="margin:6px 0 0;">
+                  ${individualOpen
+                    ? "الطلاب يستطيعون إرسال طلبات الحجز الفردي."
+                    : "إرسال طلبات الحجز الفردي مغلق حاليًا."}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                class="${individualOpen ? "primary-button" : "secondary-button"} availability-toggle"
+                data-setting-id="${individualSetting?.id ?? ""}"
+                data-setting-key="academy.individual_booking_open"
+                data-next-value="${individualOpen ? "0" : "1"}"
+                ${individualSetting?.id ? "" : "disabled"}
+              >
+                ${individualOpen ? "إغلاق الحجز" : "فتح الحجز"}
+              </button>
+            </div>
+
+            <div style="margin-top:12px;">
+              <span class="status-badge">
+                ${individualOpen ? "مفتوح للطلاب" : "مغلق للطلاب"}
+              </span>
+            </div>
+          </div>
+
+        </div>
+      </section>
 
       <div class="table-wrap">
         ${
@@ -11694,6 +13481,54 @@ export class App {
       "click",
       () => this.renderModule("settings")
     );
+
+    content.querySelectorAll(".availability-toggle").forEach(button => {
+      button.addEventListener("click", async () => {
+        const settingId = Number(button.dataset.settingId);
+        const settingKey = button.dataset.settingKey;
+        const nextValue = button.dataset.nextValue;
+
+        if (!Number.isFinite(settingId) || !settingKey) {
+          return;
+        }
+
+        const originalText = button.textContent;
+        button.disabled = true;
+        button.textContent = "جارٍ الحفظ...";
+
+        try {
+          const response = await fetch("/api/settings", {
+            method: "PATCH",
+            credentials: "include",
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json"
+            },
+            body: JSON.stringify({
+              id: settingId,
+              setting_key: settingKey,
+              setting_value: nextValue
+            })
+          });
+
+          const data = await response.json().catch(() => ({}));
+
+          if (!response.ok || !data.success) {
+            throw new Error(
+              data.message ||
+              data.error ||
+              "تعذر حفظ إعداد الخدمة."
+            );
+          }
+
+          await this.renderModule("settings");
+        } catch (error) {
+          button.disabled = false;
+          button.textContent = originalText;
+          alert(error.message || "حدث خطأ أثناء تحديث الإعداد.");
+        }
+      });
+    });
   }
 
   setHeading(title, subtitle) {

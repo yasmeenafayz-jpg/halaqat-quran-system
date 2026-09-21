@@ -311,7 +311,7 @@ export async function onRequestPost(context) {
 
     const excuseDeadlineHours =
       Number(
-        excuseRules?.excuse_deadline_hours ?? 4
+        excuseRules?.excuse_deadline_hours ?? 24
       );
 
     if (sessionStart) {

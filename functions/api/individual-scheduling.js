@@ -1214,6 +1214,19 @@ export async function onRequestPost(context) {
       action === "create_request" ||
       action === "request_slot"
     ) {
+      if (isStudentUser(dbPermissionUser)) {
+        const individualBookingSetting = await db.prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'academy.individual_booking_open' AND scope_type = 'global' LIMIT 1").first();
+        const individualBookingOpen =
+          individualBookingSetting?.setting_value === true ||
+          individualBookingSetting?.setting_value === 1 ||
+          String(individualBookingSetting?.setting_value).toLowerCase() === "true" ||
+          String(individualBookingSetting?.setting_value) === "1";
+
+        if (!individualBookingOpen) {
+          return fail("INDIVIDUAL_BOOKING_CLOSED", 409);
+        }
+      }
+
       const requestedStudentId = id(
         body.student_id ??
         body.studentId
