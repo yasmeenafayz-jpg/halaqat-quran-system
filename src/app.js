@@ -2824,8 +2824,30 @@ export class App {
               </div>
             `;
 
+          const quranDateShortcutsStyle = `
+            <style>
+              .quran-date-shortcuts {
+                display:flex;
+                flex-wrap:wrap;
+                gap:6px;
+                margin-top:7px;
+              }
+
+              .quran-date-shortcuts .secondary-button {
+                padding:6px 10px;
+                min-height:34px;
+                font-size:12px;
+              }
+
+              .quran-date-shortcuts button {
+                cursor:pointer;
+              }
+            </style>
+          `;
+
           const quranManagementHtml = canManageQuran
             ? `
+              ${quranDateShortcutsStyle}
               <section class="content-card" style="margin-bottom:16px;">
                 <div class="section-heading">
                   <div>
@@ -2881,10 +2903,14 @@ export class App {
                         <input
                           type="date"
                           name="start_date"
+                          id="quran-plan-start-date"
                           required
                           value="${this.escape(new Date().toISOString().slice(0,10))}"
                           style="width:100%;padding:11px;margin-top:6px"
                         >
+                        <div class="quran-date-shortcuts">
+                          <button type="button" class="secondary-button quran-date-start-today">اليوم</button>
+                        </div>
                       </label>
 
                       <label>
@@ -2892,8 +2918,14 @@ export class App {
                         <input
                           type="date"
                           name="target_end_date"
+                          id="quran-plan-end-date"
                           style="width:100%;padding:11px;margin-top:6px"
                         >
+                        <div class="quran-date-shortcuts">
+                          <button type="button" class="secondary-button quran-date-end-30">30 يوم</button>
+                          <button type="button" class="secondary-button quran-date-end-90">3 أشهر</button>
+                          <button type="button" class="secondary-button quran-date-end-year">نهاية العام</button>
+                        </div>
                       </label>
                     </div>
 
@@ -3106,8 +3138,14 @@ export class App {
                             <input
                               type="date"
                               name="due_date"
+                              id="quran-goal-due-date"
                               style="width:100%;padding:11px;margin-top:6px"
                             >
+                            <div class="quran-date-shortcuts">
+                              <button type="button" class="secondary-button quran-goal-due-today">اليوم</button>
+                              <button type="button" class="secondary-button quran-goal-due-7">7 أيام</button>
+                              <button type="button" class="secondary-button quran-goal-due-30">30 يوم</button>
+                            </div>
                           </label>
 
                           <label style="display:block;margin-top:12px">
@@ -3704,6 +3742,139 @@ export class App {
 
         const bindQuranManagementForms = () => {
           if (!canManageQuran) return;
+
+          const formatQuranDate = (date) => {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, "0");
+            const day = String(date.getDate()).padStart(2, "0");
+
+            return `${year}-${month}-${day}`;
+          };
+
+          const quranAddDays = (date, days) => {
+            const result = new Date(date);
+            result.setDate(result.getDate() + days);
+            return result;
+          };
+
+          const quranAddMonths = (date, months) => {
+            const result = new Date(date);
+            result.setMonth(result.getMonth() + months);
+            return result;
+          };
+
+          const startDateInput =
+            content.querySelector("#quran-plan-start-date");
+
+          const endDateInput =
+            content.querySelector("#quran-plan-end-date");
+
+          const goalDueInput =
+            content.querySelector("#quran-goal-due-date");
+
+          const syncEndDate = () => {
+            if (!startDateInput || !endDateInput) return;
+
+            endDateInput.min = startDateInput.value || "";
+
+            if (
+              startDateInput.value &&
+              endDateInput.value &&
+              endDateInput.value < startDateInput.value
+            ) {
+              endDateInput.value = startDateInput.value;
+            }
+          };
+
+          startDateInput?.addEventListener("change", syncEndDate);
+
+          content
+            .querySelector(".quran-date-start-today")
+            ?.addEventListener("click", () => {
+              if (!startDateInput) return;
+
+              startDateInput.value = formatQuranDate(new Date());
+              syncEndDate();
+            });
+
+          content
+            .querySelector(".quran-date-end-30")
+            ?.addEventListener("click", () => {
+              if (!endDateInput) return;
+
+              const base = startDateInput?.value
+                ? new Date(`${startDateInput.value}T12:00:00`)
+                : new Date();
+
+              endDateInput.value =
+                formatQuranDate(quranAddDays(base, 30));
+
+              syncEndDate();
+            });
+
+          content
+            .querySelector(".quran-date-end-90")
+            ?.addEventListener("click", () => {
+              if (!endDateInput) return;
+
+              const base = startDateInput?.value
+                ? new Date(`${startDateInput.value}T12:00:00`)
+                : new Date();
+
+              endDateInput.value =
+                formatQuranDate(quranAddMonths(base, 3));
+
+              syncEndDate();
+            });
+
+          content
+            .querySelector(".quran-date-end-year")
+            ?.addEventListener("click", () => {
+              if (!endDateInput) return;
+
+              const base = startDateInput?.value
+                ? new Date(`${startDateInput.value}T12:00:00`)
+                : new Date();
+
+              endDateInput.value = formatQuranDate(
+                new Date(base.getFullYear(), 11, 31)
+              );
+
+              syncEndDate();
+            });
+
+          content
+            .querySelector(".quran-goal-due-today")
+            ?.addEventListener("click", () => {
+              if (!goalDueInput) return;
+
+              goalDueInput.value =
+                formatQuranDate(new Date());
+            });
+
+          content
+            .querySelector(".quran-goal-due-7")
+            ?.addEventListener("click", () => {
+              if (!goalDueInput) return;
+
+              goalDueInput.value =
+                formatQuranDate(
+                  quranAddDays(new Date(), 7)
+                );
+            });
+
+          content
+            .querySelector(".quran-goal-due-30")
+            ?.addEventListener("click", () => {
+              if (!goalDueInput) return;
+
+              goalDueInput.value =
+                formatQuranDate(
+                  quranAddDays(new Date(), 30)
+                );
+            });
+
+          syncEndDate();
 
           const formNumber = (value) => {
             const text = String(value ?? "").trim();
