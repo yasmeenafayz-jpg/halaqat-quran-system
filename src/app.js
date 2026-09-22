@@ -2819,6 +2819,333 @@ export class App {
               </div>
             `;
 
+          const canManageQuran =
+            this.user?.role === "admin" ||
+            this.user?.role === "supervisor" ||
+            this.user?.role === "teacher";
+
+          const quranManagementHtml = canManageQuran
+            ? `
+              <section class="content-card" style="margin-bottom:16px;">
+                <div class="section-heading">
+                  <div>
+                    <span class="eyebrow">إدارة التعلم</span>
+                    <h4>إعداد الخطة والمتابعة القرآنية</h4>
+                    <p>
+                      إنشاء خطة تعليمية أو تسجيل إنجاز قرآني للطالب المحدد.
+                    </p>
+                  </div>
+                </div>
+
+                <div style="
+                  display:grid;
+                  grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+                  gap:16px;
+                ">
+
+                  <form id="quran-create-plan-form" style="
+                    padding:16px;
+                    border:1px solid rgba(0,0,0,.08);
+                    border-radius:16px;
+                  ">
+                    <strong>خطة تعليمية جديدة</strong>
+
+                    <label style="display:block;margin-top:12px">
+                      <span>عنوان الخطة</span>
+                      <input
+                        name="title"
+                        required
+                        placeholder="مثال: خطة حفظ ومراجعة سورة البقرة"
+                        style="width:100%;padding:11px;margin-top:6px"
+                      >
+                    </label>
+
+                    <label style="display:block;margin-top:12px">
+                      <span>الهدف العام</span>
+                      <textarea
+                        name="goal"
+                        rows="3"
+                        placeholder="الهدف من الخطة..."
+                        style="width:100%;padding:11px;margin-top:6px;resize:vertical"
+                      ></textarea>
+                    </label>
+
+                    <div style="
+                      display:grid;
+                      grid-template-columns:1fr 1fr;
+                      gap:10px;
+                      margin-top:12px;
+                    ">
+                      <label>
+                        <span>تاريخ البداية</span>
+                        <input
+                          type="date"
+                          name="start_date"
+                          required
+                          value="${this.escape(new Date().toISOString().slice(0,10))}"
+                          style="width:100%;padding:11px;margin-top:6px"
+                        >
+                      </label>
+
+                      <label>
+                        <span>النهاية المستهدفة</span>
+                        <input
+                          type="date"
+                          name="target_end_date"
+                          style="width:100%;padding:11px;margin-top:6px"
+                        >
+                      </label>
+                    </div>
+
+                    <label style="display:block;margin-top:12px">
+                      <span>حالة الخطة</span>
+                      <select
+                        name="status"
+                        style="width:100%;padding:11px;margin-top:6px"
+                      >
+                        <option value="draft">مسودة</option>
+                        <option value="active" selected>نشطة</option>
+                        <option value="paused">متوقفة مؤقتًا</option>
+                      </select>
+                    </label>
+
+                    <button
+                      type="submit"
+                      class="primary-button"
+                      style="margin-top:14px;width:100%"
+                    >
+                      إنشاء الخطة
+                    </button>
+                  </form>
+
+                  <form id="quran-record-progress-form" style="
+                    padding:16px;
+                    border:1px solid rgba(0,0,0,.08);
+                    border-radius:16px;
+                  ">
+                    <strong>تسجيل متابعة قرآنية</strong>
+
+                    <label style="display:block;margin-top:12px">
+                      <span>نوع النشاط</span>
+                      <select
+                        name="activity_type"
+                        required
+                        style="width:100%;padding:11px;margin-top:6px"
+                      >
+                        <option value="new_memorization">حفظ جديد</option>
+                        <option value="review">مراجعة</option>
+                        <option value="memorization_review">حفظ + مراجعة</option>
+                        <option value="tamkeen">تمكين وتثبيت</option>
+                        <option value="cumulative_recitation">تسميع تراكمي</option>
+                      </select>
+                    </label>
+
+                    <label style="display:block;margin-top:12px">
+                      <span>السورة</span>
+                      <input
+                        name="surah_name"
+                        placeholder="مثال: البقرة"
+                        style="width:100%;padding:11px;margin-top:6px"
+                      >
+                    </label>
+
+                    <div style="
+                      display:grid;
+                      grid-template-columns:1fr 1fr;
+                      gap:10px;
+                      margin-top:12px;
+                    ">
+                      <label>
+                        <span>رقم السورة</span>
+                        <input
+                          type="number"
+                          name="surah_number"
+                          min="1"
+                          max="114"
+                          required
+                          style="width:100%;padding:11px;margin-top:6px"
+                        >
+                      </label>
+
+                      <label>
+                        <span>الكمية / الوصف</span>
+                        <input
+                          name="amount_label"
+                          placeholder="ربع حزب / صفحة..."
+                          style="width:100%;padding:11px;margin-top:6px"
+                        >
+                      </label>
+                    </div>
+
+                    <div style="
+                      display:grid;
+                      grid-template-columns:1fr 1fr;
+                      gap:10px;
+                      margin-top:12px;
+                    ">
+                      <label>
+                        <span>من آية</span>
+                        <input
+                          type="number"
+                          name="from_ayah"
+                          min="1"
+                          style="width:100%;padding:11px;margin-top:6px"
+                        >
+                      </label>
+
+                      <label>
+                        <span>إلى آية</span>
+                        <input
+                          type="number"
+                          name="to_ayah"
+                          min="1"
+                          style="width:100%;padding:11px;margin-top:6px"
+                        >
+                      </label>
+                    </div>
+
+                    <label style="display:block;margin-top:12px">
+                      <span>درجة الجودة</span>
+                      <input
+                        type="number"
+                        name="quality_score"
+                        min="0"
+                        max="100"
+                        placeholder="من 100"
+                        style="width:100%;padding:11px;margin-top:6px"
+                      >
+                    </label>
+
+                    <label style="display:block;margin-top:12px">
+                      <span>ملاحظة المعلم</span>
+                      <textarea
+                        name="teacher_note"
+                        rows="2"
+                        style="width:100%;padding:11px;margin-top:6px;resize:vertical"
+                      ></textarea>
+                    </label>
+
+                    <button
+                      type="submit"
+                      class="primary-button"
+                      style="margin-top:14px;width:100%"
+                    >
+                      تسجيل المتابعة
+                    </button>
+                  </form>
+
+                  <form id="quran-create-goal-form" style="
+                    padding:16px;
+                    border:1px solid rgba(0,0,0,.08);
+                    border-radius:16px;
+                  ">
+                    <strong>إضافة هدف للخطة</strong>
+
+                    ${
+                      learningPlan
+                        ? `
+                          <label style="display:block;margin-top:12px">
+                            <span>نوع الهدف</span>
+                            <select
+                              name="goal_type"
+                              required
+                              style="width:100%;padding:11px;margin-top:6px"
+                            >
+                              <option value="memorization">حفظ</option>
+                              <option value="review">مراجعة</option>
+                              <option value="memorization_review">حفظ + مراجعة</option>
+                              <option value="tamkeen">تمكين وتثبيت</option>
+                              <option value="cumulative_recitation">تسميع تراكمي</option>
+                              <option value="tajweed">تجويد</option>
+                              <option value="test">اختبار</option>
+                              <option value="attendance">حضور</option>
+                              <option value="skill">مهارة</option>
+                              <option value="custom">هدف مخصص</option>
+                            </select>
+                          </label>
+
+                          <label style="display:block;margin-top:12px">
+                            <span>عنوان الهدف</span>
+                            <input
+                              name="title"
+                              required
+                              placeholder="مثال: حفظ ربع من سورة البقرة"
+                              style="width:100%;padding:11px;margin-top:6px"
+                            >
+                          </label>
+
+                          <div style="
+                            display:grid;
+                            grid-template-columns:1fr 1fr;
+                            gap:10px;
+                            margin-top:12px;
+                          ">
+                            <label>
+                              <span>القيمة المستهدفة</span>
+                              <input
+                                type="number"
+                                name="target_value"
+                                min="0"
+                                step="0.01"
+                                style="width:100%;padding:11px;margin-top:6px"
+                              >
+                            </label>
+
+                            <label>
+                              <span>وحدة القياس</span>
+                              <input
+                                name="target_unit"
+                                placeholder="آية / صفحة / حزب"
+                                style="width:100%;padding:11px;margin-top:6px"
+                              >
+                            </label>
+                          </div>
+
+                          <label style="display:block;margin-top:12px">
+                            <span>تاريخ الاستحقاق</span>
+                            <input
+                              type="date"
+                              name="due_date"
+                              style="width:100%;padding:11px;margin-top:6px"
+                            >
+                          </label>
+
+                          <label style="display:block;margin-top:12px">
+                            <span>ملاحظات</span>
+                            <textarea
+                              name="notes"
+                              rows="2"
+                              style="width:100%;padding:11px;margin-top:6px;resize:vertical"
+                            ></textarea>
+                          </label>
+
+                          <button
+                            type="submit"
+                            class="primary-button"
+                            style="margin-top:14px;width:100%"
+                          >
+                            إضافة الهدف
+                          </button>
+                        `
+                        : `
+                          <div style="
+                            margin-top:14px;
+                            padding:14px;
+                            border-radius:12px;
+                            background:rgba(0,0,0,.04);
+                            font-size:13px;
+                          ">
+                            أنشئ الخطة التعليمية أولًا، ثم أضف أهدافها.
+                          </div>
+                        `
+                    }
+                  </form>
+
+                </div>
+              </section>
+            `
+            : "";
+
           const learningPlanHtml = `
             <section class="content-card" style="margin-bottom:16px;">
               <div class="section-heading">
@@ -3239,6 +3566,7 @@ export class App {
           };
 
           area.innerHTML = `
+            ${quranManagementHtml}
             ${learningPlanHtml}
 
             <section class="content-card" style="margin-top:16px;">
@@ -3373,6 +3701,338 @@ export class App {
             loadStudent
           );
         }
+
+        const bindQuranManagementForms = () => {
+          if (!canManageQuran) return;
+
+          const formNumber = (value) => {
+            const text = String(value ?? "").trim();
+
+            if (!text) return null;
+
+            const number = Number(text);
+
+            return Number.isFinite(number)
+              ? number
+              : null;
+          };
+
+          const setBusy = (button, busyText) => {
+            if (!button) return () => {};
+
+            const originalText = button.textContent;
+
+            button.disabled = true;
+            button.textContent = busyText;
+
+            return () => {
+              button.disabled = false;
+              button.textContent = originalText;
+            };
+          };
+
+          // إنشاء خطة تعليمية
+          const planForm =
+            area.querySelector("#quran-create-plan-form");
+
+          planForm?.addEventListener(
+            "submit",
+            async (event) => {
+              event.preventDefault();
+
+              const form = event.currentTarget;
+              const button =
+                form.querySelector('button[type="submit"]');
+
+              const fd = new FormData(form);
+              const studentId = Number(select.value);
+
+              if (
+                !Number.isFinite(studentId) ||
+                studentId <= 0
+              ) {
+                alert("اختر الطالب أولًا.");
+                return;
+              }
+
+              const title =
+                String(fd.get("title") || "").trim();
+
+              const startDate =
+                String(fd.get("start_date") || "").trim();
+
+              if (!title || !startDate) {
+                alert("أدخل عنوان الخطة وتاريخ البداية.");
+                return;
+              }
+
+              const restore =
+                setBusy(button, "جارٍ إنشاء الخطة...");
+
+              try {
+                const result =
+                  await this.apiPost(
+                    "/api/learning-plan",
+                    {
+                      action: "create_plan",
+                      student_id: studentId,
+                      title,
+                      goal:
+                        String(fd.get("goal") || "").trim(),
+                      start_date: startDate,
+                      target_end_date:
+                        String(
+                          fd.get("target_end_date") || ""
+                        ).trim() || null,
+                      status:
+                        String(
+                          fd.get("status") || "active"
+                        ).trim()
+                    }
+                  );
+
+                if (!result?.success) {
+                  throw new Error(
+                    result?.error ||
+                    result?.message ||
+                    "تعذر إنشاء الخطة."
+                  );
+                }
+
+                await loadStudent();
+              } catch (error) {
+                alert(
+                  error?.message ||
+                  "تعذر إنشاء الخطة."
+                );
+
+                restore();
+              }
+            }
+          );
+
+          // إضافة هدف للخطة
+          const goalForm =
+            area.querySelector("#quran-create-goal-form");
+
+          goalForm?.addEventListener(
+            "submit",
+            async (event) => {
+              event.preventDefault();
+
+              if (!learningPlan?.id) {
+                alert("أنشئ الخطة التعليمية أولًا.");
+                return;
+              }
+
+              const form = event.currentTarget;
+              const button =
+                form.querySelector('button[type="submit"]');
+
+              const fd = new FormData(form);
+
+              const title =
+                String(fd.get("title") || "").trim();
+
+              const goalType =
+                String(
+                  fd.get("goal_type") || ""
+                ).trim();
+
+              if (!title || !goalType) {
+                alert("أدخل نوع الهدف وعنوانه.");
+                return;
+              }
+
+              const restore =
+                setBusy(button, "جارٍ إضافة الهدف...");
+
+              try {
+                const result =
+                  await this.apiPost(
+                    "/api/learning-plan",
+                    {
+                      action: "create_goal",
+                      plan_id:
+                        Number(learningPlan.id),
+                      goal_type: goalType,
+                      title,
+                      target_value:
+                        String(
+                          fd.get("target_value") || ""
+                        ).trim() || null,
+                      target_unit:
+                        String(
+                          fd.get("target_unit") || ""
+                        ).trim(),
+                      due_date:
+                        String(
+                          fd.get("due_date") || ""
+                        ).trim() || null,
+                      notes:
+                        String(
+                          fd.get("notes") || ""
+                        ).trim()
+                    }
+                  );
+
+                if (!result?.success) {
+                  throw new Error(
+                    result?.error ||
+                    result?.message ||
+                    "تعذر إضافة الهدف."
+                  );
+                }
+
+                await loadStudent();
+              } catch (error) {
+                alert(
+                  error?.message ||
+                  "تعذر إضافة الهدف."
+                );
+
+                restore();
+              }
+            }
+          );
+
+          // تسجيل متابعة قرآنية
+          const progressForm =
+            area.querySelector(
+              "#quran-record-progress-form"
+            );
+
+          progressForm?.addEventListener(
+            "submit",
+            async (event) => {
+              event.preventDefault();
+
+              const form = event.currentTarget;
+              const button =
+                form.querySelector('button[type="submit"]');
+
+              const fd = new FormData(form);
+
+              const studentId =
+                Number(select.value);
+
+              const activityType =
+                String(
+                  fd.get("activity_type") || ""
+                ).trim();
+
+              const surahNumber =
+                formNumber(fd.get("surah_number"));
+
+              if (
+                !Number.isFinite(studentId) ||
+                studentId <= 0
+              ) {
+                alert("اختر الطالب أولًا.");
+                return;
+              }
+
+              if (
+                !activityType ||
+                !Number.isFinite(surahNumber) ||
+                surahNumber < 1 ||
+                surahNumber > 114
+              ) {
+                alert(
+                  "أدخل نوع النشاط ورقم السورة بشكل صحيح."
+                );
+                return;
+              }
+
+              const fromAyah =
+                formNumber(fd.get("from_ayah"));
+
+              const toAyah =
+                formNumber(fd.get("to_ayah"));
+
+              if (
+                fromAyah !== null &&
+                toAyah !== null &&
+                toAyah < fromAyah
+              ) {
+                alert(
+                  "الآية الأخيرة لا يمكن أن تسبق الآية الأولى."
+                );
+                return;
+              }
+
+              const qualityScore =
+                formNumber(
+                  fd.get("quality_score")
+                );
+
+              if (
+                qualityScore !== null &&
+                (
+                  qualityScore < 0 ||
+                  qualityScore > 100
+                )
+              ) {
+                alert(
+                  "درجة الجودة يجب أن تكون بين 0 و100."
+                );
+                return;
+              }
+
+              const restore =
+                setBusy(
+                  button,
+                  "جارٍ تسجيل المتابعة..."
+                );
+
+              try {
+                const result =
+                  await this.apiPost(
+                    "/api/quran-progress",
+                    {
+                      student_id: studentId,
+                      activity_type: activityType,
+                      surah_number: surahNumber,
+                      surah_name:
+                        String(
+                          fd.get("surah_name") || ""
+                        ).trim() || null,
+                      from_ayah: fromAyah,
+                      to_ayah: toAyah,
+                      amount_label:
+                        String(
+                          fd.get("amount_label") || ""
+                        ).trim() || null,
+                      quality_score: qualityScore,
+                      teacher_note:
+                        String(
+                          fd.get("teacher_note") || ""
+                        ).trim() || null
+                    }
+                  );
+
+                if (!result?.success) {
+                  throw new Error(
+                    result?.error ||
+                    result?.message ||
+                    "تعذر تسجيل المتابعة."
+                  );
+                }
+
+                await loadStudent();
+              } catch (error) {
+                alert(
+                  error?.message ||
+                  "تعذر تسجيل المتابعة القرآنية."
+                );
+
+                restore();
+              }
+            }
+          );
+        };
+
+        bindQuranManagementForms();
 
         area
           .querySelectorAll("[data-learning-goal-save]")
