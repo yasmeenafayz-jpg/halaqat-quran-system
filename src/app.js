@@ -7834,7 +7834,7 @@ export class App {
           </div>
         </div>
 
-        <form id="student-form">
+        <form id="student-form" class="student-form">
           <div
             style="
               display:grid;

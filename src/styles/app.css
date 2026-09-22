@@ -1769,3 +1769,230 @@ button {
     padding: 8px;
   }
 }
+
+
+/* ===== Student Form Layout Fix ===== */
+
+.student-form {
+  width: 100%;
+}
+
+.student-form > div {
+  min-width: 0;
+}
+
+.student-form > div > div {
+  min-width: 0;
+}
+
+.student-form label {
+  display: block;
+  margin: 0 0 6px;
+  line-height: 1.5;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.student-form .form-input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  line-height: 1.5;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 10px;
+  background: var(--surface, #fff);
+  color: inherit;
+}
+
+.student-form select.form-input {
+  appearance: auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.student-form textarea.form-input {
+  min-height: 100px;
+  resize: vertical;
+}
+
+.student-form .form-input::placeholder {
+  opacity: .65;
+}
+
+@media (max-width: 640px) {
+  .student-form > div {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .student-form label {
+    font-size: 13px;
+  }
+
+  .student-form .form-input {
+    min-height: 46px;
+  }
+}
+
+/* ===== Student Form Practical UI v2 ===== */
+
+.student-form {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.student-form > div {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.student-form > div > div {
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Labels */
+.student-form label {
+  display: block;
+  margin: 0 0 7px;
+  line-height: 1.55;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text, #1f2937);
+}
+
+/* All controls */
+.student-form input,
+.student-form select,
+.student-form textarea,
+.student-form .form-input {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  min-height: 46px;
+  padding: 10px 13px;
+  line-height: 1.5;
+  font-size: 14px;
+  border: 1px solid var(--border, #dfe3ea);
+  border-radius: 10px;
+  background: var(--surface, #fff);
+  color: inherit;
+  outline: none;
+}
+
+.student-form input:focus,
+.student-form select:focus,
+.student-form textarea:focus,
+.student-form .form-input:focus {
+  border-color: var(--primary, #7c5cff);
+  box-shadow: 0 0 0 3px rgba(124, 92, 255, .10);
+}
+
+/* Selects */
+.student-form select {
+  appearance: auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-right: 10px;
+}
+
+/* Date */
+.student-form input[type="date"] {
+  min-height: 46px;
+}
+
+/* Text areas: address + notes */
+.student-form textarea {
+  min-height: 105px;
+  resize: vertical;
+}
+
+/* Long fields should breathe */
+.student-form input[name="student_code"],
+.student-form input[name="email"],
+.student-form input[name="guardian_email"],
+.student-form input[name="address"],
+.student-form textarea[name="address"],
+.student-form textarea[name="notes"] {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Placeholder */
+.student-form input::placeholder,
+.student-form textarea::placeholder {
+  opacity: .6;
+}
+
+/* Make the last long fields full width when possible */
+.student-form textarea {
+  width: 100%;
+}
+
+/* Form action area */
+.student-form button {
+  min-height: 44px;
+  border-radius: 10px;
+  padding: 10px 18px;
+  font-weight: 700;
+}
+
+/* Prevent cramped modal content */
+#student-form {
+  overflow: visible;
+}
+
+/* Mobile: one clean column */
+@media (max-width: 700px) {
+  .student-form > div {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 14px !important;
+  }
+
+  .student-form label {
+    font-size: 13px;
+    margin-bottom: 6px;
+  }
+
+  .student-form input,
+  .student-form select,
+  .student-form textarea,
+  .student-form .form-input {
+    min-height: 48px;
+    font-size: 15px;
+  }
+
+  .student-form textarea {
+    min-height: 110px;
+  }
+
+  .student-form button {
+    width: 100%;
+  }
+}
+
+/* Very small phones */
+@media (max-width: 420px) {
+  .student-form > div {
+    gap: 12px !important;
+  }
+
+  .student-form input,
+  .student-form select,
+  .student-form textarea,
+  .student-form .form-input {
+    min-height: 46px;
+    padding: 9px 11px;
+  }
+}
+
