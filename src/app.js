@@ -2400,6 +2400,11 @@ export class App {
     const content = this.root.querySelector("#module-live-content");
     if (!content) return;
 
+    const canManageQuran =
+      this.user?.role === "admin" ||
+      this.user?.role === "supervisor" ||
+      this.user?.role === "teacher";
+
     content.innerHTML = `
       <div class="section-heading">
         <div>
@@ -2818,11 +2823,6 @@ export class App {
                 لا توجد أهداف تعليمية مضافة حاليًا.
               </div>
             `;
-
-          const canManageQuran =
-            this.user?.role === "admin" ||
-            this.user?.role === "supervisor" ||
-            this.user?.role === "teacher";
 
           const quranManagementHtml = canManageQuran
             ? `
