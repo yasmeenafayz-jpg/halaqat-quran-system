@@ -1,4 +1,8 @@
 import { requirePermission } from "./_auth.js";
+import {
+  consumeEntitlementWithIndividualBookingSession,
+  restoreIndividualBookingEntitlement,
+} from "./_workflow.js";
 const HEADERS = {
   "Content-Type": "application/json; charset=utf-8",
 };
@@ -1823,6 +1827,78 @@ export async function onRequestPatch(context) {
       const createdAt = timestamp();
       const decidedAt = timestamp();
 
+      /*
+       * =====================================================
+       * SUBSCRIPTION ENTITLEMENT COVERAGE
+       * =====================================================
+       *
+       * Only a valid SESSION entitlement belonging to the
+       * exact subscription attached to this request may cover
+       * the individual booking.
+       *
+       * Sponsorship/manual entitlements are NOT consumed here.
+       */
+
+      let coveredEntitlement = null;
+
+      if (current.subscription_id) {
+        coveredEntitlement = await db
+          .prepare(`
+            SELECT
+              se.id,
+              se.student_id,
+              se.source_type,
+              se.source_id,
+              se.entitlement_type,
+              se.title,
+              se.quantity,
+              se.used_quantity,
+              se.duration_minutes,
+              se.valid_from,
+              se.valid_until,
+              se.status
+            FROM student_entitlements se
+            WHERE se.student_id = ?1
+              AND se.source_type = 'subscription'
+              AND se.source_id = ?2
+              AND se.entitlement_type = 'session'
+              AND se.status = 'active'
+              AND se.used_quantity < se.quantity
+              AND (
+                se.valid_from IS NULL
+                OR se.valid_from <= date('now')
+              )
+              AND (
+                se.valid_until IS NULL
+                OR se.valid_until >= date('now')
+              )
+              AND (
+                se.duration_minutes IS NULL
+                OR se.duration_minutes = ?3
+              )
+              AND EXISTS (
+                SELECT 1
+                FROM subscriptions sub
+                WHERE sub.id = ?2
+                  AND sub.status IN ('active', 'trial')
+              )
+            ORDER BY se.id
+            LIMIT 1
+          `)
+          .bind(
+            current.student_id,
+            current.subscription_id,
+            Number(selectedOffering.duration_minutes)
+          )
+          .first();
+      }
+
+      /*
+       * =====================================================
+       * ACCEPT REQUEST + CREATE BOOKING
+       * =====================================================
+       */
+
       const statements = [
         db
           .prepare(`
@@ -1917,6 +1993,177 @@ export async function onRequestPatch(context) {
         );
       }
 
+      /*
+       * =====================================================
+       * COVERED BOOKING
+       * =====================================================
+       *
+       * Subscription entitlement exists:
+       *
+       * booking
+       *   -> official individual session
+       *   -> consume one entitlement
+       *   -> NO monetary charge
+       */
+
+      if (coveredEntitlement) {
+        try {
+          const covered =
+            await consumeEntitlementWithIndividualBookingSession(
+              db,
+              {
+                studentId:
+                  current.student_id,
+
+                entitlementId:
+                  coveredEntitlement.id,
+
+                bookingId,
+
+                circleId:
+                  current.circle_id,
+
+                teacherId:
+                  current.teacher_id,
+
+                sessionDate:
+                  current.requested_date,
+
+                startTime:
+                  current.requested_start_time,
+
+                endTime:
+                  current.requested_end_time,
+
+                durationMinutes:
+                  Number(
+                    selectedOffering.duration_minutes
+                  ),
+
+                notes:
+                  note ||
+                  `Individual booking #${bookingId}`,
+
+                createdBy:
+                  decidedBy,
+              }
+            );
+
+          return json({
+            success: true,
+            message:
+              "SCHEDULE_REQUEST_ACCEPTED",
+
+            data: {
+              request:
+                await request(
+                  db,
+                  requestId
+                ),
+
+              booking:
+                await booking(
+                  db,
+                  bookingId
+                ),
+
+              charge: null,
+
+              entitlement: {
+                id:
+                  covered.entitlement.id,
+
+                quantity:
+                  covered.entitlement.quantity,
+
+                used_quantity:
+                  covered.entitlement.used_quantity,
+
+                remaining_quantity:
+                  Number(
+                    covered.entitlement.quantity || 0
+                  ) -
+                  Number(
+                    covered.entitlement.used_quantity || 0
+                  ),
+
+                status:
+                  covered.entitlement.status,
+              },
+
+              session_id:
+                covered.sessionId,
+            },
+          });
+
+        } catch (entitlementError) {
+          console.error(
+            "INDIVIDUAL_BOOKING_ENTITLEMENT_ERROR",
+            entitlementError
+          );
+
+          /*
+           * IMPORTANT:
+           * request_id is UNIQUE in individual_schedule_bookings.
+           *
+           * Therefore we DELETE this newly-created booking rather
+           * than marking it cancelled, so the pending request can
+           * be accepted again safely.
+           */
+
+          try {
+            await db.batch([
+              db
+                .prepare(`
+                  DELETE FROM individual_schedule_bookings
+                  WHERE id = ?1
+                    AND status = 'confirmed'
+                    AND session_id IS NULL
+                `)
+                .bind(
+                  bookingId
+                ),
+
+              db
+                .prepare(`
+                  UPDATE individual_schedule_requests
+                  SET
+                    status = 'pending',
+                    decided_at = NULL,
+                    decided_by = NULL,
+                    teacher_response_note = NULL,
+                    updated_at = ?2
+                  WHERE id = ?1
+                    AND status = 'accepted'
+                `)
+                .bind(
+                  requestId,
+                  timestamp()
+                ),
+            ]);
+          } catch (rollbackError) {
+            console.error(
+              "INDIVIDUAL_BOOKING_ENTITLEMENT_ROLLBACK_ERROR",
+              rollbackError
+            );
+          }
+
+          return fail(
+            "ENTITLEMENT_BOOKING_CREATION_FAILED",
+            409
+          );
+        }
+      }
+
+      /*
+       * =====================================================
+       * NORMAL PAY-PER-SESSION BOOKING
+       * =====================================================
+       *
+       * No valid subscription entitlement:
+       * preserve the existing monetary payment flow.
+       */
+
       try {
         await db
           .prepare(`
@@ -1956,42 +2203,55 @@ export async function onRequestPatch(context) {
             createdAt
           )
           .run();
+
       } catch (chargeError) {
         console.error(
           "INDIVIDUAL_BOOKING_CHARGE_CREATE_ERROR",
           chargeError
         );
 
-        await db
-          .prepare(`
-            UPDATE individual_schedule_bookings
-            SET
-              status = 'cancelled',
-              updated_at = ?2
-            WHERE id = ?1
-          `)
-          .bind(
-            bookingId,
-            timestamp()
-          )
-          .run();
+        /*
+         * Same UNIQUE request_id consideration:
+         * delete the fresh booking instead of leaving a cancelled
+         * booking behind.
+         */
 
-        await db
-          .prepare(`
-            UPDATE individual_schedule_requests
-            SET
-              status = 'pending',
-              decided_at = NULL,
-              decided_by = NULL,
-              teacher_response_note = NULL,
-              updated_at = ?2
-            WHERE id = ?1
-          `)
-          .bind(
-            requestId,
-            timestamp()
-          )
-          .run();
+        try {
+          await db.batch([
+            db
+              .prepare(`
+                DELETE FROM individual_schedule_bookings
+                WHERE id = ?1
+                  AND status = 'confirmed'
+                  AND session_id IS NULL
+              `)
+              .bind(
+                bookingId
+              ),
+
+            db
+              .prepare(`
+                UPDATE individual_schedule_requests
+                SET
+                  status = 'pending',
+                  decided_at = NULL,
+                  decided_by = NULL,
+                  teacher_response_note = NULL,
+                  updated_at = ?2
+                WHERE id = ?1
+                  AND status = 'accepted'
+              `)
+              .bind(
+                requestId,
+                timestamp()
+              ),
+          ]);
+        } catch (rollbackError) {
+          console.error(
+            "INDIVIDUAL_BOOKING_CHARGE_ROLLBACK_ERROR",
+            rollbackError
+          );
+        }
 
         return fail(
           "BOOKING_CHARGE_CREATION_FAILED",
@@ -2003,36 +2263,44 @@ export async function onRequestPatch(context) {
         success: true,
         message:
           "SCHEDULE_REQUEST_ACCEPTED",
+
         data: {
-          request: await request(
-            db,
-            requestId
-          ),
-          booking: await booking(
-            db,
-            bookingId
-          ),
-          charge: await db
-            .prepare(`
-              SELECT
-                id,
-                booking_id,
-                student_id,
-                offering_id,
-                amount,
-                currency,
-                status,
-                payment_id,
-                due_at,
-                paid_at,
-                created_at,
-                updated_at
-              FROM individual_booking_charges
-              WHERE booking_id = ?1
-              LIMIT 1
-            `)
-            .bind(bookingId)
-            .first(),
+          request:
+            await request(
+              db,
+              requestId
+            ),
+
+          booking:
+            await booking(
+              db,
+              bookingId
+            ),
+
+          charge:
+            await db
+              .prepare(`
+                SELECT
+                  id,
+                  booking_id,
+                  student_id,
+                  offering_id,
+                  amount,
+                  currency,
+                  status,
+                  payment_id,
+                  due_at,
+                  paid_at,
+                  created_at,
+                  updated_at
+                FROM individual_booking_charges
+                WHERE booking_id = ?1
+                LIMIT 1
+              `)
+              .bind(
+                bookingId
+              )
+              .first(),
         },
       });
     }
@@ -2180,38 +2448,142 @@ export async function onRequestPatch(context) {
 
       const time = timestamp();
 
+      /*
+       * Find the current booking before changing its status.
+       */
+      const currentBooking =
+        await db
+          .prepare(`
+            SELECT
+              id,
+              request_id,
+              student_id,
+              teacher_id,
+              subscription_id,
+              session_id,
+              status
+            FROM individual_schedule_bookings
+            WHERE request_id = ?1
+            ORDER BY id DESC
+            LIMIT 1
+          `)
+          .bind(requestId)
+          .first();
+
+      /*
+       * Covered individual booking:
+       *
+       * restore the consumed entitlement exactly once
+       * and cancel the official session.
+       */
+      if (
+        currentBooking &&
+        ["confirmed", "rescheduled"].includes(
+          currentBooking.status
+        ) &&
+        currentBooking.session_id
+      ) {
+        try {
+          await restoreIndividualBookingEntitlement(
+            db,
+            {
+              bookingId:
+                currentBooking.id,
+              createdBy:
+                permission.user?.id ??
+                null,
+              reason:
+                `Individual booking #${currentBooking.id} cancelled`,
+            }
+          );
+        } catch (restoreError) {
+          console.error(
+            "INDIVIDUAL_BOOKING_ENTITLEMENT_RESTORE_ERROR",
+            restoreError
+          );
+
+          return fail(
+            "ENTITLEMENT_RESTORE_FAILED",
+            409
+          );
+        }
+
+        await db
+          .prepare(`
+            UPDATE sessions
+            SET
+              status = 'cancelled',
+              updated_at = ?2
+            WHERE id = ?1
+              AND status IN (
+                'scheduled',
+                'rescheduled'
+              )
+          `)
+          .bind(
+            currentBooking.session_id,
+            time
+          )
+          .run();
+      }
+
+      /*
+       * Cancel any still-pending monetary charge for this booking.
+       *
+       * Covered entitlement bookings have no charge row.
+       * Paid/waived/sponsored charges are intentionally untouched
+       * because they require separate refund/settlement rules.
+       */
       await db
         .prepare(`
-          UPDATE individual_schedule_requests
+          UPDATE individual_booking_charges
           SET
             status = 'cancelled',
-            decided_at = ?2,
             updated_at = ?2
-          WHERE id = ?1
+          WHERE booking_id = ?1
+            AND status = 'pending'
         `)
         .bind(
-          requestId,
+          currentBooking?.id ?? null,
           time
         )
         .run();
 
-      await db
-        .prepare(`
-          UPDATE individual_schedule_bookings
-          SET
-            status = 'cancelled',
-            updated_at = ?2
-          WHERE request_id = ?1
-            AND status IN (
-              'confirmed',
-              'rescheduled'
-            )
-        `)
-        .bind(
-          requestId,
-          time
-        )
-        .run();
+      /*
+       * Cancel request + booking together.
+       */
+      await db.batch([
+        db
+          .prepare(`
+            UPDATE individual_schedule_requests
+            SET
+              status = 'cancelled',
+              decided_at = ?2,
+              updated_at = ?2
+            WHERE id = ?1
+          `)
+          .bind(
+            requestId,
+            time
+          ),
+
+        db
+          .prepare(`
+            UPDATE individual_schedule_bookings
+            SET
+              status = 'cancelled',
+              updated_at = ?2
+            WHERE request_id = ?1
+              AND status IN (
+                'confirmed',
+                'rescheduled'
+              )
+          `)
+          .bind(
+            requestId,
+            time
+          ),
+      ]);
 
       return json({
         success: true,
@@ -2223,6 +2595,7 @@ export async function onRequestPatch(context) {
         ),
       });
     }
+
 
     if (
       action === "update_booking" ||
@@ -2274,11 +2647,114 @@ export async function onRequestPatch(context) {
         );
       }
 
+      /*
+       * Prevent reopening a cancelled booking blindly.
+       *
+       * A covered booking may already have had its entitlement
+       * restored, so reopening it without a fresh acceptance
+       * would create an untracked session.
+       */
+      if (
+        current.status === "cancelled" &&
+        ["confirmed", "rescheduled"].includes(
+          status
+        )
+      ) {
+        return fail(
+          "CANCELLED_BOOKING_CANNOT_BE_REOPENED",
+          409
+        );
+      }
+
       const sessionId =
         id(
           body.session_id ??
           body.sessionId
         ) || current.session_id;
+
+      const time = timestamp();
+
+      /*
+       * Covered booking cancellation:
+       *
+       * confirmed/rescheduled
+       *          ↓
+       * restore entitlement
+       *          ↓
+       * cancel official session
+       *          ↓
+       * cancel booking
+       */
+      if (
+        ["confirmed", "rescheduled"].includes(
+          current.status
+        ) &&
+        status === "cancelled"
+      ) {
+        if (current.session_id) {
+          try {
+            await restoreIndividualBookingEntitlement(
+              db,
+              {
+                bookingId:
+                  bookingId,
+                createdBy:
+                  permission.user?.id ??
+                  null,
+                reason:
+                  `Individual booking #${bookingId} cancelled`,
+              }
+            );
+          } catch (restoreError) {
+            console.error(
+              "INDIVIDUAL_BOOKING_ENTITLEMENT_RESTORE_ERROR",
+              restoreError
+            );
+
+            return fail(
+              "ENTITLEMENT_RESTORE_FAILED",
+              409
+            );
+          }
+
+          await db
+            .prepare(`
+              UPDATE sessions
+              SET
+                status = 'cancelled',
+                updated_at = ?2
+              WHERE id = ?1
+                AND status IN (
+                  'scheduled',
+                  'rescheduled'
+                )
+            `)
+            .bind(
+              current.session_id,
+              time
+            )
+            .run();
+        }
+      }
+
+      if (
+        status === "cancelled"
+      ) {
+        await db
+          .prepare(`
+            UPDATE individual_booking_charges
+            SET
+              status = 'cancelled',
+              updated_at = ?2
+            WHERE booking_id = ?1
+              AND status = 'pending'
+          `)
+          .bind(
+            bookingId,
+            time
+          )
+          .run();
+      }
 
       await db
         .prepare(`
@@ -2293,7 +2769,7 @@ export async function onRequestPatch(context) {
           bookingId,
           status,
           sessionId,
-          timestamp()
+          time
         )
         .run();
 
@@ -2306,6 +2782,7 @@ export async function onRequestPatch(context) {
         ),
       });
     }
+
 
     return fail(
       "INVALID_SCHEDULING_ACTION"

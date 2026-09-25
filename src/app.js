@@ -7579,121 +7579,232 @@ export class App {
 
     const render = () => {
       content.innerHTML = `
-        <div class="section-heading">
-          <div>
-            <span class="eyebrow">إدارة الطلاب</span>
-            <h3>${this.escape(title)}</h3>
-            <p>
-              إدارة ملفات الطلاب والبيانات الأساسية والحالة.
-              <strong>عدد السجلات: ${students.length}</strong>
-            </p>
-          </div>
+        <div class="students-page">
 
-          <button
-            class="primary-button"
-            type="button"
-            id="student-new"
-          >
-            إضافة طالب
-          </button>
-        </div>
-
-        <div class="card">
-          <div style="display:grid;grid-template-columns:minmax(0,1fr) 180px auto;gap:10px;align-items:end;">
-            <div>
-              <label for="student-search">بحث</label>
-              <input
-                id="student-search"
-                class="form-input"
-                type="search"
-                placeholder="الاسم أو الكود أو الهاتف..."
-                autocomplete="off"
-              >
+          <div class="students-page-header">
+            <div class="students-page-title">
+              <span class="eyebrow">إدارة الطلاب</span>
+              <h3>${this.escape(title)}</h3>
+              <p>
+                إدارة ملفات الطلاب والبيانات الأساسية والحالة.
+              </p>
             </div>
 
-            <div>
-              <label for="student-status-filter">الحالة</label>
-              <select
-                id="student-status-filter"
-                class="form-input"
+            <div class="students-page-actions">
+              <div class="students-count">
+                عدد السجلات:
+                <strong>${students.length}</strong>
+              </div>
+
+              <button
+                class="primary-button students-add-button"
+                type="button"
+                id="student-new"
               >
-                <option value="">كل الحالات</option>
-                <option value="active">نشط</option>
-                <option value="inactive">غير نشط</option>
-                <option value="suspended">موقوف</option>
-                <option value="graduated">متخرج</option>
-                <option value="deleted">محذوف</option>
-              </select>
+                ＋ إضافة طالب
+              </button>
+            </div>
+          </div>
+
+          <div class="card students-filters-card">
+            <div class="students-filters">
+
+              <div class="students-filter-field students-search-field">
+                <label for="student-search">بحث عن طالب</label>
+                <input
+                  id="student-search"
+                  class="form-input"
+                  type="search"
+                  placeholder="الاسم أو الكود أو الهاتف..."
+                  autocomplete="off"
+                >
+              </div>
+
+              <div class="students-filter-field">
+                <label for="student-status-filter">حالة الطالب</label>
+                <select
+                  id="student-status-filter"
+                  class="form-input"
+                >
+                  <option value="">كل الحالات</option>
+                  <option value="active">نشط</option>
+                  <option value="inactive">غير نشط</option>
+                  <option value="suspended">موقوف</option>
+                  <option value="graduated">متخرج</option>
+                  <option value="deleted">محذوف</option>
+                </select>
+              </div>
+
+              <button
+                class="secondary-button students-search-button"
+                type="button"
+                id="student-search-button"
+              >
+                بحث
+              </button>
+
+            </div>
+          </div>
+
+          <div id="student-form-container" style="display:none;"></div>
+
+          <div class="card students-table-card">
+
+            <div class="students-table-heading">
+              <div>
+                <span class="eyebrow">قائمة الطلاب</span>
+                <h4>الطلاب المسجلون</h4>
+              </div>
+
+              <span class="students-table-count">
+                ${students.length} طالب
+              </span>
             </div>
 
-            <button
-              class="secondary-button"
-              type="button"
-              id="student-search-button"
-            >
-              بحث
-            </button>
-          </div>
-        </div>
+            ${
+              students.length
+                ? `
+                  <div class="table-wrap students-desktop-table">
+                    <table class="data-table students-table">
+                      <thead>
+                        <tr>
+                          <th>الاسم</th>
+                          <th>الكود</th>
+                          <th>الهاتف</th>
+                          <th>ولي الأمر</th>
+                          <th>المستوى</th>
+                          <th>الحالة</th>
+                          <th>إجراء</th>
+                        </tr>
+                      </thead>
 
-        <div id="student-form-container" style="display:none;"></div>
+                      <tbody>
+                        ${students.map((student) => `
+                          <tr>
+                            <td class="student-name-cell">
+                              ${this.escape(student.full_name || "—")}
+                            </td>
 
-        <div class="table-wrap">
-          ${
-            students.length
-              ? `
-                <table class="data-table">
-                  <thead>
-                    <tr>
-                      <th>الاسم</th>
-                      <th>الكود</th>
-                      <th>الهاتف</th>
-                      <th>ولي الأمر</th>
-                      <th>المستوى</th>
-                      <th>الحالة</th>
-                      <th>إجراء</th>
-                    </tr>
-                  </thead>
+                            <td class="student-code-cell">
+                              ${this.escape(student.student_code || "—")}
+                            </td>
 
-                  <tbody>
+                            <td>
+                              ${this.escape(student.phone || "—")}
+                            </td>
+
+                            <td>
+                              ${this.escape(student.guardian_name || "—")}
+                            </td>
+
+                            <td>
+                              ${this.escape(student.educational_level || "—")}
+                            </td>
+
+                            <td>
+                              <span class="status-pill student-status-pill">
+                                ${this.escape(
+                                  statusLabels[student.status] ||
+                                  student.status ||
+                                  "—"
+                                )}
+                              </span>
+                            </td>
+
+                            <td class="student-action-cell">
+                              <button
+                                class="secondary-button student-edit-button"
+                                type="button"
+                                data-student-edit="${Number(student.id)}"
+                              >
+                                تعديل
+                              </button>
+                            </td>
+                          </tr>
+                        `).join("")}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div class="students-mobile-list">
                     ${students.map((student) => `
-                      <tr>
-                        <td>${this.escape(student.full_name || "—")}</td>
-                        <td>${this.escape(student.student_code || "—")}</td>
-                        <td>${this.escape(student.phone || "—")}</td>
-                        <td>${this.escape(student.guardian_name || "—")}</td>
-                        <td>${this.escape(student.educational_level || "—")}</td>
-                        <td>
-                          <span class="status-pill">
+                      <article class="student-mobile-card">
+
+                        <div class="student-mobile-card-header">
+                          <div class="student-mobile-identity">
+                            <div class="student-mobile-avatar">
+                              ${this.escape(
+                                String(student.full_name || "ط").trim().charAt(0) || "ط"
+                              )}
+                            </div>
+
+                            <div class="student-mobile-name">
+                              <h4>
+                                ${this.escape(student.full_name || "—")}
+                              </h4>
+
+                              <span>
+                                ${this.escape(student.student_code || "—")}
+                              </span>
+                            </div>
+                          </div>
+
+                          <span class="status-pill student-status-pill">
                             ${this.escape(
                               statusLabels[student.status] ||
                               student.status ||
                               "—"
                             )}
                           </span>
-                        </td>
-                        <td>
-                          <button
-                            class="secondary-button"
-                            type="button"
-                            data-student-edit="${Number(student.id)}"
-                          >
-                            تعديل
-                          </button>
-                        </td>
-                      </tr>
+                        </div>
+
+                        <div class="student-mobile-details">
+
+                          <div class="student-mobile-detail">
+                            <span>الهاتف</span>
+                            <strong>
+                              ${this.escape(student.phone || "—")}
+                            </strong>
+                          </div>
+
+                          <div class="student-mobile-detail">
+                            <span>ولي الأمر</span>
+                            <strong>
+                              ${this.escape(student.guardian_name || "—")}
+                            </strong>
+                          </div>
+
+                          <div class="student-mobile-detail">
+                            <span>المستوى</span>
+                            <strong>
+                              ${this.escape(student.educational_level || "—")}
+                            </strong>
+                          </div>
+
+                        </div>
+
+                        <button
+                          class="primary-button student-mobile-edit"
+                          type="button"
+                          data-student-edit="${Number(student.id)}"
+                        >
+                          تعديل بيانات الطالب
+                        </button>
+
+                      </article>
                     `).join("")}
-                  </tbody>
-                </table>
-              `
-              : `
-                <div class="empty-state">
-                  <div class="empty-icon">✦</div>
-                  <h3>لا توجد بيانات</h3>
-                  <p>لا توجد سجلات طلاب مطابقة للبحث الحالي.</p>
-                </div>
-              `
-          }
+                  </div>
+                `
+                : `
+                  <div class="empty-state students-empty-state">
+                    <div class="empty-icon">✦</div>
+                    <h3>لا توجد بيانات</h3>
+                    <p>لا توجد سجلات طلاب مطابقة للبحث الحالي.</p>
+                  </div>
+                `
+            }
+
+          </div>
         </div>
       `;
 
@@ -7835,13 +7946,7 @@ export class App {
         </div>
 
         <form id="student-form" class="student-form">
-          <div
-            style="
-              display:grid;
-              grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
-              gap:12px;
-            "
-          >
+          <div class="student-form-fields">
             <div>
               <label for="student-full-name">اسم الطالب *</label>
               <input
@@ -7996,7 +8101,7 @@ export class App {
               </select>
             </div>
 
-            <div style="grid-column:1/-1;">
+            <div class="student-form-full">
               <label for="student-address">العنوان</label>
               <input
                 id="student-address"
@@ -8007,7 +8112,7 @@ export class App {
               >
             </div>
 
-            <div style="grid-column:1/-1;">
+            <div class="student-form-full">
               <label for="student-notes">ملاحظات</label>
               <textarea
                 id="student-notes"
@@ -8020,17 +8125,10 @@ export class App {
 
           <div
             id="student-form-message"
-            style="margin-top:12px;"
+            class="student-form-message"
           ></div>
 
-          <div
-            style="
-              display:flex;
-              gap:10px;
-              margin-top:16px;
-              flex-wrap:wrap;
-            "
-          >
+          <div class="student-form-actions">
             <button
               class="primary-button"
               type="submit"

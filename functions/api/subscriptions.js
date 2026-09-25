@@ -1,4 +1,8 @@
 import { requirePermission } from "./_auth.js";
+
+import {
+  createSubscriptionWithEntitlement,
+} from "./_workflow.js";
 /**
  * الأوَّابين — Subscriptions API
  *
@@ -921,35 +925,10 @@ export async function onRequestPost(
       );
     }
 
-    const created =
-      await db
-        .prepare(`
-          INSERT INTO subscriptions (
-            student_id,
-            package_id,
-            circle_id,
-            start_date,
-            end_date,
-            status,
-            trial_ends_at,
-            notes,
-            created_at,
-            updated_at
-          )
-          VALUES (
-            ?1,
-            ?2,
-            ?3,
-            ?4,
-            ?5,
-            ?6,
-            ?7,
-            ?8,
-            ?9,
-            ?9
-          )
-        `)
-        .bind(
+    const subscription =
+      await createSubscriptionWithEntitlement(
+        db,
+        {
           studentId,
           packageId,
           circleId,
@@ -958,18 +937,17 @@ export async function onRequestPost(
           status,
           trialEndsAt,
           notes,
-          now()
-        )
-        .run();
-
-    const subscriptionId =
-      created.meta
-        ?.last_row_id;
+          packageData: pkg,
+          createdBy:
+            permission.user?.id ??
+            null,
+        }
+      );
 
     const row =
       await getSubscription(
         db,
-        subscriptionId
+        subscription.id
       );
 
     return json(

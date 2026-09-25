@@ -1996,3 +1996,1117 @@ button {
   }
 }
 
+
+
+/* =========================================================
+   AL-AWABIN — GLOBAL MOBILE UI SYSTEM
+   Unified responsive layer
+   ========================================================= */
+
+/* ---------- Global safety ---------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+button,
+input,
+select,
+textarea {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+}
+
+
+/* ---------- Main application shell ---------- */
+
+.app-shell,
+.app-main,
+.page-content,
+.content,
+.main-content {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.page-content {
+  overflow-x: hidden;
+}
+
+.card,
+.content-card,
+.stat-card,
+.feature-card,
+.report-card,
+.schedule-toolbar,
+.schedule-summary > div,
+.schedule-session,
+.schedule-leave {
+  min-width: 0;
+  max-width: 100%;
+}
+
+
+/* ---------- Headings ---------- */
+
+.section-heading,
+.section-header {
+  min-width: 0;
+}
+
+.section-heading > *,
+.section-header > * {
+  min-width: 0;
+}
+
+.section-heading h1,
+.section-heading h2,
+.section-heading h3,
+.section-heading h4,
+.section-header h1,
+.section-header h2,
+.section-header h3,
+.section-header h4 {
+  overflow-wrap: anywhere;
+  word-break: normal;
+  line-height: 1.5;
+}
+
+.section-heading p,
+.section-header p {
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+
+
+/* ---------- Forms ---------- */
+
+.form-input,
+input.form-input,
+select.form-input,
+textarea.form-input {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+label {
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+}
+
+form {
+  min-width: 0;
+  max-width: 100%;
+}
+
+form > div {
+  min-width: 0;
+}
+
+
+/* ---------- Buttons ---------- */
+
+.primary-button,
+.secondary-button,
+button {
+  max-width: 100%;
+  line-height: 1.45;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.primary-button,
+.secondary-button {
+  min-height: 40px;
+}
+
+
+/* ---------- Generic grids ---------- */
+
+@media (max-width: 900px) {
+
+  .content-card,
+  .card {
+    width: 100%;
+  }
+
+  .feature-grid,
+  .statistics-grid {
+    width: 100%;
+  }
+
+}
+
+
+/* =========================================================
+   TABLES
+   ========================================================= */
+
+.table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto !important;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 12px;
+}
+
+.data-table {
+  width: 100%;
+  max-width: none;
+}
+
+.data-table th,
+.data-table td {
+  line-height: 1.6;
+}
+
+.data-table td {
+  overflow-wrap: anywhere;
+}
+
+.data-table .secondary-button,
+.data-table button {
+  white-space: nowrap;
+  min-width: 72px;
+}
+
+@media (max-width: 700px) {
+
+  .table-wrap {
+    margin-inline: 0;
+  }
+
+  .data-table {
+    min-width: 620px;
+  }
+
+  .data-table th,
+  .data-table td {
+    padding: 10px;
+    font-size: 13px;
+  }
+
+}
+
+
+/* =========================================================
+   MOBILE — GENERAL
+   ========================================================= */
+
+@media (max-width: 600px) {
+
+  body {
+    font-size: 14px;
+  }
+
+  .page-content {
+    width: 100%;
+    padding: 12px !important;
+  }
+
+  .content-card,
+  .card {
+    padding: 14px !important;
+    border-radius: 13px;
+  }
+
+  .section-heading {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 11px;
+    margin-bottom: 15px;
+  }
+
+  .section-heading > button,
+  .section-heading > .primary-button,
+  .section-heading > .secondary-button {
+    width: 100%;
+  }
+
+  .section-heading h2,
+  .section-heading h3 {
+    font-size: 17px;
+  }
+
+  .section-heading p {
+    font-size: 12px;
+  }
+
+  .primary-button,
+  .secondary-button {
+    min-height: 44px;
+  }
+
+  .empty-state {
+    padding: 32px 14px;
+  }
+
+}
+
+
+/* =========================================================
+   INLINE GRID OVERRIDE
+   Many modules use grid-template-columns directly in HTML.
+   ========================================================= */
+
+@media (max-width: 600px) {
+
+  .content-card [style*="grid-template-columns"],
+  .card [style*="grid-template-columns"] {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .content-card [style*="grid-template-columns:1fr 1fr"],
+  .card [style*="grid-template-columns:1fr 1fr"] {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .content-card [style*="repeat(2"],
+  .content-card [style*="repeat(3"],
+  .content-card [style*="repeat(4"],
+  .card [style*="repeat(2"],
+  .card [style*="repeat(3"],
+  .card [style*="repeat(4"] {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+}
+
+
+/* =========================================================
+   SEARCH / FILTER AREAS
+   ========================================================= */
+
+@media (max-width: 600px) {
+
+  .search-bar,
+  .filter-bar,
+  .filters,
+  .toolbar,
+  .students-filters,
+  .schedule-toolbar-group {
+    grid-template-columns: minmax(0, 1fr) !important;
+    width: 100%;
+  }
+
+  .search-bar > *,
+  .filter-bar > *,
+  .filters > *,
+  .toolbar > *,
+  .students-filters > *,
+  .schedule-toolbar-group > * {
+    width: 100%;
+    min-width: 0;
+  }
+
+}
+
+
+/* =========================================================
+   SCHEDULE
+   ========================================================= */
+
+@media (max-width: 600px) {
+
+  .schedule-toolbar {
+    padding: 13px;
+  }
+
+  .schedule-toolbar-group {
+    gap: 10px;
+  }
+
+  .schedule-summary {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .schedule-summary > div {
+    padding: 13px;
+  }
+
+  .schedule-session {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 10px;
+    padding: 13px;
+  }
+
+  .schedule-session-main {
+    min-width: 0;
+  }
+
+  .schedule-day-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .schedule-view-buttons {
+    width: 100%;
+  }
+
+  .schedule-view-buttons button {
+    flex: 1 1 auto;
+    min-height: 42px;
+  }
+
+}
+
+
+/* =========================================================
+   REPORT CARDS / STAT CARDS
+   ========================================================= */
+
+.report-card,
+.stat-card {
+  min-width: 0;
+}
+
+.report-card-body,
+.report-card-label,
+.report-card-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 600px) {
+
+  .report-card,
+  .stat-card {
+    padding: 13px !important;
+  }
+
+  .report-card-value,
+  .stat-card strong {
+    font-size: 22px;
+    overflow-wrap: anywhere;
+  }
+
+}
+
+
+/* =========================================================
+   FEATURE CARDS
+   ========================================================= */
+
+@media (max-width: 600px) {
+
+  .feature-card {
+    padding: 14px;
+  }
+
+  .feature-card p {
+    min-height: 0;
+  }
+
+}
+
+
+/* =========================================================
+   LIVE BOARD
+   Keep canvas usable instead of forcing it to collapse.
+   ========================================================= */
+
+@media (max-width: 600px) {
+
+  .aw-board {
+    padding: 10px;
+    border-radius: 14px;
+  }
+
+  .aw-board-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .aw-board-toolbar,
+  .aw-board-pages {
+    width: 100%;
+  }
+
+  .aw-board-toolbar button,
+  .aw-board-pages button {
+    min-height: 40px;
+  }
+
+  .aw-board-canvas {
+    min-height: 420px;
+    width: 100%;
+  }
+
+}
+
+
+/* =========================================================
+   MODALS / DIALOG-LIKE CARDS
+   ========================================================= */
+
+@media (max-width: 600px) {
+
+  .modal,
+  .modal-content,
+  .dialog,
+  .dialog-content,
+  [role="dialog"] {
+    max-width: calc(100vw - 24px);
+  }
+
+  .sponsorship-modal-card {
+    width: 100%;
+    max-width: 100%;
+    margin: 12px 0 !important;
+  }
+
+}
+
+
+/* =========================================================
+   MOBILE TOPBAR
+   ========================================================= */
+
+@media (max-width: 600px) {
+
+  .topbar {
+    min-width: 0;
+  }
+
+  .topbar > * {
+    min-width: 0;
+  }
+
+  .topbar-title,
+  .topbar h1,
+  .topbar h2,
+  .topbar h3 {
+    overflow-wrap: anywhere;
+  }
+
+}
+
+
+/* =========================================================
+   STUDENTS / MANAGEMENT PAGES
+   ========================================================= */
+
+@media (max-width: 600px) {
+
+  .students-page {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .students-page-header {
+    width: 100%;
+  }
+
+  .students-page-title {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .students-page-title h3,
+  .students-page-title p {
+    overflow-wrap: anywhere;
+  }
+
+  .students-add-button {
+    width: 100%;
+  }
+
+  .students-table-card {
+    width: 100%;
+    max-width: 100%;
+  }
+
+}
+
+
+/* =========================================================
+   FORM GRIDS
+   ========================================================= */
+
+@media (max-width: 600px) {
+
+  .student-form,
+  .student-form > div {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .student-form input,
+  .student-form select,
+  .student-form textarea {
+    width: 100%;
+    min-width: 0;
+  }
+
+}
+
+
+/* =========================================================
+   LONG TEXT / ARABIC CONTENT
+   ========================================================= */
+
+p,
+span,
+strong,
+small,
+label,
+td,
+th,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  overflow-wrap: anywhere;
+}
+
+.status-pill {
+  max-width: 100%;
+}
+
+
+/* =========================================================
+   VERY SMALL PHONES
+   ========================================================= */
+
+@media (max-width: 380px) {
+
+  .page-content {
+    padding: 9px !important;
+  }
+
+  .content-card,
+  .card {
+    padding: 12px !important;
+  }
+
+  .section-heading h2,
+  .section-heading h3 {
+    font-size: 16px;
+  }
+
+  .primary-button,
+  .secondary-button {
+    width: 100%;
+  }
+
+  .data-table {
+    min-width: 580px;
+  }
+
+}
+
+
+/* =========================================================
+   PREVENT HORIZONTAL PAGE ESCAPE
+   ========================================================= */
+
+@media (max-width: 900px) {
+
+  .page-content > *,
+  .content-card > *,
+  .card > * {
+    max-width: 100%;
+  }
+
+  pre,
+  code {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+}
+
+/* =========================================================
+   AL-AWABIN — STUDENTS MANAGEMENT UI
+   Desktop table + mobile cards
+   ========================================================= */
+
+.students-page {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.students-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 16px;
+  min-width: 0;
+}
+
+.students-page-title {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.students-page-title h3 {
+  margin: 5px 0 7px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.students-page-title p {
+  margin: 0;
+  line-height: 1.8;
+  color: var(--muted, #6b7280);
+  overflow-wrap: anywhere;
+}
+
+.students-page-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 0 0 auto;
+}
+
+.students-count {
+  padding: 9px 12px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 10px;
+  background: var(--surface, #fff);
+  white-space: nowrap;
+}
+
+.students-count strong {
+  margin-inline-start: 4px;
+}
+
+.students-add-button {
+  min-width: 130px;
+}
+
+.students-filters-card {
+  margin-bottom: 16px;
+}
+
+.students-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 190px 100px;
+  gap: 12px;
+  align-items: end;
+}
+
+.students-filter-field {
+  min-width: 0;
+}
+
+.students-filter-field label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.students-search-button {
+  width: 100%;
+  min-height: 42px;
+}
+
+.students-table-card {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.students-table-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  min-width: 0;
+}
+
+.students-table-heading h4 {
+  margin: 4px 0 0;
+  line-height: 1.5;
+}
+
+.students-table-count {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border-radius: 9px;
+  background: rgba(124, 58, 237, 0.08);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.students-table {
+  min-width: 760px;
+}
+
+.students-table th,
+.students-table td {
+  vertical-align: middle;
+  line-height: 1.65;
+}
+
+.student-name-cell {
+  min-width: 190px;
+  font-weight: 600;
+}
+
+.student-code-cell {
+  min-width: 170px;
+  direction: ltr;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.student-action-cell {
+  min-width: 105px;
+}
+
+.student-edit-button {
+  min-width: 82px;
+  white-space: nowrap;
+}
+
+.student-status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 58px;
+  white-space: nowrap;
+}
+
+.students-mobile-list {
+  display: none;
+}
+
+.student-mobile-card {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 14px;
+  background: var(--surface, #fff);
+}
+
+.student-mobile-card + .student-mobile-card {
+  margin-top: 12px;
+}
+
+.student-mobile-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.student-mobile-identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.student-mobile-avatar {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(124, 58, 237, 0.10);
+  font-weight: 700;
+  font-size: 17px;
+}
+
+.student-mobile-name {
+  min-width: 0;
+}
+
+.student-mobile-name h4 {
+  margin: 0 0 3px;
+  line-height: 1.5;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+
+.student-mobile-name span {
+  display: block;
+  direction: ltr;
+  text-align: right;
+  font-size: 12px;
+  color: var(--muted, #6b7280);
+  overflow-wrap: anywhere;
+}
+
+.student-mobile-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.student-mobile-detail {
+  min-width: 0;
+  padding: 9px 10px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.025);
+}
+
+.student-mobile-detail span {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 11px;
+  color: var(--muted, #6b7280);
+}
+
+.student-mobile-detail strong {
+  display: block;
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.student-mobile-edit {
+  width: 100%;
+  margin-top: 13px;
+  min-height: 44px;
+}
+
+.students-empty-state {
+  margin: 0;
+}
+
+@media (max-width: 800px) {
+  .students-page-header {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .students-page-actions {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .students-count {
+    text-align: center;
+  }
+
+  .students-add-button {
+    width: 100%;
+  }
+
+  .students-filters {
+    grid-template-columns: minmax(0, 1fr) 170px;
+  }
+
+  .students-search-button {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 600px) {
+  .students-page-header {
+    margin-bottom: 13px;
+  }
+
+  .students-page-title h3 {
+    font-size: 18px;
+  }
+
+  .students-page-title p {
+    font-size: 13px;
+  }
+
+  .students-filters {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 11px;
+  }
+
+  .students-search-button {
+    grid-column: auto;
+  }
+
+  .students-table-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .students-desktop-table {
+    display: none;
+  }
+
+  .students-mobile-list {
+    display: block;
+  }
+
+  .students-table-card {
+    padding: 13px !important;
+  }
+
+  .student-mobile-card-header {
+    gap: 8px;
+  }
+
+  .student-mobile-details {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 380px) {
+  .student-mobile-card {
+    padding: 12px;
+  }
+
+  .student-mobile-avatar {
+    width: 38px;
+    height: 38px;
+    flex-basis: 38px;
+  }
+
+  .student-mobile-name h4 {
+    font-size: 14px;
+  }
+
+  .student-mobile-name span {
+    font-size: 11px;
+  }
+}
+
+/* =========================================================
+   AL-AWABIN — STUDENT FORM FINAL RESPONSIVE LAYOUT
+   ========================================================= */
+
+.student-form-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  width: 100%;
+  min-width: 0;
+}
+
+.student-form-fields > div {
+  min-width: 0;
+  width: 100%;
+}
+
+.student-form-full {
+  grid-column: 1 / -1;
+}
+
+.student-form-fields label {
+  display: block;
+  margin: 0 0 7px;
+  line-height: 1.55;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.student-form-fields input,
+.student-form-fields select,
+.student-form-fields textarea {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.student-form-fields select {
+  white-space: normal;
+}
+
+.student-form-fields textarea {
+  min-height: 110px;
+  resize: vertical;
+}
+
+.student-form-message {
+  margin-top: 12px;
+  min-width: 0;
+}
+
+.student-form-actions {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.student-form-actions button {
+  min-height: 46px;
+  min-width: 130px;
+}
+
+@media (max-width: 700px) {
+  .student-form-fields {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .student-form-full {
+    grid-column: auto;
+  }
+
+  .student-form-fields input,
+  .student-form-fields select,
+  .student-form-fields textarea {
+    min-height: 48px;
+    font-size: 15px;
+  }
+
+  .student-form-fields textarea {
+    min-height: 115px;
+  }
+
+  .student-form-actions {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .student-form-actions button {
+    width: 100%;
+    min-height: 48px;
+  }
+}
+
+@media (max-width: 420px) {
+  .student-form-fields {
+    gap: 12px;
+  }
+
+  .student-form-fields input,
+  .student-form-fields select,
+  .student-form-fields textarea {
+    min-height: 46px;
+    padding: 9px 11px;
+    font-size: 14px;
+  }
+
+  .student-form-actions {
+    margin-top: 14px;
+  }
+}

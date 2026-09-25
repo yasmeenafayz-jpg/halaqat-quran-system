@@ -1,4 +1,8 @@
 import { requirePermission } from "./_auth.js";
+
+import {
+  getEnrollmentCoverage,
+} from "./_workflow.js";
 /**
  * الأوَّابين — Enrollment API
  *
@@ -499,6 +503,51 @@ async function promoteNextStudent(
       circleId
     );
 
+    return null;
+  }
+
+  /*
+   * لا تتم ترقية الطالب من الانتظار إلى المقعد
+   * إلا إذا كانت لديه تغطية مالية واستحقاق صالح.
+   *
+   * إذا لم تتوفر التغطية:
+   * - يظل في الانتظار.
+   * - لا ننشئ enrollment.
+   * - لا نغير ترتيب الانتظار.
+   */
+  const packageId =
+    validId(
+      circle.package_id
+    );
+
+  const packageData =
+    await getPackage(
+      db,
+      packageId
+    );
+
+  const packageCheck =
+    validateCirclePackage(
+      circle,
+      packageData
+    );
+
+  if (!packageCheck.valid) {
+    return null;
+  }
+
+  const coverage =
+    await getEnrollmentCoverage(
+      db,
+      {
+        studentId:
+          next.student_id,
+        circleId,
+        packageId,
+      }
+    );
+
+  if (!coverage.eligible) {
     return null;
   }
 
@@ -1056,6 +1105,25 @@ export async function onRequestPost(
       );
     }
 
+    /*
+     * نحدد حالة التسجيل أولًا.
+     * التغطية المالية لا تُفحص قبل الـ waitlist،
+     * لأن الطالب الذي لا يملك مقعدًا لا يحتاج
+     * إلى شغل entitlement أثناء الانتظار.
+     */
+    const requestedStatus =
+      text(data.status) || "active";
+
+    if (
+      !ENROLLMENT_STATUSES.includes(
+        requestedStatus
+      )
+    ) {
+      return error(
+        "INVALID_ENROLLMENT_STATUS"
+      );
+    }
+
     const existing =
       await getEnrollment(
         db,
@@ -1117,6 +1185,32 @@ export async function onRequestPost(
       );
     }
 
+    /*
+     * بعد التأكد من أن الطالب سيشغل مقعدًا فعليًا،
+     * نتحقق من وجود اشتراك فعال/تجريبي
+     * واستحقاق صالح غير مستنفد.
+     */
+    if (
+      requestedStatus === "active"
+    ) {
+      const coverage =
+        await getEnrollmentCoverage(
+          db,
+          {
+            studentId,
+            circleId,
+            packageId,
+          }
+        );
+
+      if (!coverage.eligible) {
+        return error(
+          coverage.reason,
+          409
+        );
+      }
+    }
+
     const startDate =
       text(
         data.start_date ??
@@ -1124,19 +1218,7 @@ export async function onRequestPost(
       ) || today();
 
     const status =
-      text(
-        data.status
-      ) || "active";
-
-    if (
-      !ENROLLMENT_STATUSES.includes(
-        status
-      )
-    ) {
-      return error(
-        "INVALID_ENROLLMENT_STATUS"
-      );
-    }
+      requestedStatus;
 
     const joinedVia =
       text(
@@ -1442,6 +1524,34 @@ export async function onRequestPatch(
         );
       }
 
+      /*
+       * لا نسمح بتحويل enrollment غير الفعال
+       * إلى active بدون تغطية مالية واستحقاق صالح.
+       */
+      const packageId =
+        validId(
+          circle.package_id
+        );
+
+      const packageData =
+        await getPackage(
+          db,
+          packageId
+        );
+
+      const packageCheck =
+        validateCirclePackage(
+          circle,
+          packageData
+        );
+
+      if (!packageCheck.valid) {
+        return error(
+          packageCheck.error,
+          409
+        );
+      }
+
       const capacityCheck =
         await canAddStudentToCircle(
           db,
@@ -1478,6 +1588,29 @@ export async function onRequestPatch(
 
         return error(
           "CIRCLE_IS_FULL",
+          409
+        );
+      }
+
+      /*
+       * بعد التأكد من وجود مقعد فعلي،
+       * نتحقق من الاشتراك والاستحقاق.
+       */
+      const coverage =
+        await getEnrollmentCoverage(
+          db,
+          {
+            studentId:
+              current.student_id,
+            circleId:
+              current.circle_id,
+            packageId,
+          }
+        );
+
+      if (!coverage.eligible) {
+        return error(
+          coverage.reason,
           409
         );
       }
