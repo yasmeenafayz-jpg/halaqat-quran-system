@@ -3110,3 +3110,382 @@ h6 {
     margin-top: 14px;
   }
 }
+
+/* =========================================================
+   AL-AWABIN — LOGIN EXPERIENCE
+   UI ONLY — authentication logic unchanged
+   ========================================================= */
+
+.aw-login-page {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100svh;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 28px 18px;
+  box-sizing: border-box;
+  background:
+    radial-gradient(circle at 15% 15%, rgba(154, 113, 173, .12), transparent 34%),
+    radial-gradient(circle at 85% 85%, rgba(213, 171, 116, .10), transparent 32%),
+    linear-gradient(145deg, #fbf8f4 0%, #f6f0f7 48%, #faf7f1 100%);
+  color: #342b38;
+}
+
+.aw-login-page::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: .32;
+  background-image:
+    radial-gradient(circle at 25% 25%, rgba(111, 78, 126, .08) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 75% 65%, rgba(184, 142, 88, .07) 0 1px, transparent 1.5px);
+  background-size: 38px 38px, 52px 52px;
+}
+
+.aw-login-glow {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(2px);
+  pointer-events: none;
+}
+
+.aw-login-glow-one {
+  width: 260px;
+  height: 260px;
+  top: -120px;
+  right: -100px;
+  background: rgba(119, 79, 137, .10);
+}
+
+.aw-login-glow-two {
+  width: 220px;
+  height: 220px;
+  bottom: -110px;
+  left: -90px;
+  background: rgba(194, 148, 91, .09);
+}
+
+.aw-login-shell {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 450px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.aw-login-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 13px;
+  margin-bottom: 22px;
+  text-align: right;
+}
+
+.aw-login-mark {
+  width: 58px;
+  height: 58px;
+  flex: 0 0 58px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background: linear-gradient(145deg, #765082, #9b719f);
+  color: #fff;
+  box-shadow:
+    0 12px 28px rgba(92, 60, 104, .20),
+    inset 0 1px 0 rgba(255,255,255,.25);
+  transform: rotate(-3deg);
+}
+
+.aw-login-mark span {
+  font-family: "Amiri", "Noto Naskh Arabic", serif;
+  font-size: 31px;
+  font-weight: 700;
+  transform: rotate(3deg);
+}
+
+.aw-login-brand-name {
+  color: #5f3f6d;
+  font-family: "Amiri", "Noto Naskh Arabic", serif;
+  font-size: 31px;
+  line-height: 1.05;
+  font-weight: 700;
+}
+
+.aw-login-brand-subtitle {
+  margin-top: 4px;
+  color: #8a7a8e;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.aw-login-card {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 32px 30px 25px;
+  border: 1px solid rgba(119, 79, 137, .13);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, .88);
+  box-shadow:
+    0 24px 65px rgba(72, 49, 79, .13),
+    0 4px 14px rgba(72, 49, 79, .05);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.aw-login-intro {
+  text-align: center;
+}
+
+.aw-login-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(119, 79, 137, .08);
+  color: #795381;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.aw-login-intro h1 {
+  margin: 12px 0 7px;
+  color: #342b38;
+  font-family: "Amiri", "Noto Naskh Arabic", serif;
+  font-size: 29px;
+  line-height: 1.25;
+}
+
+.aw-login-intro p {
+  margin: 0;
+  color: #887b8b;
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.aw-login-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 21px 0 22px;
+}
+
+.aw-login-divider span {
+  height: 1px;
+  flex: 1;
+  background: linear-gradient(90deg, transparent, rgba(119,79,137,.16));
+}
+
+.aw-login-divider span:last-child {
+  background: linear-gradient(90deg, rgba(119,79,137,.16), transparent);
+}
+
+.aw-login-divider b {
+  color: #b08a5c;
+  font-size: 13px;
+}
+
+.aw-login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 17px;
+}
+
+.aw-login-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.aw-login-field label {
+  color: #4a3b4f;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.aw-login-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.aw-login-input-icon {
+  position: absolute;
+  right: 14px;
+  z-index: 1;
+  color: #9b759f;
+  font-size: 13px;
+  pointer-events: none;
+}
+
+.aw-login-input-wrap input {
+  width: 100%;
+  min-height: 52px;
+  box-sizing: border-box;
+  padding: 0 42px 0 14px;
+  border: 1px solid #e4dce7;
+  border-radius: 15px;
+  outline: none;
+  background: #fcfafc;
+  color: #342b38;
+  font-family: inherit;
+  font-size: 14px;
+  transition:
+    border-color .18s ease,
+    box-shadow .18s ease,
+    background .18s ease;
+}
+
+.aw-login-input-wrap input::placeholder {
+  color: #b3a8b5;
+}
+
+.aw-login-input-wrap input:focus {
+  border-color: #98709f;
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(119,79,137,.09);
+}
+
+.aw-login-submit {
+  width: 100%;
+  min-height: 54px;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  border: 0;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #70487d, #96699b);
+  color: #fff;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 12px 25px rgba(112,72,125,.22);
+  transition: transform .18s ease, box-shadow .18s ease, filter .18s ease;
+}
+
+.aw-login-submit:hover {
+  filter: brightness(1.03);
+  box-shadow: 0 15px 30px rgba(112,72,125,.26);
+}
+
+.aw-login-submit:active {
+  transform: translateY(1px);
+}
+
+.aw-login-arrow {
+  font-size: 19px;
+  line-height: 1;
+}
+
+.aw-login-error {
+  margin: 0;
+  border-radius: 12px;
+  padding: 10px 12px;
+  line-height: 1.7;
+}
+
+.aw-login-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 22px;
+  color: #9a899d;
+  font-family: "Amiri", "Noto Naskh Arabic", serif;
+  font-size: 13px;
+  text-align: center;
+}
+
+.aw-login-note span:first-child,
+.aw-login-note span:last-child {
+  color: #b08a5c;
+  font-size: 10px;
+}
+
+.aw-login-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 18px;
+  color: #988b9b;
+  font-size: 11px;
+}
+
+.aw-login-footer span:first-child {
+  color: #75517d;
+  font-weight: 800;
+}
+
+.aw-login-footer-dot {
+  color: #c09b70;
+}
+
+@media (max-width: 520px) {
+  .aw-login-page {
+    padding: 20px 14px;
+  }
+
+  .aw-login-card {
+    padding: 27px 20px 22px;
+    border-radius: 24px;
+  }
+
+  .aw-login-brand {
+    margin-bottom: 18px;
+  }
+
+  .aw-login-mark {
+    width: 51px;
+    height: 51px;
+    flex-basis: 51px;
+    border-radius: 16px;
+  }
+
+  .aw-login-brand-name {
+    font-size: 27px;
+  }
+
+  .aw-login-intro h1 {
+    font-size: 26px;
+  }
+}
+
+@media (max-width: 360px) {
+  .aw-login-page {
+    padding: 14px 10px;
+  }
+
+  .aw-login-card {
+    padding: 23px 15px 19px;
+  }
+
+  .aw-login-brand-name {
+    font-size: 24px;
+  }
+
+  .aw-login-brand-subtitle {
+    font-size: 10px;
+  }
+
+  .aw-login-input-wrap input {
+    min-height: 49px;
+    font-size: 13px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aw-login-submit,
+  .aw-login-input-wrap input {
+    transition: none;
+  }
+}
+

@@ -14480,40 +14480,91 @@ export class App {
 
   renderLogin(message = "") {
     this.root.innerHTML = `
-      <main class="auth-page" dir="rtl">
-        <div class="auth-brand">
-          <div class="brand-mark large">أ</div>
-          <div>
-            <strong>الأوَّابين</strong>
-            <span>أكاديمية القرآن والتعليم</span>
+      <main class="aw-login-page" dir="rtl">
+        <div class="aw-login-glow aw-login-glow-one"></div>
+        <div class="aw-login-glow aw-login-glow-two"></div>
+
+        <section class="aw-login-shell">
+
+          <div class="aw-login-brand">
+            <div class="aw-login-mark" aria-hidden="true">
+              <span>أ</span>
+            </div>
+
+            <div class="aw-login-brand-text">
+              <div class="aw-login-brand-name">الأوَّابين</div>
+              <div class="aw-login-brand-subtitle">أكاديمية القرآن الكريم</div>
+            </div>
           </div>
-        </div>
 
-        <section class="auth-card">
-          <div class="auth-intro">
-            <span class="eyebrow">منصة الأوَّابين</span>
-            <h1>مرحبًا بك</h1>
-            <p>ادخل إلى مساحتك التعليمية الآمنة.</p>
-          </div>
+          <section class="aw-login-card">
 
-          ${message ? `<div class="error-message">${this.escape(message)}</div>` : ""}
+            <div class="aw-login-intro">
+              <span class="aw-login-eyebrow">مرحبًا بكِ</span>
+              <h1>تسجيل الدخول</h1>
+              <p>دخولك إلى مساحتك التعليمية في أكاديمية الأوَّابين</p>
+            </div>
 
-          <form id="login-form">
-            <label for="identifier">البريد الإلكتروني أو رقم الهاتف</label>
-            <input id="identifier" name="identifier" type="text" autocomplete="username" required>
+            <div class="aw-login-divider">
+              <span></span>
+              <b>✦</b>
+              <span></span>
+            </div>
 
-            <label for="password">كلمة المرور</label>
-            <input id="password" name="password" type="password" autocomplete="current-password" required>
+            <form id="login-form" class="aw-login-form">
 
-            <button class="primary-login" type="submit">دخول إلى الأكاديمية</button>
-            <p id="login-error" class="error-message" hidden></p>
-          </form>
+              <div class="aw-login-field">
+                <label for="identifier">اسم المستخدم أو البريد الإلكتروني</label>
+                <div class="aw-login-input-wrap">
+                  <span class="aw-login-input-icon" aria-hidden="true">◉</span>
+                  <input
+                    id="identifier"
+                    name="identifier"
+                    type="text"
+                    autocomplete="username"
+                    placeholder="اكتبي اسم المستخدم أو البريد الإلكتروني"
+                    required
+                  >
+                </div>
+              </div>
 
-          <div class="auth-footer">
-            <span>بيئة تعليمية آمنة</span>
-            <span>•</span>
-            <span>صلاحيات مخصصة</span>
-          </div>
+              <div class="aw-login-field">
+                <label for="password">كلمة المرور</label>
+                <div class="aw-login-input-wrap">
+                  <span class="aw-login-input-icon" aria-hidden="true">◆</span>
+                  <input
+                    id="password"
+                    name="password"
+                    type="password"
+                    autocomplete="current-password"
+                    placeholder="اكتبي كلمة المرور"
+                    required
+                  >
+                </div>
+              </div>
+
+              <button class="aw-login-submit primary-login" type="submit">
+                <span>دخول إلى الأكاديمية</span>
+                <span class="aw-login-arrow" aria-hidden="true">←</span>
+              </button>
+
+              <p id="login-error" class="error-message aw-login-error" hidden></p>
+            </form>
+
+            <div class="aw-login-note">
+              <span aria-hidden="true">✦</span>
+              <span>نسأل الله أن يجعل القرآن ربيع قلوبنا</span>
+              <span aria-hidden="true">✦</span>
+            </div>
+
+          </section>
+
+          <footer class="aw-login-footer">
+            <span>الأوَّابين</span>
+            <span class="aw-login-footer-dot">•</span>
+            <span>رفقة في طريق القرآن</span>
+          </footer>
+
         </section>
       </main>
     `;
